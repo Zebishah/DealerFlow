@@ -1,36 +1,19 @@
-// utils/logger.js
-
-const { logsRef, admin } = require("../config/firebaseAdmin");
-
-// Helper: Remove undefined + convert Error → plain object
-const sanitize = (obj) => {
-  return JSON.parse(
-    JSON.stringify(obj, (key, value) => (value === undefined ? null : value))
+// Compatibility logger for the legacy source parsers. The renovated API uses Pino.
+// Never persist browser state, page HTML, secrets, or stack traces here.
+function sanitize(value) {
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, item]) => item !== undefined && !/secret|token|password|cookie/i.test(key))
+      .map(([key, item]) => [key, item instanceof Error ? item.message : item]),
   );
-};
+}
 
-const logAsync = async (level, message, data = {}) => {
-  // Convert Error objects to plain objects and strip undefined
-  const safeData =
-    data instanceof Error
-      ? {
-          error: data.message,
-          name: data.name,
-          stack: data.stack?.split("\n").slice(0, 10).join("\n"),
-        }
-      : sanitize(data);
-
-  logsRef
-    .add({
-      level,
-      message,
-      data: safeData,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    })
-    .catch((err) => {
-      // Optional: fallback to console if Firestore is down
-      console.error("[Logger] Firestore write failed:", err.message);
-    });
-};
+async function logAsync(level, message, data = {}) {
+  const entry = JSON.stringify({ level, message, data: sanitize(data), time: new Date().toISOString() });
+  if (level === "error") console.error(entry);
+  else if (level === "warn") console.warn(entry);
+  else console.log(entry);
+}
 
 module.exports = { logAsync };

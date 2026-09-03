@@ -77,10 +77,7 @@ const scrapeHumberview = async (page, baseUrl) => {
       await logAsync(
         "info",
         "No filters applied — likely a generic results page",
-        {
-          heading,
-          searchValue,
-        }
+        { url: page.url() }
       );
       return { cars: [], total: 0, serverError: null };
     }

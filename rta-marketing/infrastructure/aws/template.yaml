@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: RTA fixture-first SQS ingestion worker
+
+Parameters:
+  ScrapeQueueArn:
+    Type: String
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+
+Resources:
+  ScrapeWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: rta-scrape-worker
+      CodeUri: ../../backend
+      Handler: src/worker/lambda.handler
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      MemorySize: 1024
+      Timeout: 600
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          NODE_ENV: production
+          LOG_LEVEL: info
+          DATABASE_URL: !Ref DatabaseUrl
+          DATABASE_POOL_MAX: "2"
+          DATABASE_IDLE_TIMEOUT_MS: "10000"
+          DATABASE_CONNECT_TIMEOUT_MS: "5000"
+          LIVE_SCRAPING_ENABLED: "false"
+          BROWSER_HEADLESS: "true"
+          SCRAPE_JOB_TIMEOUT_MS: "540000"
+          BROWSER_NAVIGATION_TIMEOUT_MS: "60000"
+          SOURCE_MAX_CONCURRENT_PAGES: "1"
+          SOURCE_MIN_DELAY_MS: "1500"
+          SCRAPE_MAX_PAGES_PER_SOURCE: "20"
+          SCRAPE_MAX_LISTINGS_PER_SOURCE: "500"
+      Events:
+        ScrapeQueue:
+          Type: SQS
+          Properties:
+            Queue: !Ref ScrapeQueueArn
+            BatchSize: 1
+            FunctionResponseTypes: [ReportBatchItemFailures]
+            Enabled: true
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [src/worker/lambda.ts]
+        Minify: true
+        Sourcemap: false
+        Target: es2022
+        External: [puppeteer]
+
+Outputs:
+  WorkerFunctionArn:
+    Value: !GetAtt ScrapeWorker.Arn

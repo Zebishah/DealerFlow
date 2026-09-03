@@ -1,0 +1,58 @@
+services:
+  - type: web
+    name: rta-api
+    runtime: node
+    rootDir: rta-marketing/backend
+    plan: free
+    buildCommand: PUPPETEER_SKIP_DOWNLOAD=true npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DATABASE_POOL_MAX
+        value: "5"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_SAME_SITE
+        value: none
+      - key: DEMO_MODE
+        value: "true"
+      - key: DEFAULT_SCRAPE_MODE
+        value: fixture
+      - key: ALLOW_LIVE_SCRAPING
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: SQS_SCRAPE_QUEUE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CSRF_SECRET
+        generateValue: true
+
+  - type: web
+    name: rta-intelligence
+    runtime: static
+    rootDir: rta-marketing/rta-scrapper
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: VITE_API_URL
+        sync: false

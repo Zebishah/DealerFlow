@@ -1,91 +1,87 @@
-# RTA Environment Setup
+# Environment contract
 
-This is the infrastructure contract for the portfolio edition. It replaces the original company Firebase project and keeps development provider-neutral.
+Copy the committed examples and replace placeholders locally or in the hosting provider. Do not commit real values.
 
-## What the owner needs to provide
+## Local files
 
-### Required for hosted development/production
+| File | Process | Contains secrets? |
+|---|---|---:|
+| `backend/.env` | Express API | Yes |
+| `backend/.env.worker.local` | Local SQS worker | Yes |
+| `rta-scrapper/.env` | Browser UI | No |
 
-1. **PostgreSQL database**
-   - Recommended: create a personal Neon project.
-   - Create a dedicated database/role for RTA rather than reusing another application's credentials.
-   - Provide both the pooled application URL (`DATABASE_URL`) and direct migration URL (`DATABASE_MIGRATION_URL`).
-   - Do not paste either URL into chat or commit it. Put them in the hosting provider's secret settings and local `.env` files.
-
-2. **Redis-compatible service**
-   - Use a personal Upstash Redis, Redis Cloud, or self-hosted Redis instance that exposes a Redis protocol URL.
-   - Save its `redis://` or TLS `rediss://` URL as `REDIS_URL` for both API and worker.
-   - Use a dedicated RTA database/instance where practical.
-
-3. **Operator login values**
-   - Choose a demo/operator email and a unique strong initial password.
-   - These values are read only by an explicit seed command; the password will be hashed before database storage.
-   - Remove the seed password from deployed environment settings after the account is created.
-
-4. **Application secrets**
-   - Generate independent session and CSRF secrets locally:
-
-     ```bash
-     openssl rand -base64 48
-     openssl rand -base64 48
-     ```
-
-   - Store them as `SESSION_SECRET` and `CSRF_SECRET`.
-
-5. **Final application URLs**
-   - After hosting is chosen, provide the public web URL and API URL.
-   - The web URL becomes `PUBLIC_APP_URL` and an entry in `CORS_ORIGINS`.
-   - The API URL becomes the browser-safe `VITE_API_BASE_URL`.
-
-### Not required
-
-- **Firebase:** not used in the focused portfolio architecture. Authentication, saved vehicles, listings, and run state move to PostgreSQL/backend APIs.
-- **Email provider:** not required initially because public signup and password reset are not part of the recruiter demo. It can be added later if those features become real requirements.
-- **S3 or Firebase Storage:** not required initially. The app stores source image URLs and sanitized local fixture assets; diagnostic artifacts remain private and short-lived.
-- **LLM/API keys:** RTA's engineering story is scraping, normalization, identity, reliability, and search. AI is intentionally not required.
-- **Payment provider:** not relevant.
-
-## Local development without cloud accounts
-
-PostgreSQL and Redis will be provided through Docker Compose. Copy the examples without committing the resulting files:
+Create them with:
 
 ```bash
 cp backend/.env.example backend/.env
-cp backend/.env.worker.example backend/.env.worker
+cp backend/.env.worker.example backend/.env.worker.local
 cp rta-scrapper/.env.example rta-scrapper/.env
 ```
 
-Local development should keep `DEMO_MODE=true`, `ALLOW_LIVE_SCRAPING=false`, and `SCRAPE_MODE=fixture` until database migrations, tests, and deterministic fixture ingestion are green.
+The API and worker use the same Neon database and SQS queue. Use Neon’s pooled URL for `DATABASE_URL`; use its direct/non-pooled URL only for `DATABASE_MIGRATION_URL` and migrations.
 
-## Environment ownership
+## Required attributes
 
-| Variable group | API | Worker | Browser UI |
-|---|---:|---:|---:|
-| PostgreSQL | Yes | Yes | Never |
-| Redis/BullMQ | Yes | Yes | Never |
-| Session/CSRF secrets | Yes | No | Never |
-| Scraper browser limits | No | Yes | Never |
-| Public API URL | No | No | Yes |
-| Demo/live feature flags | Yes | Yes | Yes (display only) |
+### API on Render
 
-The API remains the authority. A `VITE_ENABLE_LIVE_SCRAPING=true` value only enables UI presentation; it must never override API authorization or `ALLOW_LIVE_SCRAPING`.
+| Variable | Production value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `HOST` / `PORT` | `0.0.0.0` / Render-provided `PORT` |
+| `LOG_LEVEL` | `info` |
+| `TRUST_PROXY` | `true` |
+| `PUBLIC_APP_URL` | Exact Render frontend URL |
+| `CORS_ORIGINS` | Exact frontend URL, comma-separated if more than one |
+| `DATABASE_URL` | Neon pooled connection URL |
+| `AWS_REGION` | Queue region, e.g. `ap-south-1` |
+| `SQS_SCRAPE_QUEUE_URL` | Main queue URL, not the DLQ URL |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dedicated API producer IAM user keys |
+| `SESSION_SECRET` / `CSRF_SECRET` | Two independent 48+ character secrets |
+| `SESSION_COOKIE_SECURE` | `true` |
+| `SESSION_COOKIE_SAME_SITE` | `none` when frontend/API are on different Render sites |
+| `DEMO_MODE` | `true` |
+| `DEFAULT_SCRAPE_MODE` | `fixture` |
+| `ALLOW_LIVE_SCRAPING` | `false` until live adapters are verified |
 
-## Production differences
+Do not add `AWS_PROFILE` on Render. Remove `SEED_OPERATOR_PASSWORD` after running the explicit seed command.
 
-- Use `NODE_ENV=production`.
-- Set `LOG_LEVEL=info`.
-- Set `TRUST_PROXY=true` only when the API is actually behind a trusted reverse proxy.
-- Set `SESSION_COOKIE_SECURE=true` and serve web/API through HTTPS.
-- Keep `SESSION_COOKIE_SAME_SITE=lax` for same-site deployment. Re-evaluate cookies and CSRF controls if web and API are deployed cross-site.
-- Set `DEMO_MODE=false` only for an operator-controlled deployment.
-- Start with `WORKER_CONCURRENCY=1`; increase only after measuring browser memory and source behavior.
-- Use `rediss://` when the hosted Redis provider requires TLS.
-- Never run migrations automatically on every application boot; execute the reviewed migration command during release.
+### Lambda worker
 
-## Secret handling rules
+| Variable | Production value |
+|---|---|
+| `NODE_ENV` / `LOG_LEVEL` | `production` / `info` |
+| `DATABASE_URL` | Neon pooled URL; pool max should be `2` |
+| `AWS_REGION` | Same region as SQS |
+| `LIVE_SCRAPING_ENABLED` | Start with `false` |
+| `BROWSER_HEADLESS` | `true` |
+| `SCRAPE_JOB_TIMEOUT_MS` | Less than Lambda timeout, e.g. `540000` |
+| `BROWSER_NAVIGATION_TIMEOUT_MS` | `60000` |
+| `SOURCE_MAX_CONCURRENT_PAGES` | `1` |
+| `SOURCE_MIN_DELAY_MS` | `1500` or more |
+| `SCRAPE_MAX_PAGES_PER_SOURCE` | `20` |
+| `SCRAPE_MAX_LISTINGS_PER_SOURCE` | `500` |
 
-- Never commit `.env`, service-account JSON, database URLs, Redis URLs, passwords, cookies, or tokens.
-- Never expose backend variables using a `VITE_` prefix.
-- Rotate the original Firebase configuration/project access before making the portfolio repository public.
-- Use separate development and production credentials.
-- Keep the repository private until the sanitization and secret-history audit is complete.
+Do not add permanent AWS access keys to Lambda. Its execution role supplies temporary credentials automatically. SQS queue URL is not required by the Lambda handler because the event-source mapping supplies messages.
+
+### Render static frontend
+
+| Variable | Production value |
+|---|---|
+| `VITE_API_URL` | `https://YOUR-API.onrender.com/api/v1` |
+
+Only public browser configuration may use the `VITE_` prefix. Never expose database, AWS, cookie, or session values through Vite.
+
+## Why fixture mode is the default
+
+`ALLOW_LIVE_SCRAPING=false` blocks public API requests from starting real website automation. `LIVE_SCRAPING_ENABLED=false` is an independent worker-side kill switch. Fixture mode still runs the real SQS, validation, normalization, deduplication, persistence, and dashboard flow, but uses deterministic input. This protects free quotas and third-party sites while development is ongoing.
+
+## Secrets
+
+Generate two independent secrets:
+
+```bash
+openssl rand -base64 48
+openssl rand -base64 48
+```
+
+Rotate any credentials ever pasted into chat or committed to Git history before deployment. A `.gitignore` entry only prevents future commits; it does not remove old secrets from history.

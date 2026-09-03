@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: rta
+      POSTGRES_USER: rta_user
+      POSTGRES_PASSWORD: rta_password
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rta_user -d rta"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - rta_postgres:/var/lib/postgresql/data
+
+volumes:
+  rta_postgres:
