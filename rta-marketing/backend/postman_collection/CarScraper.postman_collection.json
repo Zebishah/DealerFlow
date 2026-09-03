@@ -1,0 +1,25 @@
+{
+  "info": {
+    "name": "Car Scraper API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Run Scrape",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"make\": \"Acura\",\n  \"model\": \"RDX\",\n  \"yearMin\": 2020,\n  \"yearMax\": 2025,\n  \"minPrice\": 0,\n  \"maxPrice\": 100000,\n  \"postal\": \"A1A1A1\",\n  \"radius\": 100,\n  \"keyword\": \"awd\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/scrape/run",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "scrape", "run"]
+        }
+      }
+    }
+  ],
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:8000" }]
+}

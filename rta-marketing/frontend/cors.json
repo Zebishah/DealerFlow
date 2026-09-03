@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://rta-web.jidatit.uk/AdminLayout/users"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]

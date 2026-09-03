@@ -1,0 +1,43 @@
+// const AdminCollectionRef = collection(db, "admins");
+// const searchUserByUid = async (uid) => {
+//   const q = query(AdminCollectionRef, where("uid", "==", uid));
+
+//   try {
+//     const querySnapshot = await getDocs(q);
+//     if (querySnapshot.empty) {
+//       console.log("No matching documents.");
+//       return null; // Or handle the case where no user is found
+//     }
+
+//     const userData = querySnapshot.docs[0].data(); // Get the data from the first (and only) matching document
+//     return userData;
+//   } catch (error) {
+//     console.error("Error searching user:", error);
+//     return null; // Or handle the error appropriately
+//   }
+// };
+
+// useEffect(() => {
+//   onAuthStateChanged(
+//     auth,
+//     (user) => {
+//       if (user) {
+//         searchUserByUid(user.uid)
+//           .then((user) => {
+//             if (user) {
+//               console.log("User Data:", user);
+//               // Do something with the user data
+//             } else {
+//               console.log("User not found.");
+//             }
+//           })
+//           .catch((error) => console.error("Error:", error));
+//         // ...
+//       } else {
+//         setCurrentUser(null);
+//         // User is signed out
+//         // ...
+//       }
+//     },
+//     []
+//   );

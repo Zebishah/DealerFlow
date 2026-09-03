@@ -1,0 +1,33 @@
+export const frameStyleId = [
+  { count: 18, label: "Cargo Van", includedItemsValueKeys: [], key: 11 },
+  { count: 4, label: "Convertible", includedItemsValueKeys: [], key: 4 },
+  { count: 15, label: "Coupe", includedItemsValueKeys: [], key: 2 },
+  { count: 78, label: "Crossover", includedItemsValueKeys: [], key: 34 },
+  { count: 23, label: "Hatchback", includedItemsValueKeys: [], key: 3 },
+  { count: 37, label: "Minivan", includedItemsValueKeys: [], key: 7 },
+  { count: 1, label: "Other", includedItemsValueKeys: [], key: -1 },
+  { count: 7, label: "Other", includedItemsValueKeys: [], key: 33 },
+  { count: 1, label: "Passenger Van", includedItemsValueKeys: [], key: 35 },
+  { count: 37, label: "Pickup", includedItemsValueKeys: [], key: 28 },
+  {
+    count: 61,
+    label: "Pickup - Crew Cab",
+    includedItemsValueKeys: [],
+    key: 15,
+  },
+  {
+    count: 2,
+    label: "Pickup - Extended Cab",
+    includedItemsValueKeys: [],
+    key: 14,
+  },
+  {
+    count: 3,
+    label: "Pickup - Regular Cab",
+    includedItemsValueKeys: [],
+    key: 13,
+  },
+  { count: 507, label: "SUV", includedItemsValueKeys: [], key: 27 },
+  { count: 140, label: "Sedan", includedItemsValueKeys: [], key: 1 },
+  { count: 1, label: "Station Wagon", includedItemsValueKeys: [], key: 5 },
+];
