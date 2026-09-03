@@ -1,14 +1,32 @@
+import "dotenv/config";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { pool, db } from "./client.js";
+import { Pool } from "pg";
 
-async function main(): Promise<void> {
-  await migrate(db, { migrationsFolder: "drizzle" });
-  await pool.end();
-  console.log("Database migrations completed");
+const connectionString = process.env.DATABASE_MIGRATION_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_MIGRATION_URL is required for database migrations");
 }
 
-void main().catch(async (error) => {
+const pool = new Pool({
+  connectionString,
+  max: 1,
+  connectionTimeoutMillis: 10_000,
+});
+
+const db = drizzle(pool);
+
+async function main(): Promise<void> {
+  try {
+    await migrate(db, { migrationsFolder: "drizzle" });
+    console.log("Database migrations completed");
+  } finally {
+    await pool.end();
+  }
+}
+
+void main().catch((error) => {
   console.error("Database migration failed", error);
-  await pool.end();
   process.exitCode = 1;
 });
