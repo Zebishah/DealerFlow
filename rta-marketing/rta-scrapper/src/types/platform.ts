@@ -4,3 +4,5 @@ export interface ScrapeRun { id: string; mode: "fixture" | "live"; status: RunSt
 export interface DashboardSummary { totalRuns: number; successfulRuns: number; activeRuns: number; failedRuns: number; activeListings: number; canonicalVehicles: number; averagePriceCents: number | null; sourceHealth: SourceHealth[]; recentRuns: ScrapeRun[]; }
 export interface CatalogVehicle { listingId: string; vehicleId: string; externalId: string; source: string; sourceName: string; title: string; make: string; model: string; trim: string | null; year: number; priceCents: number | null; currency: string; odometerKm: number | null; imageUrl: string | null; dealerName: string | null; location: string | null; isUsed: boolean; lastSeenAt: string; }
 export interface CatalogResponse { data: CatalogVehicle[]; page: { limit: number; offset: number; total: number; hasNext: boolean }; }
+export interface UserSession { user: { id: string; email: string; role: "operator" | "viewer" }; }
+export interface Capabilities { demoMode: boolean; liveScrapingAllowed: boolean; defaultScrapeMode: "fixture" | "live"; }
