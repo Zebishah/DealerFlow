@@ -4,7 +4,7 @@ const { logAsync } = require("../../utils/logger");
 // Helper function to wait (replacement for page.waitForTimeout)
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const scrapeHumberview = async (page, baseUrl) => {
+const scrapeHumberview = async (page, baseUrl, limits = { maxPages: 20, minDelayMs: 1800 }) => {
   const result = { cars: [], total: 0, serverError: null };
 
   try {
@@ -65,7 +65,7 @@ const scrapeHumberview = async (page, baseUrl) => {
 
     // const { heading, searchValue } = pageHeading;
 
-    // ✅ NEW: Detect if any filter tags are visible (search, price, odometer, etc.)
+    // Confirm that the source applied at least one requested filter.
     const filtersApplied = await page.evaluate(() => {
       return !!document.querySelector(
         ".il-filtersReset.il-listingAlpha__filtersReset"
@@ -86,7 +86,7 @@ const scrapeHumberview = async (page, baseUrl) => {
     //   "New & Used SUVs, Trucks, Cars for Sale"
     // );
 
-    // // 🧠 If heading is generic AND search bar is empty => return empty results
+    // If the heading is generic and search is empty, return no filtered results.
     // if (isGenericResults && !searchValue) {
     //   await logAsync(
     //     "info",
@@ -104,7 +104,7 @@ const scrapeHumberview = async (page, baseUrl) => {
     });
 
     // FIXED: Calculate total pages based on vehicle count and cards per page
-    const totalPages = Math.ceil(initialCount / cardsPerPage);
+    const totalPages = Math.min(Math.ceil(initialCount / cardsPerPage), limits.maxPages);
 
     const allCars = [];
     let consecutiveEmptyPages = 0;
@@ -341,7 +341,7 @@ const scrapeHumberview = async (page, baseUrl) => {
         }
 
         // Wait for new page to stabilize
-        await wait(5000);
+        await wait(limits.minDelayMs);
 
         // Verify we're on the new page
         const currentUrl = page.url();
@@ -376,7 +376,7 @@ const scrapeHumberview = async (page, baseUrl) => {
     result.cars = allCars;
     result.total = allCars.length;
 
-    await logAsync("success", "✅ HumberviewVW scraping COMPLETE", {
+    await logAsync("success", "Humberview VW scraping completed", {
       totalCars: result.total,
       expectedTotal: initialCount,
       pagesScraped: Math.min(currentPage, totalPages),
@@ -388,7 +388,7 @@ const scrapeHumberview = async (page, baseUrl) => {
     if (result.total < initialCount) {
       await logAsync(
         "warn",
-        `⚠️ Scraped ${result.total} of ${initialCount} expected vehicles (${
+        `Scraped ${result.total} of ${initialCount} expected vehicles (${
           initialCount - result.total
         } missing)`
       );
