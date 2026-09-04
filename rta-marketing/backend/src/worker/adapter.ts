@@ -14,7 +14,8 @@ interface LegacyResult {
   serverError?: string | null;
 }
 
-type LegacyScraper = (page: Page, url: string) => Promise<LegacyResult>;
+interface ScraperLimits { maxPages: number; minDelayMs: number; }
+type LegacyScraper = (page: Page, url: string, limits: ScraperLimits) => Promise<LegacyResult>;
 type UrlBuilder = (filters: ScrapeFilters) => string | null;
 
 const legacyRequire = createRequire(__filename);
@@ -115,6 +116,7 @@ export async function acquireListings(
   source: SourceKey,
   mode: "fixture" | "live",
   filters: ScrapeFilters,
+  sourceMinimumDelayMs = 0,
 ): Promise<RawListing[]> {
   if (mode === "fixture") return getFixtureListings(source);
   if (!workerEnv.LIVE_SCRAPING_ENABLED) {
@@ -145,10 +147,12 @@ export async function acquireListings(
     page.setDefaultNavigationTimeout(workerEnv.BROWSER_NAVIGATION_TIMEOUT_MS);
     await page.setExtraHTTPHeaders({ "Accept-Language": "en-CA,en;q=0.9" });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: workerEnv.BROWSER_NAVIGATION_TIMEOUT_MS });
+    const minimumDelayMs = Math.max(sourceMinimumDelayMs, workerEnv.SOURCE_MIN_DELAY_MS);
+    await new Promise((resolve) => setTimeout(resolve, minimumDelayMs));
     const deadline = new Promise<never>((_resolve, reject) => {
       timeout = setTimeout(() => reject(new AppError(504, "SCRAPE_TIMEOUT", `${source} exceeded its job timeout`)), workerEnv.SCRAPE_JOB_TIMEOUT_MS);
     });
-    const result = await Promise.race([modules.scrape(page, url), deadline]);
+    const result = await Promise.race([modules.scrape(page, url, { maxPages: workerEnv.SCRAPE_MAX_PAGES_PER_SOURCE, minDelayMs: minimumDelayMs }), deadline]);
     if (result.serverError) throw new AppError(502, "SOURCE_FAILURE", `${source} could not be acquired`);
     return (result.cars ?? [])
       .slice(0, workerEnv.SCRAPE_MAX_LISTINGS_PER_SOURCE)
