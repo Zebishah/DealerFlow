@@ -21,7 +21,7 @@ const buildUrl = (filters = {}) => {
 
   const params = new URLSearchParams();
 
-  // ✅ Base query params required by site
+  // Base query parameters required by the source.
   params.set("qs", keywords);
   params.set("fn", "");
 
@@ -30,15 +30,15 @@ const buildUrl = (filters = {}) => {
 
   if (make) params.set("mk", make);
   if (model) params.set("md", model);
-  params.set("tr", ""); // ✅ trim always exists, empty if none
+  params.set("tr", "");
 
   if (bodyStyle) params.set("bs", bodyStyle);
 
-  // ✅ Build odometer from minMileage and maxMileage
+  // Build the odometer range when both bounds are present.
   if (minMileage != null && maxMileage != null) {
     params.set("od", `${minMileage},${maxMileage}`);
   } else {
-    params.set("od", ""); // ✅ empty if no mileage range
+    params.set("od", "");
   }
 
   if (minYear != null && maxYear != null) {
