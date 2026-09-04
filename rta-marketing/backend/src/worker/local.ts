@@ -7,6 +7,7 @@ import {
 import { workerEnv } from "../config/worker-env.js";
 import { pool } from "../db/client.js";
 import { processScrapeJob } from "./processor.js";
+import { logger } from "../lib/logger.js";
 
 if (!workerEnv.SQS_SCRAPE_QUEUE_URL) {
   throw new Error("SQS_SCRAPE_QUEUE_URL is required for the local worker");
@@ -44,7 +45,7 @@ async function consumeOnce(): Promise<number> {
       await processScrapeJob(JSON.parse(message.Body) as unknown);
       await client.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle }));
     } catch (error) {
-      console.error("Local SQS job failed and will be retried", { messageId: message.MessageId, error });
+      logger.error({ err: error, messageId: message.MessageId }, "Local SQS job failed and will be retried");
     } finally {
       clearInterval(heartbeat);
     }
@@ -52,16 +53,21 @@ async function consumeOnce(): Promise<number> {
   return response.Messages?.length ?? 0;
 }
 
-async function main(): Promise<void> {
-  const runOnce = process.argv.includes("--once");
+async function consumeLoop(runOnce: boolean): Promise<void> {
   do {
     await consumeOnce();
   } while (!runOnce && !stopping);
+}
+
+async function main(): Promise<void> {
+  const runOnce = process.argv.includes("--once");
+  await Promise.all(Array.from({ length: workerEnv.WORKER_CONCURRENCY }, () => consumeLoop(runOnce)));
+  client.destroy();
   await pool.end();
 }
 
 void main().catch(async (error) => {
-  console.error(error);
+  logger.fatal({ err: error }, "Local worker stopped unexpectedly");
   await pool.end();
   process.exitCode = 1;
 });
