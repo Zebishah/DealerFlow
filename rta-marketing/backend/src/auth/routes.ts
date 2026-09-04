@@ -7,7 +7,7 @@ import { sessions, users } from "../db/schema.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { AppError } from "../lib/errors.js";
 import { verifyPassword } from "./password.js";
-import { createSession, requireCsrf, requireSession, sessionCookieOptions } from "./session.js";
+import { createSession, requireCsrf, requireSession, rotateCsrfToken, sessionCookieOptions } from "./session.js";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -40,6 +40,25 @@ authRouter.post(
 
 authRouter.get("/session", requireSession, (request, response) => {
   response.json({ data: { user: request.user } });
+});
+
+authRouter.post(
+  "/csrf",
+  requireSession,
+  asyncHandler(async (request, response) => {
+    const csrfToken = await rotateCsrfToken(request.sessionId!);
+    response.json({ data: { csrfToken } });
+  }),
+);
+
+authRouter.get("/capabilities", (_request, response) => {
+  response.json({
+    data: {
+      demoMode: env.DEMO_MODE,
+      liveScrapingAllowed: env.ALLOW_LIVE_SCRAPING,
+      defaultScrapeMode: env.DEFAULT_SCRAPE_MODE,
+    },
+  });
 });
 
 authRouter.post(
