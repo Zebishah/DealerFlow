@@ -13,8 +13,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/lib/normalization.test.ts src/contracts/scrape.test.ts",
-    "test:coverage": "node --import tsx --test --experimental-test-coverage src/lib/normalization.test.ts src/contracts/scrape.test.ts"
+    "test": "node --import tsx --test src/lib/normalization.test.ts src/contracts/scrape.test.ts src/queue/outbox-policy.test.ts",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage src/lib/normalization.test.ts src/contracts/scrape.test.ts src/queue/outbox-policy.test.ts"
   },
   "private": true,
   "engines": {
@@ -34,13 +34,13 @@
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.45.2",
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
-    "puppeteer": "^24.29.1",
+    "puppeteer": "^25.10.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
