@@ -47,7 +47,7 @@ Build/deploy the worker as a Lambda-compatible artifact whose handler is `dist/w
 - Architecture: x86_64
 - Timeout: 10 minutes
 - Memory: start at 1024 MB and measure
-- Reserved concurrency: `1`
+- SQS maximum concurrency: `2` (the template does not reserve account concurrency)
 - SQS trigger batch size: `1`
 - Batch window: `0`
 - Enable partial batch response (`ReportBatchItemFailures`)
