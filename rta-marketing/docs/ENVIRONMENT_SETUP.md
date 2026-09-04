@@ -35,6 +35,7 @@ The API and worker use the same Neon database and SQS queue. Use Neon’s pooled
 | `DATABASE_URL` | Neon pooled connection URL |
 | `AWS_REGION` | Queue region, e.g. `ap-south-1` |
 | `SQS_SCRAPE_QUEUE_URL` | Main queue URL, not the DLQ URL |
+| `QUEUE_OUTBOX_POLL_MS` / `QUEUE_OUTBOX_BATCH_SIZE` | `5000` / `10` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dedicated API producer IAM user keys |
 | `SESSION_SECRET` / `CSRF_SECRET` | Two independent 48+ character secrets |
 | `SESSION_COOKIE_SECURE` | `true` |
@@ -56,7 +57,6 @@ Do not add `AWS_PROFILE` on Render. Remove `SEED_OPERATOR_PASSWORD` after runnin
 | `BROWSER_HEADLESS` | `true` |
 | `SCRAPE_JOB_TIMEOUT_MS` | Less than Lambda timeout, e.g. `540000` |
 | `BROWSER_NAVIGATION_TIMEOUT_MS` | `60000` |
-| `SOURCE_MAX_CONCURRENT_PAGES` | `1` |
 | `SOURCE_MIN_DELAY_MS` | `1500` or more |
 | `SCRAPE_MAX_PAGES_PER_SOURCE` | `20` |
 | `SCRAPE_MAX_LISTINGS_PER_SOURCE` | `500` |
@@ -105,7 +105,6 @@ BROWSER_HEADLESS=true
 BROWSER_DISABLE_SANDBOX=false
 BROWSER_EXECUTABLE_PATH=
 WORKER_CONCURRENCY=1
-SOURCE_MAX_CONCURRENT_PAGES=1
 SCRAPE_MAX_PAGES_PER_SOURCE=2
 SCRAPE_MAX_LISTINGS_PER_SOURCE=50
 SCRAPE_SCREENSHOT_ON_ERROR=true
