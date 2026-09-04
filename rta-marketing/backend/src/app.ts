@@ -15,6 +15,7 @@ import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { runsRouter } from "./modules/runs/routes.js";
 import { savedRouter } from "./modules/saved/routes.js";
 import { sourcesRouter } from "./modules/sources/routes.js";
+import { logger } from "./lib/logger.js";
 
 export function createApp() {
   const app = express();
@@ -23,7 +24,7 @@ export function createApp() {
 
   app.use(
     pinoHttp({
-      level: env.LOG_LEVEL,
+      logger,
       genReqId: (request, response) => {
         const inbound = request.headers["x-request-id"];
         const requestId = typeof inbound === "string" && inbound.length <= 100 ? inbound : randomUUID();
@@ -41,7 +42,7 @@ export function createApp() {
         return callback(new Error("Origin is not allowed"));
       },
       credentials: true,
-      methods: ["GET", "POST", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["content-type", "idempotency-key", "x-csrf-token", "x-demo-session-id", "x-request-id"],
     }),
   );
