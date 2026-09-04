@@ -199,6 +199,7 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
       sourceRunStatus: sourceRuns.status,
       runStatus: scrapeRuns.status,
       sourceDbId: sources.id,
+      sourceMinDelayMs: sources.minDelayMs,
     })
     .from(sourceRuns)
     .innerJoin(scrapeRuns, eq(sourceRuns.runId, scrapeRuns.id))
@@ -232,7 +233,7 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
   await recomputeRun(job.runId);
 
   try {
-    const acquired = await acquireListings(job.sourceId, job.mode, job.filters);
+    const acquired = await acquireListings(job.sourceId, job.mode, job.filters, context.sourceMinDelayMs);
     let inserted = 0;
     let updated = 0;
     let rejected = 0;
