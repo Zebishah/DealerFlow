@@ -2,8 +2,8 @@ import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertCircle, ArrowRight, BarChart3, Car, Check, ChevronLeft, ChevronRight, Database, Gauge, Heart, Layers, Loader2, Play, Search, ServerCog, ShieldCheck, Sparkles, X } from "lucide-react";
 import toast from "react-hot-toast";
-import { api } from "./lib/api";
-import type { CatalogResponse, CatalogVehicle, DashboardSummary, ScrapeRun } from "./types/platform";
+import { api, setCsrfToken } from "./lib/api";
+import type { Capabilities, CatalogResponse, CatalogVehicle, DashboardSummary, ScrapeRun, UserSession } from "./types/platform";
 
 type View = "overview" | "catalog" | "operations" | "saved" | "compare";
 const PAGE_SIZE = 12;
@@ -52,13 +52,25 @@ export function App() {
   const [sort, setSort] = useState("newest");
   const [offset, setOffset] = useState(0);
   const [compare, setCompare] = useState<CatalogVehicle[]>([]);
+  const [runMode, setRunMode] = useState<"fixture" | "live">("fixture");
+  const [showLogin, setShowLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const summary = useQuery({ queryKey: ["dashboard"], queryFn: () => api<{ data: DashboardSummary }>("/dashboard/summary").then((r) => r.data), refetchInterval: (state) => state.state.data?.activeRuns ? 3_000 : 20_000 });
   const catalog = useQuery({ queryKey: ["catalog", query, source, sort, offset], queryFn: () => { const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset), sort }); if (query) params.set("q", query); if (source) params.set("source", source); return api<CatalogResponse>(`/vehicles?${params}`); } });
   const saved = useQuery({ queryKey: ["saved"], queryFn: () => api<{ data: CatalogVehicle[] }>("/saved-vehicles").then((r) => r.data) });
+  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: () => api<{ data: Capabilities }>("/auth/capabilities").then((r) => r.data) });
+  const session = useQuery({ queryKey: ["session"], queryFn: async () => { const current = await api<{ data: UserSession }>("/auth/session"); const csrf = await api<{ data: { csrfToken: string } }>("/auth/csrf", { method: "POST" }); setCsrfToken(csrf.data.csrfToken); return current.data; }, retry: false });
+  const login = useMutation({
+    mutationFn: () => api<{ data: UserSession & { csrfToken: string } }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    onSuccess: async ({ data: loginData }) => { setCsrfToken(loginData.csrfToken); setPassword(""); setShowLogin(false); await queryClient.invalidateQueries({ queryKey: ["session"] }); toast.success("Operator session started"); },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const logout = useMutation({ mutationFn: () => api<void>("/auth/logout", { method: "POST" }), onSuccess: async () => { setCsrfToken(null); await queryClient.invalidateQueries({ queryKey: ["session"] }); toast.success("Signed out"); } });
   const createRun = useMutation({
-    mutationFn: () => api<{ data: { id: string } }>("/scrape-runs", { method: "POST", headers: { "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ filters: query ? { keyword: query } : {}, mode: "fixture" }) }),
-    onSuccess: async () => { toast.success("Scrape run queued across four sources"); setView("operations"); await queryClient.invalidateQueries({ queryKey: ["dashboard"] }); },
+    mutationFn: () => api<{ data: { id: string } }>("/scrape-runs", { method: "POST", headers: { "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ filters: query ? { keyword: query } : {}, mode: runMode }) }),
+    onSuccess: async () => { toast.success(`${runMode === "live" ? "Live" : "Fixture"} run queued across enabled sources`); setView("operations"); await queryClient.invalidateQueries({ queryKey: ["dashboard"] }); },
     onError: (error: Error) => toast.error(error.message),
   });
   const saveVehicle = useMutation({
@@ -76,6 +88,8 @@ export function App() {
   function submitSearch(event: FormEvent) { event.preventDefault(); setOffset(0); setQuery(search.trim()); setView("catalog"); }
   function toggleCompare(car: CatalogVehicle) { setCompare((items) => { if (items.some((item) => item.vehicleId === car.vehicleId)) return items.filter((item) => item.vehicleId !== car.vehicleId); if (items.length === 3) { toast.error("Compare up to three vehicles"); return items; } return [...items, car]; }); }
   const data = summary.data;
+  const canRunLive = Boolean(capabilities.data?.liveScrapingAllowed && session.data?.user.role === "operator");
+  function requestRun() { if (runMode === "live" && !canRunLive) { setShowLogin(true); return; } createRun.mutate(); }
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -87,7 +101,7 @@ export function App() {
     </aside>
 
     <main className="main-content">
-      <header className="topbar"><div><p>Vehicle intelligence platform</p><h1>{nav.find((item) => item.id === view)?.label}</h1></div><div className="top-actions"><span className="environment"><i /> DEMO</span><button className="primary-button" disabled={createRun.isPending} onClick={() => createRun.mutate()}>{createRun.isPending ? <Loader2 className="spin" size={17} /> : <Play size={17} />}Run acquisition</button></div></header>
+      <header className="topbar"><div><p>Vehicle intelligence platform</p><h1>{nav.find((item) => item.id === view)?.label}</h1></div><div className="top-actions"><span className="environment"><i /> {runMode.toUpperCase()}</span><select aria-label="Acquisition mode" value={runMode} onChange={(event) => setRunMode(event.target.value as "fixture" | "live")}><option value="fixture">Fixture mode</option><option value="live" disabled={!capabilities.data?.liveScrapingAllowed}>Live mode</option></select>{session.data ? <button className="text-button" onClick={() => logout.mutate()}>{session.data.user.email}</button> : <button className="text-button" onClick={() => setShowLogin(true)}>Operator login</button>}<button className="primary-button" disabled={createRun.isPending} onClick={requestRun}>{createRun.isPending ? <Loader2 className="spin" size={17} /> : <Play size={17} />}Run acquisition</button></div></header>
       <section className="content">
         {summary.isError && <div className="error-banner"><AlertCircle size={18} />API is unavailable. Confirm VITE_API_URL and that the backend is running.</div>}
         {view === "overview" && <>
@@ -101,10 +115,11 @@ export function App() {
           {catalog.isLoading && view === "catalog" ? <Loading /> : vehicles.length === 0 ? <Empty title={view === "saved" ? "No saved vehicles yet" : "No listings match these filters"} /> : <div className="vehicle-grid">{vehicles.map((car) => <VehicleCard key={`${car.listingId}-${car.vehicleId}`} car={car} saved={savedIds.has(car.vehicleId)} compared={compare.some((item) => item.vehicleId === car.vehicleId)} onSave={() => saveVehicle.mutate({ id: car.vehicleId, remove: savedIds.has(car.vehicleId) })} onCompare={() => toggleCompare(car)} />)}</div>}
           {view === "catalog" && (catalog.data?.page.total ?? 0) > PAGE_SIZE && <div className="pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}><ChevronLeft size={17} />Previous</button><span>{Math.floor(offset / PAGE_SIZE) + 1} / {Math.ceil((catalog.data?.page.total ?? 0) / PAGE_SIZE)}</span><button disabled={!catalog.data?.page.hasNext} onClick={() => setOffset(offset + PAGE_SIZE)}>Next<ChevronRight size={17} /></button></div>}
         </>}
-        {view === "operations" && <section className="panel operations-panel"><PanelTitle title="Acquisition runs" subtitle="SQS-backed jobs continue independently of HTTP requests" /><div className="operations-callout"><ServerCog size={22} /><div><strong>Asynchronous by design</strong><p>The API publishes one job per source. Workers retry temporary failures while every result is stored idempotently.</p></div><button className="primary-button" onClick={() => createRun.mutate()} disabled={createRun.isPending}><Play size={16} />New fixture run</button></div><RunTable runs={data?.recentRuns ?? []} /></section>}
+        {view === "operations" && <section className="panel operations-panel"><PanelTitle title="Acquisition runs" subtitle="SQS-backed jobs continue independently of HTTP requests" /><div className="operations-callout"><ServerCog size={22} /><div><strong>Asynchronous by design</strong><p>The API publishes one job per source. Workers retry temporary failures while every result is stored idempotently.</p></div><button className="primary-button" onClick={requestRun} disabled={createRun.isPending}><Play size={16} />New {runMode} run</button></div><RunTable runs={data?.recentRuns ?? []} /></section>}
         {view === "compare" && <CompareView items={compare} remove={(id) => setCompare((items) => items.filter((item) => item.vehicleId !== id))} />}
       </section>
     </main>
+    {showLogin && <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowLogin(false)}><form className="login-dialog" role="dialog" aria-modal="true" aria-labelledby="login-title" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); login.mutate(); }}><button type="button" className="remove-compare" aria-label="Close login" onClick={() => setShowLogin(false)}><X size={17} /></button><ShieldCheck size={26} /><h2 id="login-title">Operator access</h2><p>Sign in to enable protected live acquisition controls.</p><label>Email<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label><button className="primary-button" disabled={login.isPending}>{login.isPending ? "Signing in…" : "Sign in"}</button></form></div>}
   </div>;
 }
 
