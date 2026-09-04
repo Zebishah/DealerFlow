@@ -1,0 +1,33 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, AlertTriangle, Car as CarFront, Database, Loader2 as LoaderCircle, Play, Search, ServerCog } from "lucide-react";
+import { useState } from "react";
+import toast from "react-hot-toast";
+import { api, idempotentJson } from "../lib/api";
+import type { CatalogVehicle, IntelligenceSummary } from "../types/domain";
+import { ErrorState, PageSkeleton } from "./OverviewPage";
+
+const currency = (cents: number | null) => cents === null ? "Price unavailable" : new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(cents / 100);
+
+export function InventoryPage() {
+  const [search, setSearch] = useState("");
+  const [source, setSource] = useState("");
+  const summary = useQuery({ queryKey: ["intelligence", "summary"], queryFn: () => api<{ data: IntelligenceSummary }>("/dashboard/summary").then((result) => result.data) });
+  const catalog = useQuery({ queryKey: ["catalog", search, source], queryFn: () => { const params = new URLSearchParams({ limit: "24", sort: "newest" }); if (search) params.set("q", search); if (source) params.set("source", source); return api<{ data: CatalogVehicle[]; page: { total: number } }>(`/vehicles?${params}`); } });
+  if (catalog.isLoading) return <PageSkeleton />;
+  if (catalog.isError) return <ErrorState message="The normalized inventory catalog is unavailable." />;
+  return <div className="page-stack"><section className="intelligence-banner"><div><span>MARKET INTELLIGENCE</span><h2>Search every acquired listing from one reliable catalog.</h2><p>Source records are validated, normalized, deduplicated, and retained with provenance.</p></div><div><Database /><strong>{catalog.data?.page.total ?? 0}</strong><span>active source listings</span></div></section><section className="page-toolbar"><div className="search-control"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search make, model, trim, or keyword" /></div><select value={source} onChange={(event) => setSource(event.target.value)}><option value="">All acquisition sources</option>{summary.data?.sourceHealth.map((item) => <option value={item.key} key={item.key}>{item.name}</option>)}</select></section>{catalog.data?.data.length ? <section className="vehicle-grid">{catalog.data.data.map((car) => <article className="vehicle-card" key={car.listingId}><div className="vehicle-photo">{car.imageUrl ? <img src={car.imageUrl} alt={`${car.year} ${car.make} ${car.model}`} loading="lazy" /> : <CarFront size={42} />}<span>{car.sourceName}</span></div><div className="vehicle-info"><small>{car.isUsed ? "PRE-OWNED" : "NEW"} · {car.year}</small><h3>{car.make} {car.model}</h3><p>{car.trim ?? car.title}</p><strong>{currency(car.priceCents)}</strong><div><span>{car.odometerKm === null ? "Mileage unavailable" : `${car.odometerKm.toLocaleString()} km`}</span><span>{car.location ?? "Ontario"}</span></div></div></article>)}</section> : <div className="empty-state surface"><CarFront /><strong>No inventory matches your search</strong><span>Run an acquisition or adjust the filters.</span></div>}</div>;
+}
+
+export function AcquisitionPage() {
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"fixture" | "live">("live");
+  const summary = useQuery({ queryKey: ["intelligence", "summary"], queryFn: () => api<{ data: IntelligenceSummary }>("/dashboard/summary").then((result) => result.data), refetchInterval: (query) => query.state.data?.activeRuns ? 3_000 : 15_000 });
+  const run = useMutation({
+    mutationFn: () => api("/scrape-runs", idempotentJson("POST", { mode, filters: {} })),
+    onSuccess: async () => { toast.success(`${mode === "live" ? "Live" : "Fixture"} acquisition queued`); await queryClient.invalidateQueries({ queryKey: ["intelligence"] }); },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  if (summary.isLoading) return <PageSkeleton />;
+  if (summary.isError) return <ErrorState message="Acquisition status is unavailable." />;
+  return <div className="page-stack"><section className="operations-hero"><div><span>ASYNCHRONOUS ACQUISITION</span><h2>Run source adapters without tying work to an HTTP request.</h2><p>The API records the run, publishes one SQS message per source, and returns immediately. Lambda processes each message with retries and idempotent PostgreSQL upserts.</p></div><div className="run-control"><label>Acquisition mode<select value={mode} onChange={(event) => setMode(event.target.value as "fixture" | "live")}><option value="live">Live websites</option><option value="fixture">Verified fixtures</option></select></label><button onClick={() => run.mutate()} disabled={run.isPending}>{run.isPending ? <LoaderCircle className="spin" /> : <Play />}Queue acquisition</button></div></section>{mode === "live" && <div className="warning-banner"><AlertTriangle /><span><strong>Live mode contacts third-party websites.</strong> Run one source at a time while validating selectors, delays, robots policies, and site terms.</span></div>}<section className="operations-grid"><article className="surface"><div className="surface-head"><div><span>SOURCE HEALTH</span><h3>Acquisition adapters</h3></div></div><div className="source-list">{summary.data?.sourceHealth.map((source) => <div className="source-item" key={source.key}><span className="source-monogram">{source.name.slice(0, 2).toUpperCase()}</span><div><strong>{source.name}</strong><small>{source.liveEnabled ? "Live acquisition enabled" : "Fixture only"}</small></div><span className={`status-chip ${source.latestStatus ?? "idle"}`}>{source.latestStatus ?? "idle"}</span></div>)}</div></article><article className="surface"><div className="surface-head"><div><span>RECENT RUNS</span><h3>Durable job history</h3></div></div><div className="run-list">{summary.data?.recentRuns.map((item) => <div className="run-item" key={item.id}><ServerCog /><div><strong>RUN-{item.id.slice(0, 8).toUpperCase()}</strong><small>{item.mode} · {new Date(item.createdAt).toLocaleString("en-CA")}</small><div className="progress-bar"><i style={{ width: `${item.sourceCount ? item.completedSourceCount / item.sourceCount * 100 : 0}%` }} /></div></div><span className={`status-chip ${item.status}`}>{item.status}</span></div>)}</div></article></section><section className="architecture-note"><Activity /><div><strong>Production-shaped local verification</strong><p>Local API and local worker use the same Neon schema, SQS queue contract, source adapters, retries, and normalization code as Lambda. Only the compute host changes.</p></div></section></div>;
+}

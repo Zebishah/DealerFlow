@@ -4,12 +4,16 @@ import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
 import { db } from "../db/client.js";
 import { sessions, users } from "../db/schema.js";
+import type { UserRole } from "../db/schema.js";
 import { AppError } from "../lib/errors.js";
 
 export interface AuthenticatedUser {
   id: string;
+  workspaceId: string | null;
   email: string;
-  role: "operator" | "viewer";
+  firstName: string | null;
+  lastName: string | null;
+  role: UserRole;
 }
 
 declare global {
@@ -45,7 +49,10 @@ export async function createSession(userId: string) {
 
 export async function rotateCsrfToken(sessionId: string): Promise<string> {
   const csrfToken = randomBytes(32).toString("base64url");
-  await db.update(sessions).set({ csrfHash: hashToken(csrfToken), lastSeenAt: new Date() }).where(eq(sessions.id, sessionId));
+  await db
+    .update(sessions)
+    .set({ csrfHash: hashToken(csrfToken), lastSeenAt: new Date() })
+    .where(eq(sessions.id, sessionId));
   return csrfToken;
 }
 
@@ -59,7 +66,10 @@ export async function optionalSession(request: Request, _response: Response, nex
         sessionId: sessions.id,
         csrfHash: sessions.csrfHash,
         userId: users.id,
+        workspaceId: users.workspaceId,
         email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
         role: users.role,
       })
       .from(sessions)
@@ -76,7 +86,14 @@ export async function optionalSession(request: Request, _response: Response, nex
     const session = rows[0];
     if (session) {
       request.sessionId = session.sessionId;
-      request.user = { id: session.userId, email: session.email, role: session.role };
+      request.user = {
+        id: session.userId,
+        workspaceId: session.workspaceId,
+        email: session.email,
+        firstName: session.firstName,
+        lastName: session.lastName,
+        role: session.role,
+      };
     }
     next();
   } catch (error) {
@@ -94,8 +111,37 @@ export function requireOperator(request: Request, _response: Response, next: Nex
 }
 
 export function assertOperator(request: Request): void {
-  if (!request.user) throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
-  if (request.user.role !== "operator") throw new AppError(403, "OPERATOR_REQUIRED", "Operator access is required");
+  assertRoles(request, ["admin", "operator"]);
+}
+
+export function requireRoles(...roles: readonly UserRole[]) {
+  return (request: Request, _response: Response, next: NextFunction): void => {
+    try {
+      assertRoles(request, roles);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+export function assertRoles(request: Request, roles: readonly UserRole[]): void {
+  if (!request.user) {
+    throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
+  }
+  if (!roles.includes(request.user.role)) {
+    throw new AppError(403, "ROLE_REQUIRED", "Your role cannot perform this action");
+  }
+}
+
+export function requireWorkspace(request: Request): string {
+  if (!request.user) {
+    throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
+  }
+  if (!request.user.workspaceId) {
+    throw new AppError(403, "WORKSPACE_REQUIRED", "A workspace is required");
+  }
+  return request.user.workspaceId;
 }
 
 export async function requireCsrf(request: Request, _response: Response, next: NextFunction) {

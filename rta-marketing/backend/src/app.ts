@@ -10,12 +10,13 @@ import { authRouter } from "./auth/routes.js";
 import { env } from "./config/env.js";
 import { verifyDatabaseConnection } from "./db/client.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
+import { logger } from "./lib/logger.js";
 import { catalogRouter } from "./modules/catalog/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
+import { dealershipRouter } from "./modules/dealership/routes.js";
 import { runsRouter } from "./modules/runs/routes.js";
 import { savedRouter } from "./modules/saved/routes.js";
 import { sourcesRouter } from "./modules/sources/routes.js";
-import { logger } from "./lib/logger.js";
 
 export function createApp() {
   const app = express();
@@ -71,6 +72,7 @@ export function createApp() {
 
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/dashboard", dashboardRouter);
+  app.use("/api/v1/dealership", dealershipRouter);
   app.use("/api/v1/vehicles", catalogRouter);
   app.use("/api/v1/scrape-runs", runsRouter);
   app.use("/api/v1/saved-vehicles", savedRouter);

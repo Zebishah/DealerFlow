@@ -12,7 +12,31 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", ["operator", "viewer"]);
+export const userRole = pgEnum("user_role", [
+  "operator",
+  "viewer",
+  "admin",
+  "employee",
+  "virtual_assistant",
+  "recruiter",
+]);
+export const workspaceMode = pgEnum("workspace_mode", ["demo", "live"]);
+export const leadStatus = pgEnum("lead_status", [
+  "new",
+  "contacted",
+  "qualified",
+  "converted",
+  "lost",
+]);
+export const saleStatus = pgEnum("sale_status", [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "funded",
+  "cancelled",
+]);
+export const saleType = pgEnum("sale_type", ["retail", "wholesale"]);
 export const runMode = pgEnum("run_mode", ["fixture", "live"]);
 export const runStatus = pgEnum("run_status", [
   "queued",
@@ -36,18 +60,40 @@ export const listingStatus = pgEnum("listing_status", [
   "removed",
 ]);
 
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    mode: workspaceMode("mode").notNull().default("live"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("workspaces_slug_uq").on(table.slug)],
+);
+
 export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").references(() => workspaces.id, {
+      onDelete: "restrict",
+    }),
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
     role: userRole("role").notNull().default("viewer"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("users_email_uq").on(sql`lower(${table.email})`)],
+  (table) => [
+    uniqueIndex("users_email_uq").on(sql`lower(${table.email})`),
+    index("users_workspace_role_idx").on(table.workspaceId, table.role),
+  ],
 );
 
 export const sessions = pgTable(
@@ -67,6 +113,239 @@ export const sessions = pgTable(
     uniqueIndex("sessions_token_hash_uq").on(table.tokenHash),
     index("sessions_user_id_idx").on(table.userId),
     index("sessions_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const leadSources = pgTable(
+  "lead_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("lead_sources_workspace_name_uq").on(
+      table.workspaceId,
+      sql`lower(${table.name})`,
+    ),
+    index("lead_sources_workspace_active_idx").on(table.workspaceId, table.isActive),
+  ],
+);
+
+export const financeProviders = pgTable(
+  "finance_providers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("finance_providers_workspace_name_uq").on(
+      table.workspaceId,
+      sql`lower(${table.name})`,
+    ),
+  ],
+);
+
+export const leads = pgTable(
+  "leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    sourceId: uuid("source_id").references(() => leadSources.id, {
+      onDelete: "set null",
+    }),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    externalReference: text("external_reference"),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    vehicleInterest: text("vehicle_interest"),
+    status: leadStatus("status").notNull().default("new"),
+    notes: text("notes"),
+    contactedAt: timestamp("contacted_at", { withTimezone: true }),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("leads_workspace_external_reference_uq").on(
+      table.workspaceId,
+      table.externalReference,
+    ),
+    index("leads_workspace_status_created_idx").on(
+      table.workspaceId,
+      table.status,
+      table.createdAt,
+    ),
+    index("leads_assigned_status_idx").on(table.assignedToUserId, table.status),
+  ],
+);
+
+export const commissionRules = pgTable(
+  "commission_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    retailRateBasisPoints: integer("retail_rate_basis_points").notNull(),
+    wholesaleRateBasisPoints: integer("wholesale_rate_basis_points").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("commission_rules_workspace_user_active_idx").on(
+      table.workspaceId,
+      table.userId,
+      table.isActive,
+    ),
+  ],
+);
+
+export const sales = pgTable(
+  "sales",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    salespersonId: uuid("salesperson_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+    financeProviderId: uuid("finance_provider_id").references(
+      () => financeProviders.id,
+      { onDelete: "set null" },
+    ),
+    externalSaleId: text("external_sale_id").notNull(),
+    type: saleType("type").notNull(),
+    status: saleStatus("status").notNull().default("draft"),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email"),
+    customerPhone: text("customer_phone"),
+    vehicleVin: text("vehicle_vin"),
+    vehicleDescription: text("vehicle_description").notNull(),
+    salePriceCents: integer("sale_price_cents").notNull(),
+    grossProfitCents: integer("gross_profit_cents").notNull(),
+    commissionRateBasisPoints: integer("commission_rate_basis_points").notNull(),
+    commissionAmountCents: integer("commission_amount_cents").notNull(),
+    soldAt: timestamp("sold_at", { withTimezone: true }).notNull(),
+    notes: text("notes"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sales_workspace_external_id_uq").on(
+      table.workspaceId,
+      table.externalSaleId,
+    ),
+    index("sales_workspace_status_sold_idx").on(
+      table.workspaceId,
+      table.status,
+      table.soldAt,
+    ),
+    index("sales_salesperson_sold_idx").on(table.salespersonId, table.soldAt),
+  ],
+);
+
+export const monthlyTargets = pgTable(
+  "monthly_targets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    retailTarget: integer("retail_target").notNull().default(0),
+    wholesaleTarget: integer("wholesale_target").notNull().default(0),
+    grossProfitTargetCents: integer("gross_profit_target_cents").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("monthly_targets_workspace_user_month_uq").on(
+      table.workspaceId,
+      sql`coalesce(${table.userId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      table.month,
+    ),
+  ],
+);
+
+export const idempotencyRecords = pgTable(
+  "idempotency_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    operation: text("operation").notNull(),
+    key: text("key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    responseStatus: integer("response_status"),
+    responseBody: jsonb("response_body").$type<Record<string, unknown>>(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idempotency_records_operation_key_uq").on(
+      table.workspaceId,
+      table.operation,
+      table.key,
+    ),
+    index("idempotency_records_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("audit_events_workspace_created_idx").on(table.workspaceId, table.createdAt),
+    index("audit_events_entity_idx").on(table.entityType, table.entityId),
   ],
 );
 
@@ -153,7 +432,9 @@ export const jobOutbox = pgTable(
   "job_outbox",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    sourceRunId: uuid("source_run_id").notNull().references(() => sourceRuns.id, { onDelete: "cascade" }),
+    sourceRunId: uuid("source_run_id")
+      .notNull()
+      .references(() => sourceRuns.id, { onDelete: "cascade" }),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
     status: text("status").notNull().default("pending"),
     attemptCount: integer("attempt_count").notNull().default(0),
@@ -310,3 +591,8 @@ export type ScrapeRun = typeof scrapeRuns.$inferSelect;
 export type SourceRun = typeof sourceRuns.$inferSelect;
 export type Vehicle = typeof vehicles.$inferSelect;
 export type Listing = typeof listings.$inferSelect;
+export type User = typeof users.$inferSelect;
+export type UserRole = User["role"];
+export type Workspace = typeof workspaces.$inferSelect;
+export type Lead = typeof leads.$inferSelect;
+export type Sale = typeof sales.$inferSelect;

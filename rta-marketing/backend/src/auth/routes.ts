@@ -21,7 +21,16 @@ authRouter.post(
   asyncHandler(async (request, response) => {
     const credentials = loginSchema.parse(request.body);
     const rows = await db
-      .select({ id: users.id, email: users.email, passwordHash: users.passwordHash, role: users.role, isActive: users.isActive })
+      .select({
+        id: users.id,
+        workspaceId: users.workspaceId,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        passwordHash: users.passwordHash,
+        role: users.role,
+        isActive: users.isActive,
+      })
       .from(users)
       .where(sql`lower(${users.email}) = lower(${credentials.email})`)
       .limit(1);
@@ -33,14 +42,29 @@ authRouter.post(
     const session = await createSession(user.id);
     response.cookie(env.SESSION_COOKIE_NAME, session.token, sessionCookieOptions());
     response.status(200).json({
-      data: { user: { id: user.id, email: user.email, role: user.role }, csrfToken: session.csrfToken },
+      data: {
+        user: {
+          id: user.id,
+          workspaceId: user.workspaceId,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+        },
+        csrfToken: session.csrfToken,
+      },
     });
   }),
 );
 
-authRouter.get("/session", requireSession, (request, response) => {
-  response.json({ data: { user: request.user } });
-});
+authRouter.get(
+  "/session",
+  requireSession,
+  asyncHandler(async (request, response) => {
+    const csrfToken = await rotateCsrfToken(request.sessionId!);
+    response.json({ data: { user: request.user, csrfToken } });
+  }),
+);
 
 authRouter.post(
   "/csrf",
