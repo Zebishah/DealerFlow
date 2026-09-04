@@ -43,6 +43,12 @@ export async function createSession(userId: string) {
   return { id: session.id, token, csrfToken, expiresAt };
 }
 
+export async function rotateCsrfToken(sessionId: string): Promise<string> {
+  const csrfToken = randomBytes(32).toString("base64url");
+  await db.update(sessions).set({ csrfHash: hashToken(csrfToken), lastSeenAt: new Date() }).where(eq(sessions.id, sessionId));
+  return csrfToken;
+}
+
 export async function optionalSession(request: Request, _response: Response, next: NextFunction) {
   try {
     const token = request.cookies?.[env.SESSION_COOKIE_NAME] as string | undefined;
