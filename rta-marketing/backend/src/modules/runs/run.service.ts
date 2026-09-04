@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { scrapeRuns, sourceRuns, sources } from "../../db/schema.js";
+import { jobOutbox, scrapeRuns, sourceRuns, sources } from "../../db/schema.js";
 import { scrapeFiltersSchema, type CreateScrapeRunInput, type ScrapeJob, type SourceKey } from "../../contracts/scrape.js";
 import { AppError } from "../../lib/errors.js";
-import { publishScrapeJob } from "../../queue/sqs.js";
+import { dispatchOutbox } from "../../queue/outbox.js";
 
 const defaultSources: SourceKey[] = [
   "autotrader",
@@ -24,7 +24,6 @@ export async function createScrapeRun(
   idempotencyKey: string,
   userId?: string,
 ): Promise<CreatedRun> {
-  let responseStatus = "queued";
   const selectedKeys = input.sources ?? defaultSources;
   const selectedSources = await db
     .select({ id: sources.id, key: sources.key, enabled: sources.enabled, liveEnabled: sources.liveEnabled })
@@ -64,58 +63,32 @@ export async function createScrapeRun(
         .limit(1);
       const reused = existing[0];
       if (!reused) throw new Error("Idempotent run lookup failed");
-      return { run: reused, sourceRunRows: [], reused: true };
+      return { run: reused, reused: true };
     }
 
     const sourceRunRows = await transaction
       .insert(sourceRuns)
       .values(selectedSources.map((source) => ({ runId: newRun.id, sourceId: source.id })))
       .returning({ id: sourceRuns.id, sourceId: sourceRuns.sourceId });
-
-    return { run: newRun, sourceRunRows, reused: false };
-  });
-
-  if (!result.reused) {
     const keysById = new Map(selectedSources.map((source) => [source.id, source.key as SourceKey]));
-    const jobs: ScrapeJob[] = result.sourceRunRows.map((sourceRun) => ({
+    const jobs: ScrapeJob[] = sourceRunRows.map((sourceRun) => ({
       version: 1,
       jobId: randomUUID(),
-      runId: result.run.id,
+      runId: newRun.id,
       sourceRunId: sourceRun.id,
       sourceId: keysById.get(sourceRun.sourceId)!,
       mode: input.mode,
       filters: input.filters,
     }));
+    await transaction.insert(jobOutbox).values(jobs.map((job) => ({ sourceRunId: job.sourceRunId, payload: job })));
+    return { run: newRun, reused: false };
+  });
 
-    const publications = await Promise.allSettled(jobs.map((job) => publishScrapeJob(job)));
-    const failedSourceRunIds = publications.flatMap((publication, index) =>
-      publication.status === "rejected" && jobs[index] ? [jobs[index].sourceRunId] : [],
-    );
-    if (failedSourceRunIds.length > 0) {
-      await db
-        .update(sourceRuns)
-        .set({
-          status: "failed",
-          errorCode: "QUEUE_PUBLISH_FAILED",
-          errorMessage: "The source job could not be published",
-          finishedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(inArray(sourceRuns.id, failedSourceRunIds));
-      responseStatus = failedSourceRunIds.length === jobs.length ? "failed" : "partial";
-      await db
-        .update(scrapeRuns)
-        .set({
-          status: responseStatus as "failed" | "partial",
-          failedSourceCount: failedSourceRunIds.length,
-          finishedAt: responseStatus === "failed" ? new Date() : null,
-          updatedAt: new Date(),
-        })
-        .where(eq(scrapeRuns.id, result.run.id));
-    }
+  if (!result.reused) {
+    await dispatchOutbox();
   }
 
-  return { id: result.run.id, status: result.reused ? result.run.status : responseStatus, reused: result.reused };
+  return { id: result.run.id, status: result.run.status, reused: result.reused };
 }
 
 export async function replaySourceRun(runId: string, sourceRunId: string): Promise<void> {
@@ -155,23 +128,15 @@ export async function replaySourceRun(runId: string, sourceRunId: string): Promi
       .update(scrapeRuns)
       .set({ status: "running", finishedAt: null, updatedAt: new Date() })
       .where(eq(scrapeRuns.id, runId));
+    await transaction
+      .insert(jobOutbox)
+      .values({ sourceRunId, payload: job })
+      .onConflictDoUpdate({
+        target: jobOutbox.sourceRunId,
+        set: { payload: job, status: "pending", availableAt: new Date(), lockedAt: null, publishedAt: null, lastError: null, updatedAt: new Date() },
+      });
   });
-  try {
-    await publishScrapeJob(job);
-  } catch (error) {
-    await db
-      .update(sourceRuns)
-      .set({
-        status: "failed",
-        errorCode: "QUEUE_PUBLISH_FAILED",
-        errorMessage: "The replay job could not be published",
-        finishedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(sourceRuns.id, sourceRunId));
-    await db.update(scrapeRuns).set({ status: "partial", updatedAt: new Date() }).where(eq(scrapeRuns.id, runId));
-    throw error;
-  }
+  await dispatchOutbox();
 }
 
 export async function getScrapeRun(id: string) {
