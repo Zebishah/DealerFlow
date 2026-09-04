@@ -75,6 +75,86 @@ Only public browser configuration may use the `VITE_` prefix. Never expose datab
 
 `ALLOW_LIVE_SCRAPING=false` blocks public API requests from starting real website automation. `LIVE_SCRAPING_ENABLED=false` is an independent worker-side kill switch. Fixture mode still runs the real SQS, validation, normalization, deduplication, persistence, and dashboard flow, but uses deterministic input. This protects free quotas and third-party sites while development is ongoing.
 
+## Controlled local live test
+
+Live scraping is supported locally with Puppeteer's managed Chrome; Firefox and Helium are not supported by the current adapters. Install Chrome without installing a system-wide Chromium package:
+
+```bash
+cd backend
+npx puppeteer browsers install chrome
+```
+
+Use these API overrides in `backend/.env`:
+
+```dotenv
+NODE_ENV=development
+PUBLIC_APP_URL=http://localhost:5173
+CORS_ORIGINS=http://localhost:5173
+ALLOW_LIVE_SCRAPING=true
+DEFAULT_SCRAPE_MODE=fixture
+SESSION_COOKIE_SECURE=false
+SESSION_COOKIE_SAME_SITE=lax
+```
+
+Use these worker overrides in `backend/.env.worker.local`:
+
+```dotenv
+NODE_ENV=development
+LIVE_SCRAPING_ENABLED=true
+BROWSER_HEADLESS=true
+BROWSER_DISABLE_SANDBOX=false
+BROWSER_EXECUTABLE_PATH=
+WORKER_CONCURRENCY=1
+SOURCE_MAX_CONCURRENT_PAGES=1
+SCRAPE_MAX_PAGES_PER_SOURCE=2
+SCRAPE_MAX_LISTINGS_PER_SOURCE=50
+SCRAPE_SCREENSHOT_ON_ERROR=true
+SCRAPE_ARTIFACT_DIR=/tmp/rta-scraper
+```
+
+Keep `DEFAULT_SCRAPE_MODE=fixture`: it controls the UI/default behavior, not whether live testing is possible. The two explicit live switches are a defense-in-depth safety control.
+
+The deployed Lambda and local worker must not consume the same queue simultaneously. Temporarily disable its event source mapping before starting the local worker:
+
+```bash
+RTA_MAPPING_UUID=$(aws lambda list-event-source-mappings \
+  --function-name rta-scrape-worker \
+  --region ap-south-1 \
+  --profile rta-deploy \
+  --query 'EventSourceMappings[0].UUID' \
+  --output text)
+aws lambda update-event-source-mapping --uuid "$RTA_MAPPING_UUID" --no-enabled \
+  --region ap-south-1 --profile rta-deploy
+```
+
+Enable live sources and ensure an operator exists:
+
+```bash
+SEED_LIVE_SOURCES=true npm run db:seed
+```
+
+Start three terminals:
+
+```bash
+# terminal 1
+cd backend && npm run dev
+
+# terminal 2
+cd backend && npm run worker:dev
+
+# terminal 3
+cd rta-scrapper && npm run dev
+```
+
+Open `http://localhost:5173`, choose **Live mode**, sign in as the seeded operator, and begin with one narrow make/model query. Inspect the Operations screen, worker logs, database results, and `/tmp/rta-scraper` if an adapter fails.
+
+After testing, stop the local worker and re-enable Lambda:
+
+```bash
+aws lambda update-event-source-mapping --uuid "$RTA_MAPPING_UUID" --enabled \
+  --region ap-south-1 --profile rta-deploy
+```
+
 ## Secrets
 
 Generate two independent secrets:
