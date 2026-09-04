@@ -3,18 +3,22 @@ import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { closeDatabase } from "./db/client.js";
 import { closeQueueClient } from "./queue/sqs.js";
+import { startOutboxDispatcher } from "./queue/outbox.js";
+import { logger } from "./lib/logger.js";
 
 const server = createServer(createApp());
+const stopOutboxDispatcher = startOutboxDispatcher();
 
 server.listen(env.PORT, env.HOST, () => {
-  console.log(`RTA API listening on http://${env.HOST}:${env.PORT}`);
+  logger.info({ host: env.HOST, port: env.PORT }, "RTA API listening");
 });
 
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
   stopping = true;
-  console.log(`${signal} received; shutting down`);
+  logger.info({ signal }, "Shutdown requested");
+  stopOutboxDispatcher();
   setTimeout(() => process.exit(1), 30_000).unref();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   closeQueueClient();
