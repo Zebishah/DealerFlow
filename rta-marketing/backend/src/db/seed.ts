@@ -7,6 +7,7 @@ import { sources, users } from "./schema.js";
 const seedEnv = z.object({
   SEED_OPERATOR_EMAIL: z.string().email().optional(),
   SEED_OPERATOR_PASSWORD: z.string().min(14).optional(),
+  SEED_LIVE_SOURCES: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
 }).parse(process.env);
 
 const sourceDefinitions = [
@@ -23,8 +24,16 @@ async function main(): Promise<void> {
       .values(source)
       .onConflictDoUpdate({
         target: sources.key,
-        set: { name: source.name, minDelayMs: source.minDelayMs, updatedAt: new Date() },
+        set: {
+          name: source.name,
+          minDelayMs: source.minDelayMs,
+          ...(seedEnv.SEED_LIVE_SOURCES ? { liveEnabled: true } : {}),
+          updatedAt: new Date(),
+        },
       });
+    if (seedEnv.SEED_LIVE_SOURCES) {
+      await db.update(sources).set({ liveEnabled: true, updatedAt: new Date() }).where(eq(sources.key, source.key));
+    }
   }
 
   if (seedEnv.SEED_OPERATOR_EMAIL && seedEnv.SEED_OPERATOR_PASSWORD) {
