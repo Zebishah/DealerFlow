@@ -30,6 +30,7 @@ Resources:
           DATABASE_CONNECT_TIMEOUT_MS: "5000"
           LIVE_SCRAPING_ENABLED: "false"
           BROWSER_HEADLESS: "true"
+          BROWSER_DISABLE_SANDBOX: "true"
           SCRAPE_JOB_TIMEOUT_MS: "540000"
           BROWSER_NAVIGATION_TIMEOUT_MS: "60000"
           SOURCE_MAX_CONCURRENT_PAGES: "1"
@@ -42,9 +43,9 @@ Resources:
           Properties:
             Queue: !Ref ScrapeQueueArn
             BatchSize: 1
+            FunctionResponseTypes: [ReportBatchItemFailures]
             ScalingConfig:
               MaximumConcurrency: 2
-            FunctionResponseTypes: [ReportBatchItemFailures]
             Enabled: true
     Metadata:
       BuildMethod: esbuild
