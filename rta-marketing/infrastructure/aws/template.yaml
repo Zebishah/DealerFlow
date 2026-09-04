@@ -20,7 +20,6 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 1024
       Timeout: 600
-      ReservedConcurrentExecutions: 1
       Environment:
         Variables:
           NODE_ENV: production
@@ -43,6 +42,8 @@ Resources:
           Properties:
             Queue: !Ref ScrapeQueueArn
             BatchSize: 1
+            ScalingConfig:
+              MaximumConcurrency: 2
             FunctionResponseTypes: [ReportBatchItemFailures]
             Enabled: true
     Metadata:
