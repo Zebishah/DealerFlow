@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { Router, type Request } from "express";
 import { z } from "zod";
 import { db } from "../../db/client.js";
@@ -28,7 +28,7 @@ savedRouter.get(
       : eq(savedVehicles.demoSessionId, identity.demoSessionId!);
 
     const rows = await db
-      .select({
+      .selectDistinctOn([vehicles.id], {
         savedId: savedVehicles.id,
         savedAt: savedVehicles.createdAt,
         vehicleId: vehicles.id,
@@ -46,15 +46,17 @@ savedRouter.get(
         imageUrl: listings.imageUrl,
         dealerName: listings.dealerName,
         location: listings.location,
+        isUsed: vehicles.isUsed,
+        lastSeenAt: listings.lastSeenAt,
       })
       .from(savedVehicles)
       .innerJoin(vehicles, eq(savedVehicles.vehicleId, vehicles.id))
       .innerJoin(listings, eq(listings.vehicleId, vehicles.id))
       .innerJoin(sources, eq(listings.sourceId, sources.id))
       .where(and(ownership, eq(listings.status, "active")))
-      .orderBy(desc(savedVehicles.createdAt));
+      .orderBy(vehicles.id, asc(listings.priceCents), desc(listings.lastSeenAt));
 
-    response.json({ data: rows });
+    response.json({ data: rows.sort((left, right) => right.savedAt.getTime() - left.savedAt.getTime()) });
   }),
 );
 
