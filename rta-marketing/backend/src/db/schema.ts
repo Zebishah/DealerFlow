@@ -149,6 +149,27 @@ export const sourceRuns = pgTable(
   ],
 );
 
+export const jobOutbox = pgTable(
+  "job_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceRunId: uuid("source_run_id").notNull().references(() => sourceRuns.id, { onDelete: "cascade" }),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("job_outbox_source_run_uq").on(table.sourceRunId),
+    index("job_outbox_dispatch_idx").on(table.status, table.availableAt),
+  ],
+);
+
 export const vehicles = pgTable(
   "vehicles",
   {
