@@ -37,7 +37,6 @@ const scrapeAutoTrader = async (page, baseUrl) => {
       await logAsync("info", "Zero results detected (early exit)", {
         url: page.url(),
       });
-      console.log("Zero results detected (early exit)");
       return { cars: [], total: 0, serverError: null };
     }
 
