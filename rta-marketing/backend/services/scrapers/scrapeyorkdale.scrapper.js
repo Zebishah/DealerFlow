@@ -4,7 +4,7 @@ const { logAsync } = require("../../utils/logger");
 // Helper function to wait
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const scrapeYorkdaleVW = async (page, baseUrl) => {
+const scrapeYorkdaleVW = async (page, baseUrl, limits = { maxPages: 20, minDelayMs: 1800 }) => {
   const result = { cars: [], total: 0, serverError: null };
 
   try {
@@ -92,7 +92,7 @@ const scrapeYorkdaleVW = async (page, baseUrl) => {
     }
 
     const CARDS_PER_PAGE = 12;
-    const totalPages = Math.ceil(totalResults / CARDS_PER_PAGE);
+    const totalPages = Math.min(Math.ceil(totalResults / CARDS_PER_PAGE), limits.maxPages);
 
     await logAsync(
       "info",
@@ -272,7 +272,7 @@ const scrapeYorkdaleVW = async (page, baseUrl) => {
           });
 
           // Wait for new content to load
-          await wait(5000);
+          await wait(limits.minDelayMs);
 
           // Wait for cards to appear
           await page.waitForSelector(".vlp-cards-base .cell.card", {
@@ -316,7 +316,7 @@ const scrapeYorkdaleVW = async (page, baseUrl) => {
     result.cars = allCars;
     result.total = allCars.length;
 
-    await logAsync("success", "✅ YorkdaleVW scraping COMPLETE", {
+    await logAsync("success", "Yorkdale VW scraping completed", {
       totalCars: result.total,
       expectedTotal: totalResults,
       pagesScraped: currentPage - 1,
@@ -328,7 +328,7 @@ const scrapeYorkdaleVW = async (page, baseUrl) => {
     if (result.total < totalResults) {
       await logAsync(
         "warn",
-        `⚠️ Scraped ${result.total} of ${totalResults} expected vehicles (${
+        `Scraped ${result.total} of ${totalResults} expected vehicles (${
           totalResults - result.total
         } missing)`
       );
