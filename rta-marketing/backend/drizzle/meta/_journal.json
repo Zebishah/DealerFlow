@@ -8,6 +8,13 @@
       "when": 1788453846603,
       "tag": "0000_little_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788531393863,
+      "tag": "0001_job_outbox",
+      "breakpoints": true
     }
   ]
 }
