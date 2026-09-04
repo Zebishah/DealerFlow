@@ -12,13 +12,11 @@ const scrapeAutoPlanet = async (page, baseUrl) => {
       baseUrl,
     });
 
-    // Load page
-    await page.goto(baseUrl, { waitUntil: "networkidle2", timeout: 60_000 });
     await logAsync("info", "Page loaded, waiting for vehicle cards...", {
       url: page.url(),
     });
     // -----------------------------
-    // 🔍 Wait for Results Heading to Appear
+    // Wait for the results heading.
     // -----------------------------
     await page.waitForSelector(
       ".srp__vehicle-count, .advanced-filters-wrap__heading-custom h1",
