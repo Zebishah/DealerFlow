@@ -19,7 +19,6 @@ const schema = z.object({
   BROWSER_EXECUTABLE_PATH: z.string().optional(),
   SCRAPE_ARTIFACT_DIR: z.string().default("/tmp/rta-scraper"),
   SCRAPE_SCREENSHOT_ON_ERROR: bool.default(false),
-  SOURCE_MAX_CONCURRENT_PAGES: z.coerce.number().int().min(1).max(4).default(1),
   SOURCE_MIN_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(1500),
   SCRAPE_MAX_PAGES_PER_SOURCE: z.coerce.number().int().min(1).max(100).default(20),
   SCRAPE_MAX_LISTINGS_PER_SOURCE: z.coerce.number().int().min(1).max(2_000).default(500),
