@@ -6,7 +6,7 @@ The public demo is fixture-first: recruiters can run the complete asynchronous p
 
 ## What this project demonstrates
 
-- Durable asynchronous work with Amazon SQS and a dead-letter queue
+- Durable asynchronous work with Amazon SQS, a dead-letter queue, and a transactional outbox
 - Idempotent PostgreSQL ingestion using unique `(source_id, external_id)` constraints
 - VIN identity plus conservative fallback fingerprints
 - Zod validation at request and raw-record boundaries
@@ -21,13 +21,14 @@ The public demo is fixture-first: recruiters can run the complete asynchronous p
 flowchart TD
   UI["React dashboard<br/>Render static site"] -->|HTTPS| API["TypeScript API<br/>Render web service"]
   API --> DB["Neon PostgreSQL"]
-  API -->|one job per source| SQS["Amazon SQS + DLQ"]
+  API -->|atomic outbox record| DB
+  API -->|outbox dispatcher| SQS["Amazon SQS + DLQ"]
   SQS --> WORKER["Lambda ingestion worker"]
   WORKER --> SOURCES["Typed source adapters"]
   WORKER --> DB
 ```
 
-The API returns `202 Accepted` immediately. Browser work is never tied to an HTTP request, and duplicate SQS delivery is safe.
+The API commits the scrape run, source runs, and outgoing jobs in one PostgreSQL transaction, then an outbox dispatcher publishes them to SQS. The API returns `202 Accepted`; browser work is never tied to the request. SQS is an at-least-once system, so database uniqueness constraints and observation keys make duplicate delivery safe.
 
 ## Applications
 
@@ -37,10 +38,12 @@ The API returns `202 Accepted` immediately. Browser work is never tied to an HTT
 | `backend/src/server.ts` | Express API |
 | `backend/src/worker/lambda.ts` | Lambda SQS handler |
 | `backend/src/worker/local.ts` | Long-polling local worker |
+| `backend/src/queue/outbox.ts` | Crash-safe SQS publication dispatcher |
 | `backend/src/db/schema.ts` | Drizzle PostgreSQL schema |
 | `backend/drizzle/` | Reviewed SQL migrations |
+| `rta-scrapper/src/components/` | Reusable dashboard presentation components |
 
-The unrelated dealership CRM in `frontend/` is legacy code and is not part of the portfolio product. It should remain excluded when the hardened branch is made public.
+The hardened portfolio branch excludes the unrelated dealership CRM, Firebase, FTP, obsolete API routes, dead CarGurus code, and stale tests. Four source-specific extractors remain behind a strict TypeScript adapter boundary while they are incrementally converted from the original JavaScript parsers.
 
 ## Quick start
 
@@ -71,15 +74,16 @@ Open `http://localhost:5173`, click **Run acquisition**, and the API will enqueu
 
 ```bash
 cd backend && npm run typecheck && npm run lint && npm test && npm run build
-cd rta-scrapper && npm run lint && npm run build
+cd rta-scrapper && npm run lint && npm test && npm run build
 ```
 
-The renovated UI bundle is approximately 213 kB before gzip, down from the audited 660 kB baseline. This is measured build output, not an invented performance claim.
+The renovated UI bundle is approximately 216 kB before gzip, down from the audited 660 kB baseline. This is measured build output, not an invented performance claim.
 
 ## Deployment and configuration
 
 - [Environment contract](docs/ENVIRONMENT_SETUP.md)
 - [Free-tier deployment guide](docs/DEPLOYMENT.md)
+- [Architecture decisions](docs/ARCHITECTURE.md)
 - [Original audit and upgrade plan](docs/RTA_PORTFOLIO_UPGRADE_PLAN.md)
 
 Never commit `.env` files, AWS keys, database URLs, session secrets, cookies, or service-account files. Lambda should use an IAM execution role; the Render API needs a narrowly scoped IAM user until workload identity federation is configured.
