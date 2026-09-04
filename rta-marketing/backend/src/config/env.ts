@@ -25,6 +25,8 @@ const envSchema = z
     AWS_REGION: z.string().min(1),
     AWS_PROFILE: z.string().min(1).optional(),
     SQS_SCRAPE_QUEUE_URL: z.string().url(),
+    QUEUE_OUTBOX_POLL_MS: z.coerce.number().int().min(1_000).max(60_000).default(5_000),
+    QUEUE_OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(50).default(10),
     SESSION_SECRET: z.string().min(48),
     CSRF_SECRET: z.string().min(48),
     SESSION_COOKIE_NAME: z.string().min(1).default("rta_session"),
