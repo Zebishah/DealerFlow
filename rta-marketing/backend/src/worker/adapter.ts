@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import type { Page } from "puppeteer";
 import type { RawListing } from "../contracts/listing.js";
 import type { ScrapeFilters, SourceKey } from "../contracts/scrape.js";
@@ -126,22 +128,41 @@ export async function acquireListings(
   const puppeteer = (await import("puppeteer")).default;
   const launchOptions = {
     headless: workerEnv.BROWSER_HEADLESS,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--disable-dev-shm-usage",
+      ...(workerEnv.BROWSER_DISABLE_SANDBOX ? ["--no-sandbox", "--disable-setuid-sandbox"] : []),
+    ],
     ...(workerEnv.BROWSER_EXECUTABLE_PATH
       ? { executablePath: workerEnv.BROWSER_EXECUTABLE_PATH }
       : {}),
   };
   const browser = await puppeteer.launch(launchOptions);
+  let page: Page | undefined;
+  let timeout: NodeJS.Timeout | undefined;
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
     page.setDefaultTimeout(workerEnv.BROWSER_NAVIGATION_TIMEOUT_MS);
     page.setDefaultNavigationTimeout(workerEnv.BROWSER_NAVIGATION_TIMEOUT_MS);
     await page.setExtraHTTPHeaders({ "Accept-Language": "en-CA,en;q=0.9" });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: workerEnv.BROWSER_NAVIGATION_TIMEOUT_MS });
-    const result = await modules.scrape(page, url);
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => reject(new AppError(504, "SCRAPE_TIMEOUT", `${source} exceeded its job timeout`)), workerEnv.SCRAPE_JOB_TIMEOUT_MS);
+    });
+    const result = await Promise.race([modules.scrape(page, url), deadline]);
     if (result.serverError) throw new AppError(502, "SOURCE_FAILURE", `${source} could not be acquired`);
-    return (result.cars ?? []).map((car) => adaptLegacyListing(source, car, filters));
+    return (result.cars ?? [])
+      .slice(0, workerEnv.SCRAPE_MAX_LISTINGS_PER_SOURCE)
+      .map((car) => adaptLegacyListing(source, car, filters));
+  } catch (error) {
+    if (page && workerEnv.SCRAPE_SCREENSHOT_ON_ERROR) {
+      await mkdir(workerEnv.SCRAPE_ARTIFACT_DIR, { recursive: true });
+      const filename = `${source}-${Date.now()}.png`;
+      const screenshotPath = join(workerEnv.SCRAPE_ARTIFACT_DIR, filename) as `${string}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => undefined);
+    }
+    throw error;
   } finally {
+    if (timeout) clearTimeout(timeout);
     await browser.close();
   }
 }
