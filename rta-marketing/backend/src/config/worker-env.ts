@@ -15,6 +15,7 @@ const schema = z.object({
   SCRAPE_JOB_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(840_000).default(540_000),
   BROWSER_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(180_000).default(60_000),
   BROWSER_HEADLESS: bool.default(true),
+  BROWSER_DISABLE_SANDBOX: bool.default(false),
   BROWSER_EXECUTABLE_PATH: z.string().optional(),
   SCRAPE_ARTIFACT_DIR: z.string().default("/tmp/rta-scraper"),
   SCRAPE_SCREENSHOT_ON_ERROR: bool.default(false),
