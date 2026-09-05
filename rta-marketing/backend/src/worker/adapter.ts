@@ -77,7 +77,7 @@ function titleParts(title: string, filters: ScrapeFilters) {
   return { year, make, model };
 }
 
-function adaptLegacyListing(source: SourceKey, value: unknown, filters: ScrapeFilters): RawListing {
+export function adaptLegacyListing(source: SourceKey, value: unknown, filters: ScrapeFilters): RawListing {
   if (!value || typeof value !== "object") throw new AppError(422, "INVALID_LISTING", "Source returned a non-object listing");
   const car = value as Record<string, unknown>;
   const title = text(car.title) ?? [car.year, car.make, car.model].map(text).filter(Boolean).join(" ");
