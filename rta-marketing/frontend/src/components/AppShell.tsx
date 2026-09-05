@@ -1,7 +1,6 @@
 import {
   Activity,
   BarChart3,
-  Bell,
   Car,
   ChevronDown,
   CircleDollarSign,
@@ -35,6 +34,7 @@ const nav = [
   { to: "/app/commissions", label: "Commissions", icon: CircleDollarSign, roles: ["admin", "operator", "employee"] },
   { to: "/app/targets", label: "Targets", icon: Target, roles: ["admin", "operator", "employee"] },
   { to: "/app/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "operator", "employee", "recruiter"] },
+  { to: "/app/performance-board", label: "Performance board", icon: Gauge, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/inventory", label: "Vehicle intelligence", icon: Car, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/saved-vehicles", label: "Saved vehicles", icon: Heart, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/compare", label: "Compare vehicles", icon: SlidersHorizontal, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
@@ -52,6 +52,7 @@ const pageTitles: Record<string, [string, string]> = {
   commissions: ["Commission control", "Transparent earnings and approval workflow"],
   targets: ["Monthly targets", "Align goals with measurable progress"],
   analytics: ["Performance analytics", "Decision-ready dealership trends"],
+  "performance-board": ["Performance board", "Auto-refreshing team visibility"],
   inventory: ["Vehicle intelligence", "Normalized inventory across Ontario sources"],
   "saved-vehicles": ["Saved vehicles", "Your private vehicle shortlist"],
   compare: ["Compare vehicles", "Evaluate normalized attributes side by side"],
@@ -105,7 +106,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="top-nav">
         <div><span>RTA AUTOMOTIVE GROUP</span><h1>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
-          <button className="icon-control" aria-label="Notifications"><Bell size={19} /><i /></button>
           <div className="profile-wrap">
             <button className="profile-control" onClick={() => setProfileOpen((value) => !value)}><b>{initials(user.firstName, user.lastName, user.email)}</b><span><strong>{[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email}</strong><small>{user.role.replace("_", " ")}</small></span><ChevronDown size={15} /></button>
             {profileOpen && <div className="profile-menu"><button onClick={() => { setProfileOpen(false); navigate("/app/settings"); }}><Settings2 size={16} />Account settings</button><button onClick={() => void signOut()}><LogOut size={16} />Sign out</button></div>}
