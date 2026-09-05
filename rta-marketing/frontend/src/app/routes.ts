@@ -126,6 +126,17 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
   },
 };
 
+export function canAccessRoute(
+  route: AppRoute,
+  role: UserRole,
+  workspaceId: string | null,
+): boolean {
+  return (
+    route.roles.includes(role) &&
+    (route.workspace === "optional" || workspaceId !== null)
+  );
+}
+
 export function resolveLegacyPath(path: string): string {
   return path.startsWith("/AdminLayout") ||
     path.startsWith("/EmployeeLayout") ||
