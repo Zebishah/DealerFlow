@@ -46,6 +46,9 @@ jobs:
         env:
           RUN_DATABASE_TESTS: "true"
       - run: npm run build
+      - uses: aws-actions/setup-sam@v2
+      - run: sam validate --lint --template-file ../infrastructure/aws/template.yaml
+      - run: sam build --template-file ../infrastructure/aws/template.yaml
 
   frontend:
     runs-on: ubuntu-latest
