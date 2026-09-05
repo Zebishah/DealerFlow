@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, Car as CarFront, Database, Loader2 as LoaderCircle, Play, Search, ServerCog } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { WorkflowModal } from "../components/WorkflowModal";
 import toast from "react-hot-toast";
 import { api, idempotentJson } from "../lib/api";
 import type { CatalogVehicle, IntelligenceSummary } from "../types/domain";
@@ -19,12 +20,43 @@ export function InventoryPage() {
   return <div className="page-stack"><section className="intelligence-banner"><div><span>MARKET INTELLIGENCE</span><h2>Search every acquired listing from one reliable catalog.</h2><p>Source records are validated, normalized, deduplicated, and retained with provenance.</p></div><div><Database /><strong>{catalog.data?.page.total ?? 0}</strong><span>active source listings</span></div></section><section className="page-toolbar"><div className="search-control"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search make, model, trim, or keyword" /></div><select value={source} onChange={(event) => setSource(event.target.value)}><option value="">All acquisition sources</option>{summary.data?.sourceHealth.map((item) => <option value={item.key} key={item.key}>{item.name}</option>)}</select></section>{catalog.data?.data.length ? <section className="vehicle-grid">{catalog.data.data.map((car) => <article className="vehicle-card" key={car.listingId}><div className="vehicle-photo">{car.imageUrl ? <img src={car.imageUrl} alt={`${car.year} ${car.make} ${car.model}`} loading="lazy" /> : <CarFront size={42} />}<span>{car.sourceName}</span></div><div className="vehicle-info"><small>{car.isUsed ? "PRE-OWNED" : "NEW"} · {car.year}</small><h3>{car.make} {car.model}</h3><p>{car.trim ?? car.title}</p><strong>{currency(car.priceCents)}</strong><div><span>{car.odometerKm === null ? "Mileage unavailable" : `${car.odometerKm.toLocaleString()} km`}</span><span>{car.location ?? "Ontario"}</span></div></div></article>)}</section> : <div className="empty-state surface"><CarFront /><strong>No inventory matches your search</strong><span>Run an acquisition or adjust the filters.</span></div>}</div>;
 }
 
+type RunDetail = {
+  id: string;
+  mode: "fixture" | "live";
+  status: string;
+  sourceCount: number;
+  completedSourceCount: number;
+  failedSourceCount: number;
+  discoveredCount: number;
+  insertedCount: number;
+  updatedCount: number;
+  rejectedCount: number;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  sources: Array<{
+    id: string;
+    sourceName: string;
+    status: string;
+    attemptCount: number;
+    progressPercent: number;
+    discoveredCount: number;
+    validCount: number;
+    insertedCount: number;
+    updatedCount: number;
+    rejectedCount: number;
+    errorCode: string | null;
+    errorMessage: string | null;
+  }>;
+};
+
 export function AcquisitionPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const canRunLive = user?.role === "admin" || user?.role === "operator";
   const [mode, setMode] = useState<"fixture" | "live">(canRunLive ? "live" : "fixture");
   const [selectedSources, setSelectedSources] = useState<string[]>(["autotrader"]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     make: "",
     model: "",
@@ -41,6 +73,26 @@ export function AcquisitionPage() {
     queryKey: ["intelligence", "summary"],
     queryFn: () => api<{ data: IntelligenceSummary }>("/dashboard/summary").then((result) => result.data),
     refetchInterval: (query) => query.state.data?.activeRuns ? 3_000 : 15_000,
+  });
+
+  const runDetail = useQuery({
+    queryKey: ["scrape-run", selectedRunId],
+    queryFn: () => api<{ data: RunDetail }>(`/scrape-runs/${selectedRunId}`).then((value) => value.data),
+    enabled: Boolean(selectedRunId),
+    refetchInterval: (query) => query.state.data && ["queued", "running"].includes(query.state.data.status) ? 2_000 : false,
+  });
+
+  const replay = useMutation({
+    mutationFn: ({ runId, sourceRunId }: { runId: string; sourceRunId: string }) =>
+      api(`/scrape-runs/${runId}/sources/${sourceRunId}/replay`, { method: "POST" }),
+    onSuccess: async () => {
+      toast.success("Failed source queued for replay");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["scrape-run", selectedRunId] }),
+        queryClient.invalidateQueries({ queryKey: ["intelligence"] }),
+      ]);
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const run = useMutation({
@@ -149,7 +201,7 @@ export function AcquisitionPage() {
         <div className="run-list">
           {summary.data?.recentRuns.map((item) => <div className="run-item" key={item.id}>
             <ServerCog />
-            <div><strong>RUN-{item.id.slice(0, 8).toUpperCase()}</strong><small>{item.mode} · {new Date(item.createdAt).toLocaleString("en-CA")}</small><div className="progress-bar"><i style={{ width: `${item.sourceCount ? item.completedSourceCount / item.sourceCount * 100 : 0}%` }} /></div></div>
+            <button className="run-summary-button" type="button" onClick={() => setSelectedRunId(item.id)}><strong>RUN-{item.id.slice(0, 8).toUpperCase()}</strong><small>{item.mode} · {new Date(item.createdAt).toLocaleString("en-CA")}</small><div className="progress-bar"><i style={{ width: `${item.sourceCount ? item.completedSourceCount / item.sourceCount * 100 : 0}%` }} /></div></button>
             <div className="run-status-actions"><span className={`status-chip ${item.status}`}>{item.status}</span>{canRunLive && ["queued", "running"].includes(item.status) && <button disabled={cancel.isPending} onClick={() => cancel.mutate(item.id)}>Cancel</button>}</div>
           </div>)}
         </div>
@@ -157,5 +209,11 @@ export function AcquisitionPage() {
     </section>
 
     <section className="architecture-note"><Activity /><div><strong>Production-shaped local verification</strong><p>Local and Lambda workers consume the same SQS contract and execute the same validation, normalization, retry, and idempotent database-upsert code.</p></div></section>
+    <WorkflowModal open={Boolean(selectedRunId)} eyebrow="RUN OBSERVABILITY" title={runDetail.data ? `RUN-${runDetail.data.id.slice(0, 8).toUpperCase()}` : "Acquisition run"} description="Per-source progress, retry attempts, normalization results, and operational errors." onClose={() => setSelectedRunId(null)}>
+      {runDetail.isLoading ? <div className="modal-loading">Loading run telemetry…</div> : runDetail.isError ? <ErrorState message="Run telemetry could not be loaded." /> : runDetail.data && <div className="run-detail">
+        <div className="detail-facts"><span><small>Status</small><strong className="capitalize">{runDetail.data.status}</strong></span><span><small>Discovered</small><strong>{runDetail.data.discoveredCount}</strong></span><span><small>Inserted</small><strong>{runDetail.data.insertedCount}</strong></span><span><small>Updated</small><strong>{runDetail.data.updatedCount}</strong></span></div>
+        <div className="source-run-list">{runDetail.data.sources.map((sourceRun) => <article key={sourceRun.id}><div><strong>{sourceRun.sourceName}</strong><small>{sourceRun.discoveredCount} discovered · {sourceRun.validCount} valid · {sourceRun.rejectedCount} rejected · attempt {sourceRun.attemptCount}</small>{sourceRun.errorMessage && <p>{sourceRun.errorCode ? `${sourceRun.errorCode}: ` : ""}{sourceRun.errorMessage}</p>}</div><span className={`status-chip ${sourceRun.status}`}>{sourceRun.status}</span>{canRunLive && sourceRun.status === "failed" && <button disabled={replay.isPending} onClick={() => replay.mutate({ runId: runDetail.data!.id, sourceRunId: sourceRun.id })}>Replay</button>}</article>)}</div>
+      </div>}
+    </WorkflowModal>
   </div>;
 }
