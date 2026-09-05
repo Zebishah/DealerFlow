@@ -39,6 +39,7 @@ const nav = [
   { to: "/app/saved-vehicles", label: "Saved vehicles", icon: Heart, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/compare", label: "Compare vehicles", icon: SlidersHorizontal, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/acquisition", label: "Acquisition", icon: Activity, roles: ["admin", "operator", "recruiter"] },
+  { to: "/app/source-control", label: "Source controls", icon: ShieldCheck, roles: ["admin", "operator"] },
 ] as const;
 
 const pageTitles: Record<string, [string, string]> = {
@@ -57,6 +58,7 @@ const pageTitles: Record<string, [string, string]> = {
   "saved-vehicles": ["Saved vehicles", "Your private vehicle shortlist"],
   compare: ["Compare vehicles", "Evaluate normalized attributes side by side"],
   acquisition: ["Acquisition operations", "Observable SQS-backed scraping jobs"],
+  "source-control": ["Source controls", "Operational kill switches for acquisition adapters"],
 };
 
 function initials(firstName: string | null, lastName: string | null, email: string): string {
@@ -97,9 +99,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{workspace?.mode === "demo" ? "Portfolio demo data" : user.workspaceId ? "Live operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
         <p>WORKSPACE</p>
-        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
         <p>INTELLIGENCE</p>
-        {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
       </nav>
       <div className="side-status"><span><i />API connected</span><small>PostgreSQL · SQS · Lambda</small></div>
     </aside>
