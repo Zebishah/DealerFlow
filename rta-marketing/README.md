@@ -1,58 +1,72 @@
-# RTA Vehicle Intelligence
+# RTA Automotive Operations & Vehicle Intelligence
 
-RTA is a portfolio-grade vehicle intelligence platform that acquires inventory from four Ontario automotive sources, validates and normalizes inconsistent records, resolves vehicle identity, and exposes a searchable catalog with operational evidence.
+RTA is a portfolio-grade, multi-role dealership workspace connected to a durable vehicle-intelligence pipeline. It preserves the original business story—lead follow-up, funded sales, commission visibility, employee targets, team administration, and automotive inventory—while replacing Firebase-era global state and request-bound scraping with PostgreSQL, explicit authorization, Amazon SQS, and independently scalable workers.
 
-The public demo is fixture-first: recruiters can run the complete asynchronous pipeline without sending automated traffic to third-party sites. Live acquisition is an operator-only capability protected by server-side authorization and independent kill switches.
+## Product capabilities
 
-## What this project demonstrates
+| Workspace | Implemented behavior |
+|---|---|
+| Command centre | Live monthly KPIs, target progress, recent opportunities and funded sales |
+| Lead pipeline | Search, status filters, assignment, creation and concurrency-safe editing |
+| Sales ledger | Create and edit deals, recompute commission, funding states and safe CSV export |
+| Team & configuration | Users, roles, account activation, password resets, lead sources and finance providers |
+| Compensation | Workspace/user monthly targets and effective-dated commission rules |
+| Governance | Secure profile/password changes and workspace-scoped audit history |
+| Analytics | Role-aware performance summaries and a 30-second auto-refreshing presentation board |
+| Vehicle intelligence | Search/sort/filter, canonical vehicle details, source offers, private saved vehicles and four-way comparison |
+| Acquisition | Fixture or controlled live mode, per-source selection, SQS jobs, cancellation, telemetry and failed-source replay |
 
-- Durable asynchronous work with Amazon SQS, a dead-letter queue, and a transactional outbox
-- Idempotent PostgreSQL ingestion using unique `(source_id, external_id)` constraints
-- VIN identity plus conservative fallback fingerprints
-- Zod validation at request and raw-record boundaries
-- Per-source progress, partial failure, retry, and safe error reporting
-- Persistent catalog search, saved vehicles, comparison, and source-health views
-- Session authentication, operator RBAC, CSRF defense, rate limits, Helmet, strict CORS, and structured logs
-- Deterministic fixtures, unit tests, TypeScript strict mode, linting, migrations, and CI
+## Engineering evidence
 
-## Architecture
+- TypeScript strict mode across the API and primary frontend
+- PostgreSQL migrations, foreign keys, workspace scoping, targeted indexes, integer money values and basis-point rates
+- Idempotency records for write retries and unique source/external listing constraints
+- Optimistic concurrency versions on leads and sales to prevent silent overwrites
+- Transactional outbox publication to Amazon SQS with a dead-letter queue
+- At-least-once-safe ingestion, VIN/fingerprint identity resolution and price observations
+- Zod validation at environment, request, queue and source-record boundaries
+- Session cookies, CSRF protection, RBAC, rate limiting, Helmet, strict CORS and safe errors
+- Structured request logging, health probes, source-level progress and audit events
+- Deterministic demo fixtures, backend tests, frontend lint/typecheck/build and GitHub Actions CI
+
+## Runtime architecture
 
 ```mermaid
 flowchart TD
-  UI["React dashboard<br/>Render static site"] -->|HTTPS| API["TypeScript API<br/>Render web service"]
-  API --> DB["Neon PostgreSQL"]
-  API -->|atomic outbox record| DB
-  API -->|outbox dispatcher| SQS["Amazon SQS + DLQ"]
-  SQS --> WORKER["Lambda ingestion worker"]
-  WORKER --> SOURCES["Typed source adapters"]
+  WEB["React operations app"] -->|HTTPS + session| API["Express TypeScript API"]
+  API -->|transactions| DB["Neon PostgreSQL"]
+  API -->|outbox publish| SQS["Amazon SQS + DLQ"]
+  SQS --> WORKER["Lambda or local worker"]
+  WORKER --> ADAPTERS["Typed source adapters"]
   WORKER --> DB
 ```
 
-The API commits the scrape run, source runs, and outgoing jobs in one PostgreSQL transaction, then an outbox dispatcher publishes them to SQS. The API returns `202 Accepted`; browser work is never tied to the request. SQS is an at-least-once system, so database uniqueness constraints and observation keys make duplicate delivery safe.
+The API commits a scrape run, its source runs, and outbox messages together. A dispatcher publishes the messages and returns control independently of browser work. SQS can deliver a message more than once, so worker claims plus database uniqueness make ingestion idempotent.
 
-## Applications
+## Repository map
 
 | Path | Purpose |
 |---|---|
-| `rta-scrapper/` | React/TypeScript dashboard (the historical name is retained for branch compatibility) |
-| `backend/src/server.ts` | Express API |
-| `backend/src/worker/lambda.ts` | Lambda SQS handler |
-| `backend/src/worker/local.ts` | Long-polling local worker |
-| `backend/src/queue/outbox.ts` | Crash-safe SQS publication dispatcher |
-| `backend/src/db/schema.ts` | Drizzle PostgreSQL schema |
+| `frontend/` | Primary React/TypeScript dealership and intelligence application |
+| `backend/src/modules/dealership/` | Leads, sales, targets, commissions, team and audit APIs |
+| `backend/src/modules/catalog/` | Normalized inventory search and vehicle provenance |
+| `backend/src/modules/runs/` | Acquisition lifecycle, cancellation and replay |
+| `backend/src/worker/` | Shared local and Lambda SQS consumers |
+| `backend/src/queue/` | SQS client, contracts and transactional outbox dispatcher |
+| `backend/src/db/` | Drizzle schema, migration runner and idempotent demo seed |
 | `backend/drizzle/` | Reviewed SQL migrations |
-| `rta-scrapper/src/components/` | Reusable dashboard presentation components |
+| `infrastructure/aws/` | AWS SAM Lambda and SQS event-source infrastructure |
+| `docs/` | Architecture, environment, operations and deployment guides |
+| `rta-scrapper/` | Archived earlier intelligence UI retained temporarily for migration history |
 
-The hardened portfolio branch excludes the unrelated dealership CRM, Firebase, FTP, obsolete API routes, dead CarGurus code, and stale tests. Four source-specific extractors remain behind a strict TypeScript adapter boundary while they are incrementally converted from the original JavaScript parsers.
+## Local development
 
-## Quick start
-
-Requirements: Node.js 22+, a PostgreSQL database (Neon is supported), an SQS queue with a DLQ, and AWS CLI credentials for local queue access.
+Requirements: Node.js 22+, PostgreSQL (Neon supported), an SQS queue/DLQ, and AWS credentials with least-privilege access to that queue.
 
 ```bash
 cp backend/.env.example backend/.env
 cp backend/.env.worker.example backend/.env.worker.local
-cp rta-scrapper/.env.example rta-scrapper/.env
+cp frontend/.env.example frontend/.env
 
 cd backend
 npm ci
@@ -61,29 +75,50 @@ npm run db:seed
 npm run dev
 ```
 
-In separate terminals:
+Run the worker and frontend in separate terminals:
 
 ```bash
 cd backend && npm run worker:dev
-cd rta-scrapper && npm ci && npm run dev
+cd frontend && npm ci && npm run dev
 ```
 
-Open `http://localhost:5173`, click **Run acquisition**, and the API will enqueue four fixture jobs. The worker ingests them into PostgreSQL while the Operations view reports genuine progress.
+If Node times out while an IPv4 database connection succeeds on Linux, run migration and seed with:
+
+```bash
+NODE_OPTIONS="--no-network-family-autoselection --dns-result-order=ipv4first" npm run db:migrate
+NODE_OPTIONS="--no-network-family-autoselection --dns-result-order=ipv4first" npm run db:seed
+```
+
+The local SQS worker long-polls silently while idle; an empty terminal after its startup command is normal.
+
+## Demo users
+
+When `SEED_DEMO_DATA=true`, `SEED_DEMO_PASSWORD` is used for:
+
+- `admin@rta.demo`
+- `sales@rta.demo`
+- `assistant@rta.demo`
+- `recruiter@rta.demo`
+
+Use demo-only credentials locally. Never publish a production password in documentation or source control.
 
 ## Verification
 
 ```bash
-cd backend && npm run typecheck && npm run lint && npm test && npm run build
-cd rta-scrapper && npm run lint && npm test && npm run build
+cd backend
+npm run typecheck
+npm run lint
+npm test
+npm run build
+
+cd ../frontend
+npm run lint
+npm run typecheck
+npm run build
 ```
 
-The renovated UI bundle is approximately 216 kB before gzip, down from the audited 660 kB baseline. This is measured build output, not an invented performance claim.
+## Operating modes
 
-## Deployment and configuration
+Fixture mode runs the complete queue, validation, normalization, persistence and UI lifecycle with deterministic source records. It is safe for public demos. Live mode invokes third-party websites and is deliberately protected by `ALLOW_LIVE_SCRAPING`, per-source database switches, operator/admin authorization, conservative concurrency and delays. Local and Lambda workers execute the same processing code.
 
-- [Environment contract](docs/ENVIRONMENT_SETUP.md)
-- [Free-tier deployment guide](docs/DEPLOYMENT.md)
-- [Architecture decisions](docs/ARCHITECTURE.md)
-- [Original audit and upgrade plan](docs/RTA_PORTFOLIO_UPGRADE_PLAN.md)
-
-Never commit `.env` files, AWS keys, database URLs, session secrets, cookies, or service-account files. Lambda should use an IAM execution role; the Render API needs a narrowly scoped IAM user until workload identity federation is configured.
+See [environment setup](docs/ENVIRONMENT_SETUP.md), [deployment](docs/DEPLOYMENT.md), and [architecture](docs/ARCHITECTURE.md). Never commit environment files, AWS keys, database URLs, session secrets, cookies or service-account files.
