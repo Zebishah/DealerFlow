@@ -70,6 +70,12 @@ const envSchema = z
       .min(1_000)
       .default(60_000),
     API_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(120),
+    AUTH_RATE_LIMIT_WINDOW_MS: z.coerce
+      .number()
+      .int()
+      .min(60_000)
+      .default(900_000),
+    AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
     SCRAPE_RATE_LIMIT_WINDOW_MS: z.coerce
       .number()
       .int()
