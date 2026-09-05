@@ -10,6 +10,7 @@ import { AuditPage, ConfigurationPage } from "./pages/AdminPages";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SalesPage } from "./pages/SalesPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { PerformanceBoardPage } from "./pages/PerformanceBoardPage";
 import { Redirect, useNavigation } from "./router/Navigation";
 
 const pages: Record<string, () => JSX.Element> = {
@@ -23,6 +24,7 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/commissions": CommissionsPage,
   "/app/targets": TargetsPage,
   "/app/analytics": AnalyticsPage,
+  "/app/performance-board": PerformanceBoardPage,
   "/app/inventory": InventoryPage,
   "/app/saved-vehicles": SavedVehiclesPage,
   "/app/compare": CompareVehiclesPage,
