@@ -34,7 +34,7 @@ const nav = [
   { to: "/app/commissions", label: "Commissions", icon: CircleDollarSign, roles: ["admin", "employee"] },
   { to: "/app/targets", label: "Targets", icon: Target, roles: ["admin", "employee"] },
   { to: "/app/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "employee", "recruiter"] },
-  { to: "/app/performance-board", label: "Performance board", icon: Gauge, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
+  { to: "/app/performance-board", label: "Performance board", icon: Gauge, roles: ["admin", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/inventory", label: "Vehicle intelligence", icon: Car, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/saved-vehicles", label: "Saved vehicles", icon: Heart, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/compare", label: "Compare vehicles", icon: SlidersHorizontal, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
