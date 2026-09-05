@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import test from "node:test";
 import { createApp } from "./app.js";
+import { hashPassword } from "./auth/password.js";
+import { pool } from "./db/client.js";
 
 interface TestServer {
   baseUrl: string;
@@ -122,5 +124,101 @@ void test(
       };
       assert.equal(payload.error.code, "LOGIN_RATE_LIMITED");
     });
+  },
+);
+
+void test(
+  "authenticated lead creation is idempotent through the HTTP boundary",
+  { skip: process.env.RUN_DATABASE_TESTS !== "true" },
+  async () => {
+    const workspaceId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const email = `integration-${crypto.randomUUID()}@rta.test`;
+    const password = "Integration-password-123";
+
+    await pool.query(
+      `insert into workspaces (id, slug, name, mode)
+       values ($1, $2, $3, 'demo')`,
+      [workspaceId, `integration-${workspaceId}`, "HTTP integration"],
+    );
+    await pool.query(
+      `insert into users
+         (id, workspace_id, email, password_hash, first_name, last_name, role)
+       values ($1, $2, $3, $4, 'API', 'Tester', 'admin')`,
+      [userId, workspaceId, email, hashPassword(password)],
+    );
+
+    try {
+      await withServer(async ({ baseUrl }) => {
+        const loginResponse = await fetch(`${baseUrl}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        assert.equal(loginResponse.status, 200);
+
+        const cookie = loginResponse.headers.get("set-cookie")?.split(";")[0];
+        assert.ok(cookie);
+        const loginPayload = (await loginResponse.json()) as {
+          data: { csrfToken: string };
+        };
+
+        const leadBody = {
+          firstName: "Ida",
+          lastName: "Potent",
+          email: "ida.potent@example.test",
+          vehicleInterest: "2024 Volkswagen Golf",
+          status: "qualified",
+        };
+        const idempotencyKey = `lead-${crypto.randomUUID()}`;
+        const createLead = () =>
+          fetch(`${baseUrl}/api/v1/dealership/leads`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              cookie,
+              "x-csrf-token": loginPayload.data.csrfToken,
+              "idempotency-key": idempotencyKey,
+            },
+            body: JSON.stringify(leadBody),
+          });
+
+        const createdResponse = await createLead();
+        assert.equal(createdResponse.status, 201);
+        const created = (await createdResponse.json()) as {
+          data: { id: string };
+          meta: { idempotentReplay: boolean };
+        };
+        assert.equal(created.meta.idempotentReplay, false);
+
+        const replayResponse = await createLead();
+        assert.equal(replayResponse.status, 200);
+        const replayed = (await replayResponse.json()) as {
+          data: { id: string };
+          meta: { idempotentReplay: boolean };
+        };
+        assert.equal(replayed.data.id, created.data.id);
+        assert.equal(replayed.meta.idempotentReplay, true);
+
+        const count = await pool.query<{ count: number }>(
+          `select count(*)::int as count
+             from leads
+            where workspace_id = $1 and email = $2`,
+          [workspaceId, leadBody.email],
+        );
+        assert.equal(count.rows[0]?.count, 1);
+      });
+    } finally {
+      await pool.query("delete from sessions where user_id = $1", [userId]);
+      await pool.query("delete from idempotency_records where workspace_id = $1", [
+        workspaceId,
+      ]);
+      await pool.query("delete from audit_events where workspace_id = $1", [
+        workspaceId,
+      ]);
+      await pool.query("delete from leads where workspace_id = $1", [workspaceId]);
+      await pool.query("delete from users where id = $1", [userId]);
+      await pool.query("delete from workspaces where id = $1", [workspaceId]);
+    }
   },
 );
