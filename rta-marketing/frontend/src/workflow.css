@@ -390,3 +390,127 @@ button:disabled {
     text-align: left;
   }
 }
+
+.management-surface {
+  padding: 0;
+  overflow: hidden;
+}
+.management-surface .surface-head {
+  padding: 17px 20px;
+}
+.management-list article {
+  min-height: 67px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(230px, auto) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 20px;
+  border-top: 1px solid #edf0f4;
+}
+.management-list strong,
+.management-list small {
+  display: block;
+}
+.management-list strong {
+  font-size: 10px;
+}
+.management-list small {
+  margin-top: 4px;
+  color: #929bad;
+  font-size: 8px;
+}
+.rule-rates {
+  display: flex;
+  gap: 18px;
+}
+.rule-rates span {
+  color: #929bad;
+  font-size: 8px;
+}
+.rule-rates b {
+  display: block;
+  margin-top: 3px;
+  color: #343d54;
+  font-size: 10px;
+}
+.small-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 9px;
+  border: 1px solid #dfe3eb;
+  border-radius: 8px;
+  color: #5148bd;
+  background: #f8f7ff;
+  font-size: 9px;
+  font-weight: 700;
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.head-actions input {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #dce1e9;
+  border-radius: 9px;
+  color: #4e586d;
+  background: white;
+  font-size: 10px;
+}
+.analytics-panel {
+  padding: 0;
+}
+.analytics-panel .surface-head {
+  padding: 17px 20px;
+}
+.metric-bars {
+  display: grid;
+  gap: 19px;
+  padding: 20px;
+}
+.metric-bars header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: #6f788c;
+  font-size: 9px;
+}
+.metric-bars header strong {
+  color: #30394f;
+}
+.metric-bars > div > div {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eceff4;
+}
+.metric-bars i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #554cda, #8a80f5);
+}
+@media (max-width: 800px) {
+  .management-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .rule-rates {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+@media (max-width: 560px) {
+  .management-surface .surface-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .head-actions {
+    width: 100%;
+  }
+  .head-actions input {
+    flex: 1;
+  }
+}
