@@ -120,4 +120,4 @@ npm run build
 
 Fixture mode runs the complete queue, validation, normalization, persistence and UI lifecycle with deterministic source records. It is safe for public demos. Live mode invokes third-party websites and is deliberately protected by `ALLOW_LIVE_SCRAPING`, per-source database switches, operator/admin authorization, conservative concurrency and delays. Local and Lambda workers execute the same processing code.
 
-See [environment setup](docs/ENVIRONMENT_SETUP.md), [deployment](docs/DEPLOYMENT.md), and [architecture](docs/ARCHITECTURE.md). Never commit environment files, AWS keys, database URLs, session secrets, cookies or service-account files.
+See [environment setup](docs/ENVIRONMENT_SETUP.md), [API reference](docs/API_REFERENCE.md), [deployment](docs/DEPLOYMENT.md), and [architecture](docs/ARCHITECTURE.md). Never commit environment files, AWS keys, database URLs, session secrets, cookies or service-account files.
