@@ -372,13 +372,30 @@ dealershipAdminRouter.patch(
     const workspaceId = requireWorkspace(request);
     const id = uuidSchema.parse(request.params.id);
     const input = commissionUpdateSchema.parse(request.body);
-    const [updated] = await db.update(commissionRules).set({ ...input, updatedAt: new Date() })
-      .where(and(eq(commissionRules.id, id), eq(commissionRules.workspaceId, workspaceId))).returning();
-    if (!updated) throw new AppError(404, "COMMISSION_RULE_NOT_FOUND", "Commission rule was not found");
-    if (updated.effectiveTo && updated.effectiveTo <= updated.effectiveFrom) {
-      throw new AppError(400, "INVALID_EFFECTIVE_RANGE", "Effective end must be after the start");
-    }
-    await db.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "commission_rule.updated", entityType: "commission_rule", entityId: id, metadata: { isActive: updated.isActive } });
+    const updated = await db.transaction(async (tx) => {
+      const [existing] = await tx.select({
+        id: commissionRules.id,
+        effectiveFrom: commissionRules.effectiveFrom,
+      }).from(commissionRules)
+        .where(and(eq(commissionRules.id, id), eq(commissionRules.workspaceId, workspaceId)))
+        .limit(1);
+      if (!existing) throw new AppError(404, "COMMISSION_RULE_NOT_FOUND", "Commission rule was not found");
+      if (input.effectiveTo && input.effectiveTo <= existing.effectiveFrom) {
+        throw new AppError(400, "INVALID_EFFECTIVE_RANGE", "Effective end must be after the start");
+      }
+      const [rule] = await tx.update(commissionRules).set({ ...input, updatedAt: new Date() })
+        .where(eq(commissionRules.id, existing.id)).returning();
+      if (!rule) throw new Error("Failed to update commission rule");
+      await tx.insert(auditEvents).values({
+        workspaceId,
+        actorUserId: request.user!.id,
+        action: "commission_rule.updated",
+        entityType: "commission_rule",
+        entityId: id,
+        metadata: { isActive: rule.isActive },
+      });
+      return rule;
+    });
     response.json({ data: updated });
   }),
 );
