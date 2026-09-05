@@ -43,17 +43,32 @@ export interface Lead {
   updatedAt: string;
 }
 
+export type SaleStatus = "draft" | "submitted" | "approved" | "rejected" | "funded" | "cancelled";
+
 export interface Sale {
   id: string;
+  workspaceId: string;
+  salespersonId: string;
+  createdByUserId: string | null;
+  leadId: string | null;
+  financeProviderId: string | null;
   externalSaleId: string;
-  customerName: string;
-  vehicleDescription: string;
   type: "retail" | "wholesale";
-  status: string;
+  status: SaleStatus;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  vehicleVin: string | null;
+  vehicleDescription: string;
   salePriceCents: number;
   grossProfitCents: number;
+  commissionRateBasisPoints: number;
   commissionAmountCents: number;
   soldAt: string;
+  notes: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SourceHealth {
