@@ -11,7 +11,7 @@ RTA is a portfolio-grade, multi-role dealership workspace connected to a durable
 | Sales ledger | Create and edit deals, recompute commission, funding states and safe CSV export |
 | Team & configuration | Users, roles, account activation, password resets, lead sources and finance providers |
 | Compensation | Workspace/user monthly targets and effective-dated commission rules |
-| Governance | Secure profile/password changes and workspace-scoped audit history |
+| Governance | Secure profile/password changes, private S3 compliance documents and workspace-scoped audit history |
 | Analytics | Role-aware performance summaries and a 30-second auto-refreshing presentation board |
 | Vehicle intelligence | Search/sort/filter, canonical vehicle details, source offers, private saved vehicles and four-way comparison |
 | Acquisition | Fixture or controlled live mode, per-source selection, SQS jobs, cancellation, telemetry and failed-source replay |
@@ -57,7 +57,6 @@ The API commits a scrape run, its source runs, and outbox messages together. A d
 | `backend/drizzle/` | Reviewed SQL migrations |
 | `infrastructure/aws/` | AWS SAM Lambda and SQS event-source infrastructure |
 | `docs/` | Architecture, environment, operations and deployment guides |
-| `rta-scrapper/` | Archived earlier intelligence UI retained temporarily for migration history |
 
 ## Local development
 
