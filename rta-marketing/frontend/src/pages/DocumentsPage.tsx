@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { BootstrapData, EmployeeDocument } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
@@ -131,7 +131,13 @@ export function DocumentsPage() {
   }
 
   if (documents.isLoading) return <PageSkeleton />;
-  if (documents.isError) return <ErrorState message="Employee documents could not be loaded." />;
+  if (documents.isError) {
+    const error = documents.error;
+    const detail = error instanceof ApiError
+      ? ` HTTP ${error.status}, ${error.code}${error.requestId ? `, request ${error.requestId}` : ""}.`
+      : "";
+    return <ErrorState message={`Employee documents could not be loaded.${detail}`} />;
+  }
 
   const expiring = documents.data?.filter((document) => document.expiresAt && new Date(document.expiresAt).getTime() < Date.now() + 30 * 86_400_000).length ?? 0;
 

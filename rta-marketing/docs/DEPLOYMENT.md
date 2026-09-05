@@ -2,6 +2,28 @@
 
 The intended topology is a Render static frontend, a Render free web API, Neon PostgreSQL, Amazon SQS/DLQ, and an AWS Lambda worker. Free tiers have limits and can change; configure AWS Budgets before enabling live work.
 
+## Lambda Chromium layer
+
+Live Lambda scraping uses `puppeteer-core@25.1.0` with the matching
+`@sparticuz/chromium@149.0.0` runtime. Publish the official x86_64 Node 22
+layer asset in the deployment account, then pass its version ARN as the
+`ChromiumLayerArn` SAM parameter. The worker keeps `@sparticuz/chromium`
+external to the esbuild bundle so Node resolves it from `/opt/nodejs/node_modules`.
+Local workers instead require `BROWSER_EXECUTABLE_PATH` pointing to an
+installed Chrome/Chromium executable.
+
+The template can deploy without the optional layer while live scraping remains
+disabled. Do not enable `LIVE_SCRAPING_ENABLED` until the layer ARN has been
+configured and a one-source smoke test succeeds.
+
+## CloudWatch alarms
+
+The SAM stack defines an SNS topic and alarms for worker errors, throttles,
+p95 duration, SQS message age, SQS visible backlog, DLQ messages, and
+dead-letter reconciler errors. The stack deliberately creates no email
+subscription. Add a confirmed subscription separately when an operator
+address has been chosen.
+
 ## 1. Database release
 
 From a trusted local machine, set the direct Neon migration URL and run:

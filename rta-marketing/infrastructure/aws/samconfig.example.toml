@@ -10,4 +10,4 @@ resolve_s3 = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 region = "ap-south-1"
-parameter_overrides = "ScrapeQueueArn=REPLACE_QUEUE_ARN DatabaseUrl=REPLACE_NEON_POOLED_URL"
+parameter_overrides = "ScrapeQueueArn=REPLACE_QUEUE_ARN ScrapeDlqArn=REPLACE_DLQ_ARN DatabaseUrl=REPLACE_NEON_POOLED_URL ChromiumLayerArn=REPLACE_CHROMIUM_LAYER_VERSION_ARN"

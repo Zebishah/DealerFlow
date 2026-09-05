@@ -1,7 +1,12 @@
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, public readonly code: string, message: string) {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly requestId?: string,
+  ) {
     super(message);
   }
 }
@@ -25,8 +30,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     credentials: "include",
   });
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: { code?: string; message?: string } } | null;
-    throw new ApiError(response.status, payload?.error?.code ?? "REQUEST_FAILED", payload?.error?.message ?? "The request could not be completed");
+    const payload = await response.json().catch(() => null) as {
+      error?: { code?: string; message?: string; requestId?: string };
+    } | null;
+    throw new ApiError(
+      response.status,
+      payload?.error?.code ?? "REQUEST_FAILED",
+      payload?.error?.message ?? "The request could not be completed",
+      payload?.error?.requestId,
+    );
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

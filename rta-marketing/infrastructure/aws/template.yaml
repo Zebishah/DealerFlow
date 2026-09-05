@@ -10,6 +10,13 @@ Parameters:
   DatabaseUrl:
     Type: String
     NoEcho: true
+  ChromiumLayerArn:
+    Type: String
+    Default: ""
+    Description: Optional @sparticuz/chromium x86_64 layer ARN for live scraping
+
+Conditions:
+  HasChromiumLayer: !Not [!Equals [!Ref ChromiumLayerArn, ""]]
 
 Resources:
   ScrapeWorker:
@@ -22,6 +29,10 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 1024
       Timeout: 600
+      Layers: !If
+        - HasChromiumLayer
+        - [!Ref ChromiumLayerArn]
+        - !Ref AWS::NoValue
       Environment:
         Variables:
           NODE_ENV: production
@@ -55,7 +66,7 @@ Resources:
         Minify: true
         Sourcemap: false
         Target: es2022
-        External: [puppeteer]
+        External: ["@sparticuz/chromium"]
 
   DeadLetterReconciler:
     Type: AWS::Serverless::Function
@@ -93,8 +104,141 @@ Resources:
         Sourcemap: false
         Target: es2022
 
+  ScrapeAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: rta-scrape-alarms
+
+  ScrapeWorkerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scrape worker emitted one or more errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ScrapeWorker
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
+  ScrapeWorkerThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scrape worker invocation was throttled
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ScrapeWorker
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
+  ScrapeWorkerDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scrape worker is approaching its 600-second timeout
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ScrapeWorker
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 540000
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
+  ScrapeQueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Oldest scrape message has waited for more than five minutes
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !Select [5, !Split [":", !Ref ScrapeQueueArn]]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 300
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
+  ScrapeQueueBacklogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scrape queue has a sustained visible backlog
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Select [5, !Split [":", !Ref ScrapeQueueArn]]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
+  ScrapeDlqMessagesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: One or more scrape messages reached the dead-letter queue
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Select [5, !Split [":", !Ref ScrapeDlqArn]]
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
+  DeadLetterReconcilerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Dead-letter reconciliation emitted one or more errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DeadLetterReconciler
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref ScrapeAlarmTopic]
+
 Outputs:
   WorkerFunctionArn:
     Value: !GetAtt ScrapeWorker.Arn
   DeadLetterReconcilerFunctionArn:
     Value: !GetAtt DeadLetterReconciler.Arn
+  ScrapeAlarmTopicArn:
+    Value: !Ref ScrapeAlarmTopic

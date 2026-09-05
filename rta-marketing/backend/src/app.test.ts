@@ -236,3 +236,53 @@ void test(
     }
   },
 );
+
+void test(
+  "employee document metadata lists without S3 configuration",
+  { skip: process.env.RUN_DATABASE_TESTS !== "true" },
+  async () => {
+    const workspaceId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const documentId = crypto.randomUUID();
+    const email = `documents-${crypto.randomUUID()}@rta.test`;
+    const password = "Integration-password-123";
+    await pool.query(
+      `insert into workspaces (id, slug, name, mode) values ($1, $2, 'Document test', 'demo')`,
+      [workspaceId, `documents-${workspaceId}`],
+    );
+    await pool.query(
+      `insert into users (id, workspace_id, email, password_hash, role)
+       values ($1, $2, $3, $4, 'admin')`,
+      [userId, workspaceId, email, hashPassword(password)],
+    );
+    await pool.query(
+      `insert into employee_documents
+         (id, workspace_id, user_id, uploaded_by_user_id, kind, file_name, mime_type, size_bytes, storage_key)
+       values ($1, $2, $3, $3, 'insurance', 'sanitized.pdf', 'application/pdf', 1024, $4)`,
+      [documentId, workspaceId, userId, `documents/${workspaceId}/${userId}/sanitized.pdf`],
+    );
+    try {
+      await withServer(async ({ baseUrl }) => {
+        const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        assert.equal(login.status, 200);
+        const cookie = login.headers.get("set-cookie")?.split(";")[0];
+        assert.ok(cookie);
+        const response = await fetch(`${baseUrl}/api/v1/dealership/documents`, {
+          headers: { cookie },
+        });
+        assert.equal(response.status, 200);
+        const payload = (await response.json()) as { data: Array<{ id: string }> };
+        assert.deepEqual(payload.data.map((document) => document.id), [documentId]);
+      });
+    } finally {
+      await pool.query("delete from sessions where user_id = $1", [userId]);
+      await pool.query("delete from employee_documents where id = $1", [documentId]);
+      await pool.query("delete from users where id = $1", [userId]);
+      await pool.query("delete from workspaces where id = $1", [workspaceId]);
+    }
+  },
+);
