@@ -1,7 +1,7 @@
 import type { SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { scrapeJobSchema } from "../contracts/scrape.js";
 import { logger } from "../lib/logger.js";
-import { markJobsDeadLetter } from "./processor.js";
+import { markJobsDeadLetter } from "./run-status.js";
 
 export async function handler(event: SQSEvent): Promise<SQSBatchResponse> {
   const batchItemFailures: SQSBatchResponse["batchItemFailures"] = [];
