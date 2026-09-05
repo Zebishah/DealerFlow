@@ -74,7 +74,30 @@ Configure bucket CORS with the exact frontend origins:
 
 Never make the bucket public. Download links are short-lived and generated only after workspace/owner authorization.
 
-## 5. Lambda worker
+## 5. Lambda workers
+
+Export both queue ARNs before deployment:
+
+```bash
+export RTA_QUEUE_ARN='arn:aws:sqs:ap-south-1:YOUR_ACCOUNT_ID:rta-scrape-jobs'
+export RTA_DLQ_ARN='arn:aws:sqs:ap-south-1:YOUR_ACCOUNT_ID:rta-scrape-jobs-dlq'
+```
+
+Pass both parameters when updating the stack:
+
+```bash
+sam build --template-file template.yaml
+sam deploy \
+  --stack-name rta-scrape-worker \
+  --region ap-south-1 \
+  --profile rta-deploy \
+  --resolve-s3 \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides \
+    ScrapeQueueArn="$RTA_QUEUE_ARN" \
+    ScrapeDlqArn="$RTA_DLQ_ARN" \
+    DatabaseUrl="$RTA_DATABASE_URL"
+```
 
 Build/deploy the worker as a Lambda-compatible artifact whose handler is `dist/worker/lambda.handler`. Configure:
 
@@ -89,7 +112,7 @@ Build/deploy the worker as a Lambda-compatible artifact whose handler is `dist/w
 - Queue visibility timeout: at least 6× the Lambda timeout
 - Queue redrive: send to the DLQ after 3 receives
 
-Attach a least-privilege execution role with CloudWatch Logs and SQS consumer actions on the main queue. Lambda receives SQS messages through the trigger; do not run the local long-polling process in Lambda.
+SAM creates separate least-privilege execution roles for the ingestion worker and the DLQ reconciler. The ingestion Lambda consumes the main queue. The reconciler consumes terminal DLQ messages, records `dead_letter` in PostgreSQL, and recomputes the parent acquisition run so the dashboard cannot remain falsely active. Lambda receives messages through event-source mappings; do not run the local long-polling process in Lambda.
 
 For fixture mode, no browser is launched. Before enabling live mode, package a Lambda-compatible Chromium binary/layer, confirm source terms/robots expectations, run parser fixtures, and verify one adapter at a time.
 
@@ -101,6 +124,7 @@ For fixture mode, no browser is launched. Before enabling live mode, package a L
 4. Confirm one completed run and populated catalog in PostgreSQL.
 5. Run the same fixture again and confirm listing count remains stable while observations increase.
 6. Upload a small PDF as the employee user, verify it as admin, and confirm an unauthorized role cannot list or download it.
-7. Confirm DLQ CloudWatch alarm and AWS Budget alerts are active.
+7. Force a disposable test message through the maximum receive count and confirm the reconciler marks its source run `dead_letter`.
+8. Confirm DLQ/Lambda CloudWatch alarms and AWS Budget alerts are active.
 
 Render free services may sleep, Neon may suspend idle compute, and AWS free-tier eligibility depends on account and region. The architecture minimizes idle work, but “free” is a quota, not an unlimited guarantee.
