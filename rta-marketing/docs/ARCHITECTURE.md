@@ -35,7 +35,7 @@ These constraints enforce correctness in PostgreSQL instead of relying only on a
 
 Amazon SQS provides durable at-least-once delivery. Lambda receives one message per batch and returns partial batch failure information. The event source mapping caps concurrency at two. Local workers use long polling and extend message visibility while a browser job is running.
 
-The DLQ isolates repeatedly failing messages. A production follow-up should add a scheduled DLQ reconciliation command that marks the related source run `dead_letter` and alerts an operator.
+The DLQ isolates repeatedly failing messages. A dedicated reconciliation Lambda consumes terminal DLQ records, marks the related source run `dead_letter`, and recomputes the parent acquisition run. CloudWatch alarms remain responsible for notifying operators.
 
 ## Security model
 
