@@ -48,7 +48,10 @@ jobs:
       - run: npm run build
       - uses: aws-actions/setup-sam@v2
       - run: sam validate --lint --template-file ../infrastructure/aws/template.yaml
-      - run: sam build --template-file ../infrastructure/aws/template.yaml
+      - name: Build SAM application
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          sam build --template-file ../infrastructure/aws/template.yaml
 
   frontend:
     runs-on: ubuntu-latest
