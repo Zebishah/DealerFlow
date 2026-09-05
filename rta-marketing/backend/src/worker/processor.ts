@@ -5,6 +5,7 @@ import {
   ingestionRejections,
   listingObservations,
   listings,
+  scrapeRuns,
   sourceRuns,
   sources,
   vehicles,
