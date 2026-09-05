@@ -177,3 +177,23 @@ export interface AuditEvent {
   actorLastName: string | null;
   actorEmail: string | null;
 }
+
+
+export interface EmployeeDocument {
+  id: string;
+  userId: string;
+  kind: "insurance" | "drivers_license" | "omvic" | "employment" | "other";
+  status: "pending" | "verified" | "rejected";
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string | null;
+  expiresAt: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+}
