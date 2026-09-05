@@ -332,6 +332,19 @@ dealershipRouter.post(
     const hash = requestHash(input);
     const salespersonId = request.user!.role === "employee" ? request.user!.id : input.salespersonId;
     if (!salespersonId) throw new AppError(400, "SALESPERSON_REQUIRED", "A salesperson is required");
+    const [salesperson] = await db.select({ id: users.id }).from(users)
+      .where(and(eq(users.id, salespersonId), eq(users.workspaceId, workspaceId), eq(users.isActive, true))).limit(1);
+    if (!salesperson) throw new AppError(400, "INVALID_SALESPERSON", "Salesperson is not an active workspace member");
+    if (input.leadId) {
+      const [relatedLead] = await db.select({ id: leads.id }).from(leads)
+        .where(and(eq(leads.id, input.leadId), eq(leads.workspaceId, workspaceId))).limit(1);
+      if (!relatedLead) throw new AppError(400, "INVALID_SALE_LEAD", "Lead does not belong to this workspace");
+    }
+    if (input.financeProviderId) {
+      const [provider] = await db.select({ id: financeProviders.id }).from(financeProviders)
+        .where(and(eq(financeProviders.id, input.financeProviderId), eq(financeProviders.workspaceId, workspaceId), eq(financeProviders.isActive, true))).limit(1);
+      if (!provider) throw new AppError(400, "INVALID_FINANCE_PROVIDER", "Finance provider is not active in this workspace");
+    }
     const commissionAmountCents = Math.round(input.grossProfitCents * input.commissionRateBasisPoints / 10_000);
 
     const result = await db.transaction(async (tx) => {
