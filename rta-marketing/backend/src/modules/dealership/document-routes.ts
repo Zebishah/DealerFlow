@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { requireCsrf, requireRoles, requireWorkspace, type AuthenticatedUser } from "../../auth/session.js";
 import { env } from "../../config/env.js";
+import { createDocumentStorageKey, ownsDocumentStorageKey, validateDocumentFile } from "../../contracts/documents.js";
 import { db } from "../../db/client.js";
 import { auditEvents, employeeDocuments, users } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
@@ -17,7 +17,6 @@ import {
 
 const uuid = z.string().uuid();
 const kind = z.enum(["insurance", "drivers_license", "omvic", "employment", "other"]);
-const allowedMimeTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const uploadIntentSchema = z.object({
   userId: z.string().uuid().optional(),
   fileName: z.string().trim().min(1).max(180),
@@ -34,19 +33,6 @@ const reviewSchema = z.object({
   status: z.enum(["verified", "rejected"]),
   reviewNotes: z.string().trim().max(2_000).nullable().optional(),
 });
-
-function validateFile(input: { mimeType: string; sizeBytes: number }) {
-  if (!allowedMimeTypes.has(input.mimeType)) {
-    throw new AppError(400, "DOCUMENT_TYPE_NOT_ALLOWED", "Only PDF, JPEG, and PNG documents are allowed");
-  }
-  if (input.sizeBytes > env.DOCUMENT_UPLOAD_MAX_BYTES) {
-    throw new AppError(400, "DOCUMENT_TOO_LARGE", `Documents must be smaller than ${Math.round(env.DOCUMENT_UPLOAD_MAX_BYTES / 1_000_000)} MB`);
-  }
-}
-
-function safeFileName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(-100) || "document";
-}
 
 async function targetUser(requestUser: AuthenticatedUser | undefined, workspaceId: string, requestedId?: string) {
   if (!requestUser) throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
@@ -99,9 +85,9 @@ documentRouter.post(
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const input = uploadIntentSchema.parse(request.body);
-    validateFile(input);
+    validateDocumentFile(input, env.DOCUMENT_UPLOAD_MAX_BYTES);
     const userId = await targetUser(request.user, workspaceId, input.userId);
-    const storageKey = `documents/${workspaceId}/${userId}/${randomUUID()}-${safeFileName(input.fileName)}`;
+    const storageKey = createDocumentStorageKey(workspaceId, userId, input.fileName);
     const upload = await createDocumentUploadUrl({ storageKey, contentType: input.mimeType, sizeBytes: input.sizeBytes });
     response.status(201).json({ data: { storageKey, ...upload } });
   }),
@@ -113,10 +99,9 @@ documentRouter.post(
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const input = completeSchema.parse(request.body);
-    validateFile(input);
+    validateDocumentFile(input, env.DOCUMENT_UPLOAD_MAX_BYTES);
     const userId = await targetUser(request.user, workspaceId, input.userId);
-    const expectedPrefix = `documents/${workspaceId}/${userId}/`;
-    if (!input.storageKey.startsWith(expectedPrefix)) {
+    if (!ownsDocumentStorageKey(input.storageKey, workspaceId, userId)) {
       throw new AppError(400, "INVALID_DOCUMENT_KEY", "Document storage key does not belong to this user");
     }
     const object = await inspectDocumentObject(input.storageKey);
