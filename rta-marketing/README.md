@@ -28,6 +28,7 @@ RTA is a portfolio-grade, multi-role dealership workspace connected to a durable
 - Session cookies, CSRF protection, RBAC, rate limiting, Helmet, strict CORS and safe errors
 - Structured request/job telemetry, health probes, source-level progress and audit events
 - Deterministic demo fixtures, PostgreSQL/API integration tests, frontend behavior tests and GitHub Actions CI
+- AWS SAM worker templates with validated Lambda bundles, explicit DLQ wiring, and a safe fixture-first live-browser boundary
 
 ## Runtime architecture
 
@@ -115,6 +116,17 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run test:e2e
+```
+
+CI creates the backend test environment from `backend/.env.test.example`, runs the PostgreSQL integration suite against its service database, and installs a pinned Firefox runtime for the production-preview smoke tests.
+
+Validate the worker packaging locally after `npm ci` in `backend`:
+
+```bash
+cd infrastructure/aws
+PATH="$(pwd)/../../backend/node_modules/.bin:$PATH" sam validate --template-file template.yaml --lint
+PATH="$(pwd)/../../backend/node_modules/.bin:$PATH" sam build --template-file template.yaml
 ```
 
 ## Operating modes

@@ -1,24 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Car as CarFront, Database, Loader2 as LoaderCircle, Play, Search, ServerCog } from "lucide-react";
+import { Activity, AlertTriangle, Loader2 as LoaderCircle, Play, ServerCog } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
 import toast from "react-hot-toast";
 import { api, idempotentJson } from "../lib/api";
-import type { CatalogVehicle, IntelligenceSummary, SourceHealth } from "../types/domain";
+import type { IntelligenceSummary, SourceHealth } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
-
-const currency = (cents: number | null) => cents === null ? "Price unavailable" : new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(cents / 100);
-
-export function InventoryPage() {
-  const [search, setSearch] = useState("");
-  const [source, setSource] = useState("");
-  const summary = useQuery({ queryKey: ["intelligence", "summary"], queryFn: () => api<{ data: IntelligenceSummary }>("/dashboard/summary").then((result) => result.data) });
-  const catalog = useQuery({ queryKey: ["catalog", search, source], queryFn: () => { const params = new URLSearchParams({ limit: "24", sort: "newest" }); if (search) params.set("q", search); if (source) params.set("source", source); return api<{ data: CatalogVehicle[]; page: { total: number } }>(`/vehicles?${params}`); } });
-  if (catalog.isLoading) return <PageSkeleton />;
-  if (catalog.isError) return <ErrorState message="The normalized inventory catalog is unavailable." />;
-  return <div className="page-stack"><section className="intelligence-banner"><div><span>MARKET INTELLIGENCE</span><h2>Search every acquired listing from one reliable catalog.</h2><p>Source records are validated, normalized, deduplicated, and retained with provenance.</p></div><div><Database /><strong>{catalog.data?.page.total ?? 0}</strong><span>active source listings</span></div></section><section className="page-toolbar"><div className="search-control"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search make, model, trim, or keyword" /></div><select value={source} onChange={(event) => setSource(event.target.value)}><option value="">All acquisition sources</option>{summary.data?.sourceHealth.map((item) => <option value={item.key} key={item.key}>{item.name}</option>)}</select></section>{catalog.data?.data.length ? <section className="vehicle-grid">{catalog.data.data.map((car) => <article className="vehicle-card" key={car.listingId}><div className="vehicle-photo">{car.imageUrl ? <img src={car.imageUrl} alt={`${car.year} ${car.make} ${car.model}`} loading="lazy" /> : <CarFront size={42} />}<span>{car.sourceName}</span></div><div className="vehicle-info"><small>{car.isUsed ? "PRE-OWNED" : "NEW"} · {car.year}</small><h3>{car.make} {car.model}</h3><p>{car.trim ?? car.title}</p><strong>{currency(car.priceCents)}</strong><div><span>{car.odometerKm === null ? "Mileage unavailable" : `${car.odometerKm.toLocaleString()} km`}</span><span>{car.location ?? "Ontario"}</span></div></div></article>)}</section> : <div className="empty-state surface"><CarFront /><strong>No inventory matches your search</strong><span>Run an acquisition or adjust the filters.</span></div>}</div>;
-}
 
 type RunDetail = {
   id: string;
@@ -54,7 +42,7 @@ export function AcquisitionPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const canRunLive = user?.role === "admin" || user?.role === "operator";
-  const [mode, setMode] = useState<"fixture" | "live">(canRunLive ? "live" : "fixture");
+  const [mode, setMode] = useState<"fixture" | "live">("fixture");
   const [selectedSources, setSelectedSources] = useState<string[]>(["autotrader"]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [filters, setFilters] = useState({

@@ -4,6 +4,7 @@ import {
   defaultPath,
   resolveLegacyPath,
 } from "./app/routes";
+import { Suspense } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
@@ -38,7 +39,17 @@ export function App() {
   const Page = route.component;
   return (
     <AppShell>
-      <Page />
+      <Suspense
+        fallback={
+          <div className="boot-screen route-loading">
+            <span className="boot-logo">RTA</span>
+            <i />
+            <p>Loading workspace view…</p>
+          </div>
+        }
+      >
+        <Page />
+      </Suspense>
     </AppShell>
   );
 }

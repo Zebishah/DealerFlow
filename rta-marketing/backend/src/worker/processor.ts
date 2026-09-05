@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import {
   ingestionRejections,
@@ -14,6 +14,7 @@ import { rawListingSchema, type CanonicalListing } from "../contracts/listing.js
 import { scrapeJobSchema, type ScrapeJob } from "../contracts/scrape.js";
 import { normalizeListing } from "../lib/normalization.js";
 import { logger } from "../lib/logger.js";
+import { AppError } from "../lib/errors.js";
 import { acquireListings } from "./adapter.js";
 import { recomputeRun } from "./run-status.js";
 
@@ -25,7 +26,12 @@ export interface JobResult {
   rejected: number;
 }
 
+type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 function safeError(error: unknown): { code: string; message: string } {
+  if (error instanceof AppError) {
+    return { code: error.code, message: error.message.slice(0, 500) };
+  }
   if (error instanceof Error) {
     return {
       code: error.name.replace(/[^A-Z0-9_]/gi, "_").toUpperCase().slice(0, 60) || "SCRAPE_FAILED",
@@ -36,20 +42,20 @@ function safeError(error: unknown): { code: string; message: string } {
 }
 
 async function upsertCanonical(
+  tx: DatabaseTransaction,
   sourceRunId: string,
   sourceId: string,
   listing: CanonicalListing,
 ): Promise<"inserted" | "updated"> {
-  return db.transaction(async (tx) => {
-    const [existingListing] = await tx
+  const [existingListing] = await tx
       .select({ id: listings.id, vehicleId: listings.vehicleId })
       .from(listings)
       .where(and(eq(listings.sourceId, sourceId), eq(listings.externalId, listing.externalId)))
       .limit(1);
 
-    let vehicleId = existingListing?.vehicleId;
-    if (!vehicleId && listing.vin) {
-      const [vehicle] = await tx
+  let vehicleId = existingListing?.vehicleId;
+  if (!vehicleId && listing.vin) {
+    const [vehicle] = await tx
         .insert(vehicles)
         .values({
           vin: listing.vin,
@@ -70,18 +76,18 @@ async function upsertCanonical(
           set: { updatedAt: new Date() },
         })
         .returning({ id: vehicles.id });
-      vehicleId = vehicle?.id;
-    }
-    if (!vehicleId) {
-      const [candidate] = await tx
+    vehicleId = vehicle?.id;
+  }
+  if (!vehicleId) {
+    const [candidate] = await tx
         .select({ id: vehicles.id })
         .from(vehicles)
         .where(eq(vehicles.fingerprint, listing.fingerprint))
         .limit(1);
-      if (candidate) vehicleId = candidate.id;
-    }
-    if (!vehicleId) {
-      const [vehicle] = await tx
+    if (candidate) vehicleId = candidate.id;
+  }
+  if (!vehicleId) {
+    const [vehicle] = await tx
         .insert(vehicles)
         .values({
           vin: listing.vin,
@@ -98,11 +104,11 @@ async function upsertCanonical(
           isUsed: listing.isUsed,
         })
         .returning({ id: vehicles.id });
-      vehicleId = vehicle?.id;
-    }
-    if (!vehicleId) throw new Error("Vehicle upsert did not return an ID");
+    vehicleId = vehicle?.id;
+  }
+  if (!vehicleId) throw new Error("Vehicle upsert did not return an ID");
 
-    const [savedListing] = await tx
+  const [savedListing] = await tx
       .insert(listings)
       .values({
         vehicleId,
@@ -135,9 +141,9 @@ async function upsertCanonical(
         },
       })
       .returning({ id: listings.id });
-    if (!savedListing) throw new Error("Listing upsert did not return an ID");
+  if (!savedListing) throw new Error("Listing upsert did not return an ID");
 
-    await tx
+  await tx
       .insert(listingObservations)
       .values({
         listingId: savedListing.id,
@@ -147,8 +153,7 @@ async function upsertCanonical(
       })
       .onConflictDoNothing();
 
-    return existingListing ? "updated" : "inserted";
-  });
+  return existingListing ? "updated" : "inserted";
 }
 
 export async function processScrapeJob(input: unknown): Promise<JobResult> {
@@ -198,7 +203,7 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
     "Scrape source job started",
   );
 
-  await db
+  const [claimed] = await db
     .update(sourceRuns)
     .set({
       status: "running",
@@ -209,7 +214,26 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
       startedAt: sql`coalesce(${sourceRuns.startedAt}, now())`,
       updatedAt: new Date(),
     })
-    .where(eq(sourceRuns.id, job.sourceRunId));
+    .where(and(
+      eq(sourceRuns.id, job.sourceRunId),
+      inArray(sourceRuns.status, ["queued", "failed", "dead_letter"]),
+    ))
+    .returning({ id: sourceRuns.id });
+  if (!claimed) {
+    const [current] = await db
+      .select({ status: sourceRuns.status })
+      .from(sourceRuns)
+      .where(eq(sourceRuns.id, job.sourceRunId))
+      .limit(1);
+    if (current?.status === "running" || current?.status === "completed" || current?.status === "cancelled") {
+      logger.info(
+        { runId: job.runId, sourceRunId: job.sourceRunId, source: job.sourceId, status: current.status },
+        "Scrape source job skipped because another delivery owns the source run",
+      );
+      return { skipped: true, discovered: 0, inserted: 0, updated: 0, rejected: 0 };
+    }
+    throw new Error("Scrape source job could not be claimed");
+  }
   await recomputeRun(job.runId);
 
   try {
@@ -217,29 +241,46 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
     let inserted = 0;
     let updated = 0;
     let rejected = 0;
+    const batchSize = 50;
 
-    for (const [index, value] of acquired.entries()) {
-      const parsed = rawListingSchema.safeParse(value);
-      if (!parsed.success) {
-        rejected += 1;
-        await db.insert(ingestionRejections).values({
-          sourceRunId: job.sourceRunId,
-          reasonCode: "RAW_VALIDATION_FAILED",
-          safeMessage: parsed.error.issues.slice(0, 3).map((issue) => issue.message).join("; "),
-          recordFingerprint: createHash("sha256").update(JSON.stringify(value)).digest("hex"),
-        });
-        continue;
-      }
-      const result = await upsertCanonical(job.sourceRunId, context.sourceDbId, normalizeListing(parsed.data));
-      if (result === "inserted") inserted += 1;
-      else updated += 1;
+    for (let offset = 0; offset < acquired.length; offset += batchSize) {
+      const batch = acquired.slice(offset, offset + batchSize);
+      const batchResult = await db.transaction(async (tx) => {
+        let batchInserted = 0;
+        let batchUpdated = 0;
+        let batchRejected = 0;
+
+        for (const value of batch) {
+          const parsed = rawListingSchema.safeParse(value);
+          if (!parsed.success) {
+            batchRejected += 1;
+            await tx.insert(ingestionRejections).values({
+              sourceRunId: job.sourceRunId,
+              reasonCode: "RAW_VALIDATION_FAILED",
+              safeMessage: parsed.error.issues.slice(0, 3).map((issue) => issue.message).join("; "),
+              recordFingerprint: createHash("sha256").update(JSON.stringify(value)).digest("hex"),
+            });
+            continue;
+          }
+
+          const result = await upsertCanonical(tx, job.sourceRunId, context.sourceDbId, normalizeListing(parsed.data));
+          if (result === "inserted") batchInserted += 1;
+          else batchUpdated += 1;
+        }
+
+        return { batchInserted, batchUpdated, batchRejected };
+      });
+
+      inserted += batchResult.batchInserted;
+      updated += batchResult.batchUpdated;
+      rejected += batchResult.batchRejected;
       await db
         .update(sourceRuns)
-        .set({ progressPercent: Math.max(10, Math.round(((index + 1) / acquired.length) * 95)), updatedAt: new Date() })
-        .where(eq(sourceRuns.id, job.sourceRunId));
+        .set({ progressPercent: Math.max(10, Math.round(((offset + batch.length) / acquired.length) * 95)), updatedAt: new Date() })
+        .where(and(eq(sourceRuns.id, job.sourceRunId), eq(sourceRuns.status, "running")));
     }
 
-    await db
+    const [completed] = await db
       .update(sourceRuns)
       .set({
         status: "completed",
@@ -252,7 +293,12 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
         finishedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(sourceRuns.id, job.sourceRunId));
+      .where(and(eq(sourceRuns.id, job.sourceRunId), eq(sourceRuns.status, "running")))
+      .returning({ id: sourceRuns.id });
+    if (!completed) {
+      await recomputeRun(job.runId);
+      return { skipped: true, discovered: acquired.length, inserted, updated, rejected };
+    }
     await db
       .update(sources)
       .set({ lastSuccessAt: new Date(), updatedAt: new Date() })
@@ -282,7 +328,7 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
     await db
       .update(sourceRuns)
       .set({ status: "failed", errorCode: safe.code, errorMessage: safe.message, finishedAt: new Date(), updatedAt: new Date() })
-      .where(eq(sourceRuns.id, job.sourceRunId));
+      .where(and(eq(sourceRuns.id, job.sourceRunId), eq(sourceRuns.status, "running")));
     await db
       .update(sources)
       .set({ lastFailureAt: new Date(), updatedAt: new Date() })
@@ -302,4 +348,3 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
     throw error;
   }
 }
-

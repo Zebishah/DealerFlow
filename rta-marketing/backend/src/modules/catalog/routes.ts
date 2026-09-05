@@ -1,11 +1,13 @@
-import { and, asc, desc, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, gt, ilike, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
+import { requireSession } from "../../auth/session.js";
 import { db } from "../../db/client.js";
 import { listings, sources, vehicles } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 
+const sortSchema = z.enum(["newest", "price_asc", "price_desc", "year_desc"]);
 const querySchema = z.object({
   q: z.string().trim().max(100).optional(),
   make: z.string().trim().max(80).optional(),
@@ -15,38 +17,102 @@ const querySchema = z.object({
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   source: z.string().trim().max(50).optional(),
-  sort: z.enum(["newest", "price_asc", "price_desc", "year_desc"]).default("newest"),
+  sort: sortSchema.default("newest"),
   limit: z.coerce.number().int().min(1).max(48).default(12),
-  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+  cursor: z.string().max(500).optional(),
 });
 
 const vehicleIdSchema = z.string().uuid();
+const cursorSchema = z.object({
+  sort: sortSchema,
+  key: z.union([z.number(), z.string()]),
+  id: z.string().uuid(),
+});
+
+type CatalogCursor = z.infer<typeof cursorSchema>;
+
+function encodeCursor(cursor: CatalogCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString("base64url");
+}
+
+function decodeCursor(value: string | undefined): CatalogCursor | undefined {
+  if (!value) return undefined;
+  try {
+    return cursorSchema.parse(JSON.parse(Buffer.from(value, "base64url").toString("utf8")));
+  } catch {
+    throw new AppError(400, "INVALID_CURSOR", "The catalog pagination cursor is invalid");
+  }
+}
 
 export const catalogRouter = Router();
+catalogRouter.use(requireSession);
 
 catalogRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const query = querySchema.parse(request.query);
-    const conditions: SQL[] = [eq(listings.status, "active")];
+    const cursor = decodeCursor(query.cursor);
+    if (cursor && cursor.sort !== query.sort) {
+      throw new AppError(400, "INVALID_CURSOR", "The catalog cursor does not match the requested sort");
+    }
+    const baseConditions: SQL[] = [eq(listings.status, "active")];
     if (query.q) {
       const search = `%${query.q}%`;
-      conditions.push(or(ilike(listings.title, search), ilike(vehicles.make, search), ilike(vehicles.model, search))!);
+      baseConditions.push(or(ilike(listings.title, search), ilike(vehicles.make, search), ilike(vehicles.model, search))!);
     }
-    if (query.make) conditions.push(ilike(vehicles.make, query.make));
-    if (query.model) conditions.push(ilike(vehicles.model, query.model));
-    if (query.minYear) conditions.push(gte(vehicles.year, query.minYear));
-    if (query.maxYear) conditions.push(lte(vehicles.year, query.maxYear));
-    if (query.minPrice !== undefined) conditions.push(gte(listings.priceCents, query.minPrice * 100));
-    if (query.maxPrice !== undefined) conditions.push(lte(listings.priceCents, query.maxPrice * 100));
-    if (query.source) conditions.push(eq(sources.key, query.source));
+    if (query.make) baseConditions.push(ilike(vehicles.make, query.make));
+    if (query.model) baseConditions.push(ilike(vehicles.model, query.model));
+    if (query.minYear) baseConditions.push(gte(vehicles.year, query.minYear));
+    if (query.maxYear) baseConditions.push(lte(vehicles.year, query.maxYear));
+    if (query.minPrice !== undefined) baseConditions.push(gte(listings.priceCents, query.minPrice * 100));
+    if (query.maxPrice !== undefined) baseConditions.push(lte(listings.priceCents, query.maxPrice * 100));
+    if (query.source) baseConditions.push(eq(sources.key, query.source));
 
-    const order = {
-      newest: desc(listings.lastSeenAt),
-      price_asc: asc(listings.priceCents),
-      price_desc: desc(listings.priceCents),
-      year_desc: desc(vehicles.year),
+    const conditions = [...baseConditions];
+
+    const priceAscendingKey = sql<number>`coalesce(${listings.priceCents}, 2147483647)`;
+    const priceDescendingKey = sql<number>`coalesce(${listings.priceCents}, -1)`;
+    const sortKey = {
+      newest: listings.lastSeenAt,
+      price_asc: priceAscendingKey,
+      price_desc: priceDescendingKey,
+      year_desc: vehicles.year,
     }[query.sort];
+    const descending = query.sort === "newest" || query.sort === "price_desc" || query.sort === "year_desc";
+    const order = descending ? desc(sortKey) : asc(sortKey);
+
+    if (cursor) {
+      if (query.sort === "newest") {
+        const key = new Date(String(cursor.key));
+        if (Number.isNaN(key.getTime())) {
+          throw new AppError(400, "INVALID_CURSOR", "The catalog pagination cursor is invalid");
+        }
+        conditions.push(
+          or(
+            lt(listings.lastSeenAt, key),
+            and(eq(listings.lastSeenAt, key), lt(listings.id, cursor.id)),
+          )!,
+        );
+      } else if (query.sort === "price_asc") {
+        const key = Number(cursor.key);
+        if (!Number.isFinite(key)) throw new AppError(400, "INVALID_CURSOR", "The catalog pagination cursor is invalid");
+        conditions.push(
+          or(gt(priceAscendingKey, key), and(eq(priceAscendingKey, key), gt(listings.id, cursor.id)))!,
+        );
+      } else if (query.sort === "price_desc") {
+        const key = Number(cursor.key);
+        if (!Number.isFinite(key)) throw new AppError(400, "INVALID_CURSOR", "The catalog pagination cursor is invalid");
+        conditions.push(
+          or(lt(priceDescendingKey, key), and(eq(priceDescendingKey, key), lt(listings.id, cursor.id)))!,
+        );
+      } else {
+        const key = Number(cursor.key);
+        if (!Number.isInteger(key)) throw new AppError(400, "INVALID_CURSOR", "The catalog pagination cursor is invalid");
+        conditions.push(
+          or(lt(vehicles.year, key), and(eq(vehicles.year, key), lt(listings.id, cursor.id)))!,
+        );
+      }
+    }
 
     const where = and(...conditions);
     const [items, countRows] = await Promise.all([
@@ -75,25 +141,40 @@ catalogRouter.get(
         .innerJoin(vehicles, eq(listings.vehicleId, vehicles.id))
         .innerJoin(sources, eq(listings.sourceId, sources.id))
         .where(where)
-        .orderBy(order, desc(listings.id))
-        .limit(query.limit)
-        .offset(query.offset),
+        .orderBy(order, descending ? desc(listings.id) : asc(listings.id))
+        .limit(query.limit + 1),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(listings)
         .innerJoin(vehicles, eq(listings.vehicleId, vehicles.id))
         .innerJoin(sources, eq(listings.sourceId, sources.id))
-        .where(where),
+        .where(and(...baseConditions)),
     ]);
 
+    const hasNext = items.length > query.limit;
+    const pageItems = items.slice(0, query.limit);
+    const last = pageItems.at(-1);
+    const nextCursor = hasNext && last
+      ? encodeCursor({
+        sort: query.sort,
+        key: query.sort === "newest"
+          ? last.lastSeenAt.toISOString()
+          : query.sort === "price_asc"
+            ? last.priceCents ?? 2147483647
+            : query.sort === "price_desc"
+              ? last.priceCents ?? -1
+              : last.year,
+        id: last.listingId,
+      })
+      : null;
     const total = countRows[0]?.count ?? 0;
     response.json({
-      data: items,
+      data: pageItems,
       page: {
         limit: query.limit,
-        offset: query.offset,
         total,
-        hasNext: query.offset + items.length < total,
+        hasNext,
+        nextCursor,
       },
     });
   }),

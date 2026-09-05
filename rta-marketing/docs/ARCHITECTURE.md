@@ -65,4 +65,4 @@ Loading, empty, API-error, mutation-pending, responsive, and authenticated/live-
 
 ## Known boundary
 
-The four browser extractors originated as JavaScript and are currently isolated behind the typed `acquireListings` adapter. Their output is converted to a typed raw contract and validated before ingestion. Converting each extractor to strict TypeScript with saved HTML fixtures is the next adapter-specific hardening step and must be based on live page verification.
+The four browser extractors originated as JavaScript and remain isolated behind the typed `acquireListings` adapter. Colocated declaration contracts type their URL-builder and scraper exports, representative source-shaped fixtures exercise each parser boundary, and every result is converted to a typed raw contract and validated before ingestion. A full DOM-parser rewrite remains adapter-specific work that should only be undertaken with fresh saved HTML from verified source pages.

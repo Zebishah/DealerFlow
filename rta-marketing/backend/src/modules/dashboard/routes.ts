@@ -1,11 +1,13 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { Router } from "express";
+import { requireSession } from "../../auth/session.js";
 import { db } from "../../db/client.js";
 import { listings, scrapeRuns, sourceRuns, sources, vehicles } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { getRunSummary } from "../runs/run.service.js";
 
 export const dashboardRouter = Router();
+dashboardRouter.use(requireSession);
 
 dashboardRouter.get(
   "/summary",

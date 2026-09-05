@@ -107,6 +107,33 @@ void test("unknown endpoints return the documented safe error envelope", async (
   });
 });
 
+void test("intelligence and acquisition endpoints reject unauthenticated access", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const endpoints = [
+      "/api/v1/dashboard/summary",
+      "/api/v1/vehicles",
+      "/api/v1/scrape-runs",
+      "/api/v1/sources",
+    ];
+
+    for (const endpoint of endpoints) {
+      const response = await fetch(`${baseUrl}${endpoint}`);
+      assert.equal(response.status, 401, endpoint);
+      const payload = (await response.json()) as { error: { code: string } };
+      assert.equal(payload.error.code, "AUTH_REQUIRED", endpoint);
+    }
+
+    const createRun = await fetch(`${baseUrl}/api/v1/scrape-runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filters: {}, mode: "fixture" }),
+    });
+    assert.equal(createRun.status, 401);
+    const payload = (await createRun.json()) as { error: { code: string } };
+    assert.equal(payload.error.code, "AUTH_REQUIRED");
+  });
+});
+
 void test(
   "login endpoint applies a stricter failed-attempt limit",
   { skip: process.env.RUN_DATABASE_TESTS !== "true" },

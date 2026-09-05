@@ -1,30 +1,28 @@
-import type { ComponentType } from "react";
+import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import type { UserRole } from "../types/domain";
-import { AuditPage, ConfigurationPage } from "../pages/AdminPages";
-import { DocumentsPage } from "../pages/DocumentsPage";
-import {
-  AcquisitionPage,
-  SourceControlPage,
-} from "../pages/IntelligencePages";
-import { LeadsPage } from "../pages/LeadsPage";
-import {
-  AnalyticsPage,
-  CommissionsPage,
-  TargetsPage,
-} from "../pages/OperationsPages";
-import { OverviewPage } from "../pages/OverviewPage";
-import { PerformanceBoardPage } from "../pages/PerformanceBoardPage";
-import { ProfilePage } from "../pages/ProfilePage";
-import { SalesPage } from "../pages/SalesPage";
-import { TeamPage } from "../pages/TeamPage";
-import {
-  CompareVehiclesPage,
-  InventoryPage,
-  SavedVehiclesPage,
-} from "../pages/VehicleWorkspacePages";
+
+type RouteComponent = ComponentType | LazyExoticComponent<ComponentType>;
+
+const AuditPage = lazy(async () => ({ default: (await import("../pages/AdminPages")).AuditPage }));
+const ConfigurationPage = lazy(async () => ({ default: (await import("../pages/AdminPages")).ConfigurationPage }));
+const DocumentsPage = lazy(async () => ({ default: (await import("../pages/DocumentsPage")).DocumentsPage }));
+const AcquisitionPage = lazy(async () => ({ default: (await import("../pages/IntelligencePages")).AcquisitionPage }));
+const SourceControlPage = lazy(async () => ({ default: (await import("../pages/IntelligencePages")).SourceControlPage }));
+const LeadsPage = lazy(async () => ({ default: (await import("../pages/LeadsPage")).LeadsPage }));
+const AnalyticsPage = lazy(async () => ({ default: (await import("../pages/OperationsPages")).AnalyticsPage }));
+const CommissionsPage = lazy(async () => ({ default: (await import("../pages/OperationsPages")).CommissionsPage }));
+const TargetsPage = lazy(async () => ({ default: (await import("../pages/OperationsPages")).TargetsPage }));
+const OverviewPage = lazy(async () => ({ default: (await import("../pages/OverviewPage")).OverviewPage }));
+const PerformanceBoardPage = lazy(async () => ({ default: (await import("../pages/PerformanceBoardPage")).PerformanceBoardPage }));
+const ProfilePage = lazy(async () => ({ default: (await import("../pages/ProfilePage")).ProfilePage }));
+const SalesPage = lazy(async () => ({ default: (await import("../pages/SalesPage")).SalesPage }));
+const TeamPage = lazy(async () => ({ default: (await import("../pages/TeamPage")).TeamPage }));
+const CompareVehiclesPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).CompareVehiclesPage }));
+const InventoryPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).InventoryPage }));
+const SavedVehiclesPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).SavedVehiclesPage }));
 
 export interface AppRoute {
-  component: ComponentType;
+  component: RouteComponent;
   roles: readonly UserRole[];
   workspace: "required" | "optional";
 }

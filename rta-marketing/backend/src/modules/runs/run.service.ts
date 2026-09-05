@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { jobOutbox, scrapeRuns, sourceRuns, sources } from "../../db/schema.js";
@@ -24,6 +24,7 @@ export async function createScrapeRun(
   idempotencyKey: string,
   userId?: string,
 ): Promise<CreatedRun> {
+  const requestHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
   const selectedKeys = input.sources ?? defaultSources;
   const selectedSources = await db
     .select({ id: sources.id, key: sources.key, enabled: sources.enabled, liveEnabled: sources.liveEnabled })
@@ -47,6 +48,7 @@ export async function createScrapeRun(
       .values({
         requestedByUserId: userId ?? null,
         idempotencyKey,
+        requestHash,
         mode: input.mode,
         filters: input.filters,
         sourceCount: selectedSources.length,
@@ -57,12 +59,20 @@ export async function createScrapeRun(
     const newRun = inserted[0];
     if (!newRun) {
       const existing = await transaction
-        .select({ id: scrapeRuns.id, status: scrapeRuns.status })
+        .select({
+          id: scrapeRuns.id,
+          status: scrapeRuns.status,
+          requestedByUserId: scrapeRuns.requestedByUserId,
+          requestHash: scrapeRuns.requestHash,
+        })
         .from(scrapeRuns)
         .where(eq(scrapeRuns.idempotencyKey, idempotencyKey))
         .limit(1);
       const reused = existing[0];
       if (!reused) throw new Error("Idempotent run lookup failed");
+      if (reused.requestedByUserId !== userId || reused.requestHash !== requestHash) {
+        throw new AppError(409, "IDEMPOTENCY_CONFLICT", "This idempotency key was used for a different scrape request");
+      }
       return { run: reused, reused: true };
     }
 

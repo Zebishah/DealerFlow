@@ -1,5 +1,7 @@
 # RTA Portfolio Upgrade Plan
 
+> Historical baseline and upgrade record. Some findings describe the pre-hardening implementation and are intentionally retained as audit evidence; verify current behavior against the source, current API reference, and CI workflow before treating a finding as open.
+
 Audit date: 2026-09-03
 
 Audited repository: `Zebishah/Rta-mark`

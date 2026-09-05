@@ -3,6 +3,13 @@ import { db } from "../db/client.js";
 import { scrapeRuns, sourceRuns } from "../db/schema.js";
 
 export async function recomputeRun(runId: string): Promise<void> {
+  const [parent] = await db
+    .select({ status: scrapeRuns.status })
+    .from(scrapeRuns)
+    .where(eq(scrapeRuns.id, runId))
+    .limit(1);
+  if (!parent) return;
+
   const rows = await db
     .select({
       status: sourceRuns.status,
@@ -20,7 +27,9 @@ export async function recomputeRun(runId: string): Promise<void> {
   ).length;
   const cancelled = rows.filter((row) => row.status === "cancelled").length;
   const terminal = completed + failed + cancelled === rows.length;
-  const status = terminal
+  const status = parent.status === "cancelled"
+    ? "cancelled"
+    : terminal
     ? failed > 0
       ? completed > 0
         ? "partial"

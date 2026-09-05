@@ -1,10 +1,13 @@
 node_modules/
 dist/
 coverage/
+test-results/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
 !.env.worker.example
+!.env.test.example
 .aws-sam/
 *.log
 ERROR-*.png

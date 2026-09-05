@@ -3,6 +3,7 @@ node_modules
 .env.*
 !.env.example
 !.env.worker.example
+!.env.test.example
 coverage
 dist
 ERROR-*.png

@@ -414,6 +414,7 @@ export const scrapeRuns = pgTable(
       onDelete: "set null",
     }),
     idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
     mode: runMode("mode").notNull().default("fixture"),
     status: runStatus("status").notNull().default("queued"),
     filters: jsonb("filters").$type<Record<string, unknown>>().notNull(),
@@ -608,7 +609,14 @@ export const ingestionRejections = pgTable(
     recordFingerprint: text("record_fingerprint"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("ingestion_rejections_source_run_idx").on(table.sourceRunId)],
+  (table) => [
+    uniqueIndex("ingestion_rejections_source_reason_fingerprint_uq").on(
+      table.sourceRunId,
+      table.reasonCode,
+      table.recordFingerprint,
+    ),
+    index("ingestion_rejections_source_run_idx").on(table.sourceRunId),
+  ],
 );
 
 export const scrapeRunRelations = relations(scrapeRuns, ({ many, one }) => ({

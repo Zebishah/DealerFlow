@@ -8,14 +8,14 @@ Copy the committed examples and replace placeholders locally or in the hosting p
 |---|---|---:|
 | `backend/.env` | Express API | Yes |
 | `backend/.env.worker.local` | Local SQS worker | Yes |
-| `rta-scrapper/.env` | Browser UI | No |
+| `frontend/.env` | Browser UI | No |
 
 Create them with:
 
 ```bash
 cp backend/.env.example backend/.env
 cp backend/.env.worker.example backend/.env.worker.local
-cp rta-scrapper/.env.example rta-scrapper/.env
+cp frontend/.env.example frontend/.env
 ```
 
 The API and worker use the same Neon database and SQS queue. Use Neon’s pooled URL for `DATABASE_URL`; use its direct/non-pooled URL only for `DATABASE_MIGRATION_URL` and migrations.
@@ -142,7 +142,7 @@ cd backend && npm run dev
 cd backend && npm run worker:dev
 
 # terminal 3
-cd rta-scrapper && npm run dev
+  cd frontend && npm run dev
 ```
 
 Open `http://localhost:5173`, choose **Live mode**, sign in as the seeded operator, and begin with one narrow make/model query. Inspect the Operations screen, worker logs, database results, and `/tmp/rta-scraper` if an adapter fails.

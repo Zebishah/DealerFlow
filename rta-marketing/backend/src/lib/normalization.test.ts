@@ -20,6 +20,16 @@ void test("normalizes money, mileage, VIN and condition", () => {
   assert.equal(result.isUsed, true);
 });
 
+void test("preserves decimal prices and mileage shorthand", () => {
+  const result = normalizeListing({
+    externalId: "decimal-1", source: "autotrader", url: "https://example.com/decimal-1",
+    title: "2024 Honda Civic Touring", make: "Honda", model: "Civic", year: 2024,
+    price: "$31,995.50", odometer: "41.2k km", currency: "CAD", condition: "used",
+  });
+  assert.equal(result.priceCents, 3_199_550);
+  assert.equal(result.odometerKm, 41_200);
+});
+
 void test("does not force new vehicles to used", () => {
   const result = normalizeListing({
     externalId: "new-1", source: "autoplanet", url: "https://example.com/new-1", title: "2026 Honda Civic",

@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { requireCsrf, requireOperator, requireSession } from "../../auth/session.js";
+import { requireCsrf, requireOperator, requireRoles, requireSession } from "../../auth/session.js";
 import { db } from "../../db/client.js";
 import { sources } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
@@ -17,6 +17,8 @@ const sourceUpdateSchema = z.object({
 
 sourcesRouter.get(
   "/",
+  requireSession,
+  requireRoles("admin", "operator", "recruiter"),
   asyncHandler(async (_request, response) => {
     const rows = await db.select().from(sources).orderBy(asc(sources.name));
     response.json({ data: rows });

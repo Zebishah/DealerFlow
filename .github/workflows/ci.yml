@@ -41,6 +41,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
+      - run: cp .env.test.example .env.test
       - run: node --env-file=.env.test --import tsx src/db/migrate.ts
       - run: npm test
         env:
@@ -70,6 +71,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - run: npx playwright install --with-deps firefox
+      - run: npm run test:e2e
         env:
           VITE_API_URL: http://localhost:5000/api/v1

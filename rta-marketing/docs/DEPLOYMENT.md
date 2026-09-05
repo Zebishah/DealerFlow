@@ -121,7 +121,16 @@ sam deploy \
     DatabaseUrl="$RTA_DATABASE_URL"
 ```
 
-Build/deploy the worker as a Lambda-compatible artifact whose handler is `dist/worker/lambda.handler`. Configure:
+Install the backend dependencies before building because SAM's esbuild builder resolves the local binary from `node_modules/.bin`:
+
+```bash
+cd rta-marketing/backend
+npm ci
+cd ../infrastructure/aws
+PATH="$(pwd)/../../backend/node_modules/.bin:$PATH" sam build --template-file template.yaml
+```
+
+Deploy the worker as a Lambda-compatible artifact whose handler is `lambda.handler` in the generated SAM bundle. Configure:
 
 - Runtime: Node.js 22
 - Architecture: x86_64
@@ -133,10 +142,12 @@ Build/deploy the worker as a Lambda-compatible artifact whose handler is `dist/w
 - Enable partial batch response (`ReportBatchItemFailures`)
 - Queue visibility timeout: at least 6× the Lambda timeout
 - Queue redrive: send to the DLQ after 3 receives
+- Keep `LiveScrapingEnabled=false` unless live browser automation has been verified.
+- Set `PuppeteerLayerArn` only when a Lambda-compatible Puppeteer/Chromium layer is available; the committed template intentionally does not bundle a browser binary.
 
 SAM creates separate least-privilege execution roles for the ingestion worker and the DLQ reconciler. The ingestion Lambda consumes the main queue. The reconciler consumes terminal DLQ messages, records `dead_letter` in PostgreSQL, and recomputes the parent acquisition run so the dashboard cannot remain falsely active. Lambda receives messages through event-source mappings; do not run the local long-polling process in Lambda.
 
-For fixture mode, no browser is launched. Before enabling live mode, package a Lambda-compatible Chromium binary/layer, confirm source terms/robots expectations, run parser fixtures, and verify one adapter at a time.
+For fixture mode, no browser is launched and no Puppeteer layer is required. Before enabling live mode, provide `PuppeteerLayerArn`, confirm that the layer exposes the `puppeteer` package and a compatible Chromium executable, set the browser executable path if the layer requires it, confirm source terms/robots expectations, run parser fixtures, and verify one adapter at a time. Never turn on live mode merely because the Lambda stack deploys successfully.
 
 ## 6. Final checks
 

@@ -4,7 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { createScrapeRunSchema } from "../../contracts/scrape.js";
-import { assertCsrf, assertOperator, requireCsrf, requireOperator, requireSession } from "../../auth/session.js";
+import { assertOperator, requireCsrf, requireOperator, requireRoles, requireSession } from "../../auth/session.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { cancelScrapeRun, createScrapeRun, getScrapeRun, listScrapeRuns, replaySourceRun } from "./run.service.js";
@@ -21,6 +21,7 @@ const scrapeLimiter = rateLimit({
 });
 
 export const runsRouter = Router();
+runsRouter.use(requireRoles("admin", "operator", "recruiter"));
 
 runsRouter.get(
   "/",
@@ -40,6 +41,8 @@ runsRouter.get(
 runsRouter.post(
   "/",
   scrapeLimiter,
+  requireRoles("admin", "operator"),
+  requireCsrf,
   asyncHandler(async (request, response) => {
     const input = createScrapeRunSchema.parse(request.body);
     if (input.mode === "live") {
@@ -47,7 +50,6 @@ runsRouter.post(
         throw new AppError(403, "LIVE_SCRAPING_DISABLED", "Live scraping is currently disabled");
       }
       assertOperator(request);
-      await assertCsrf(request);
     }
     await createAndRespond();
 

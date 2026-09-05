@@ -112,6 +112,8 @@ The browser never receives AWS credentials. Upload intents constrain object key,
 
 Run creation commits the run, source runs and outbox rows in one PostgreSQL transaction. Queue publication is asynchronous. Consumers tolerate SQS duplicate delivery.
 
+Catalog responses include `page.limit`, `page.total`, `page.hasNext`, and `page.nextCursor`. Pass `nextCursor` back as the `cursor` query parameter with the same sort order; cursors are invalidated when the sort changes.
+
 ## Operational endpoints
 
 | Method | Path | Database required | Purpose |
