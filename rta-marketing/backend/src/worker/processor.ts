@@ -12,6 +12,7 @@ import {
 import { rawListingSchema, type CanonicalListing } from "../contracts/listing.js";
 import { scrapeJobSchema, type ScrapeJob } from "../contracts/scrape.js";
 import { normalizeListing } from "../lib/normalization.js";
+import { logger } from "../lib/logger.js";
 import { acquireListings } from "./adapter.js";
 import { recomputeRun } from "./run-status.js";
 
@@ -151,6 +152,7 @@ async function upsertCanonical(
 
 export async function processScrapeJob(input: unknown): Promise<JobResult> {
   const job: ScrapeJob = scrapeJobSchema.parse(input);
+  const jobStartedAt = Date.now();
   const [context] = await db
     .select({
       sourceRunStatus: sourceRuns.status,
@@ -172,8 +174,28 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
 
   if (!context) throw new Error("SQS job does not match a source run");
   if (context.sourceRunStatus === "completed" || context.runStatus === "cancelled") {
+    logger.info(
+      {
+        runId: job.runId,
+        sourceRunId: job.sourceRunId,
+        source: job.sourceId,
+        runStatus: context.runStatus,
+        sourceRunStatus: context.sourceRunStatus,
+      },
+      "Scrape source job skipped because it is already terminal",
+    );
     return { skipped: true, discovered: 0, inserted: 0, updated: 0, rejected: 0 };
   }
+
+  logger.info(
+    {
+      runId: job.runId,
+      sourceRunId: job.sourceRunId,
+      source: job.sourceId,
+      mode: job.mode,
+    },
+    "Scrape source job started",
+  );
 
   await db
     .update(sourceRuns)
@@ -235,7 +257,25 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
       .set({ lastSuccessAt: new Date(), updatedAt: new Date() })
       .where(eq(sources.id, context.sourceDbId));
     await recomputeRun(job.runId);
-    return { skipped: false, discovered: acquired.length, inserted, updated, rejected };
+    const result = {
+      skipped: false,
+      discovered: acquired.length,
+      inserted,
+      updated,
+      rejected,
+    };
+    logger.info(
+      {
+        runId: job.runId,
+        sourceRunId: job.sourceRunId,
+        source: job.sourceId,
+        mode: job.mode,
+        durationMs: Date.now() - jobStartedAt,
+        ...result,
+      },
+      "Scrape source job completed",
+    );
+    return result;
   } catch (error) {
     const safe = safeError(error);
     await db
@@ -247,6 +287,17 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
       .set({ lastFailureAt: new Date(), updatedAt: new Date() })
       .where(eq(sources.id, context.sourceDbId));
     await recomputeRun(job.runId);
+    logger.error(
+      {
+        runId: job.runId,
+        sourceRunId: job.sourceRunId,
+        source: job.sourceId,
+        mode: job.mode,
+        durationMs: Date.now() - jobStartedAt,
+        errorCode: safe.code,
+      },
+      "Scrape source job failed",
+    );
     throw error;
   }
 }
