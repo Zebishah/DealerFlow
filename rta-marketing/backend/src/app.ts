@@ -11,6 +11,7 @@ import { env } from "./config/env.js";
 import { verifyDatabaseConnection } from "./db/client.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
 import { logger } from "./lib/logger.js";
+import { AppError } from "./lib/errors.js";
 import { catalogRouter } from "./modules/catalog/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { dealershipRouter } from "./modules/dealership/routes.js";
@@ -40,7 +41,13 @@ export function createApp() {
     cors({
       origin(origin, callback) {
         if (!origin || env.corsOrigins.includes(origin)) return callback(null, true);
-        return callback(new Error("Origin is not allowed"));
+        return callback(
+          new AppError(
+            403,
+            "CORS_ORIGIN_DENIED",
+            "This browser origin is not allowed",
+          ),
+        );
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
