@@ -33,6 +33,14 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 1024
       Timeout: 600
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !Ref ScrapeQueueArn
       Layers: !If
         - HasChromiumLayer
         - [!Ref ChromiumLayerArn]
@@ -82,6 +90,14 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 256
       Timeout: 60
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !Ref ScrapeDlqArn
       Environment:
         Variables:
           NODE_ENV: production
