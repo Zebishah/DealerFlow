@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -49,7 +50,7 @@ describe("WorkflowModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "Close dialog" }),
+        within(dialog).getByRole("button", { name: "Close dialog" }),
       ).toHaveFocus();
     });
 
@@ -74,7 +75,10 @@ describe("WorkflowModal", () => {
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
-    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Close dialog" }),
+    );
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
