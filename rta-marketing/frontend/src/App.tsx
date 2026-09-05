@@ -1,4 +1,9 @@
-import { appRoutes, defaultPath, resolveLegacyPath } from "./app/routes";
+import {
+  appRoutes,
+  canAccessRoute,
+  defaultPath,
+  resolveLegacyPath,
+} from "./app/routes";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
@@ -26,10 +31,7 @@ export function App() {
   const fallbackPath = defaultPath(user.workspaceId);
 
   if (!route) return <Redirect to={fallbackPath} />;
-  if (route.workspace === "required" && !user.workspaceId) {
-    return <Redirect to="/app/acquisition" />;
-  }
-  if (!route.roles.includes(user.role)) {
+  if (!canAccessRoute(route, user.role, user.workspaceId)) {
     return <Redirect to={fallbackPath} />;
   }
 
