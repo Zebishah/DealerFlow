@@ -3,7 +3,9 @@ import { AppShell } from "./components/AppShell";
 import { AcquisitionPage, InventoryPage } from "./pages/IntelligencePages";
 import { LeadsPage } from "./pages/LeadsPage";
 import { LoginPage } from "./pages/LoginPage";
-import { AnalyticsPage, CommissionsPage, TargetsPage, TeamPage } from "./pages/OperationsPages";
+import { AnalyticsPage, CommissionsPage, TargetsPage } from "./pages/OperationsPages";
+import { TeamPage } from "./pages/TeamPage";
+import { AuditPage, ConfigurationPage } from "./pages/AdminPages";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SalesPage } from "./pages/SalesPage";
 import { Redirect, useNavigation } from "./router/Navigation";
@@ -13,6 +15,8 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/leads": LeadsPage,
   "/app/sales": SalesPage,
   "/app/team": TeamPage,
+  "/app/configuration": ConfigurationPage,
+  "/app/audit": AuditPage,
   "/app/commissions": CommissionsPage,
   "/app/targets": TargetsPage,
   "/app/analytics": AnalyticsPage,

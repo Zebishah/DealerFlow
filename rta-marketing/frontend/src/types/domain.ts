@@ -106,3 +106,59 @@ export interface CatalogVehicle {
   isUsed: boolean;
   lastSeenAt: string;
 }
+
+
+export interface AdminUser extends SessionUser {
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NamedResource {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MonthlyTargetRecord {
+  id: string;
+  userId: string | null;
+  month: string;
+  retailTarget: number;
+  wholesaleTarget: number;
+  grossProfitTargetCents: number;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  updatedAt: string;
+}
+
+export interface CommissionRule {
+  id: string;
+  userId: string | null;
+  name: string;
+  retailRateBasisPoints: number;
+  wholesaleRateBasisPoints: number;
+  isActive: boolean;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  updatedAt: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  actorUserId: string | null;
+  actorFirstName: string | null;
+  actorLastName: string | null;
+  actorEmail: string | null;
+}

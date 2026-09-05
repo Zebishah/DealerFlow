@@ -9,6 +9,8 @@ import {
   LogOut,
   Menu,
   Settings2,
+  ShieldCheck,
+  SlidersHorizontal,
   Target,
   UserPlus,
   Users,
@@ -26,7 +28,9 @@ const nav = [
   { to: "/app/overview", label: "Overview", icon: Gauge, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/leads", label: "Lead pipeline", icon: UserPlus, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter"] },
   { to: "/app/sales", label: "Sales", icon: CircleDollarSign, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter"] },
-  { to: "/app/team", label: "Team", icon: Users, roles: ["admin", "operator", "recruiter"] },
+  { to: "/app/team", label: "Team", icon: Users, roles: ["admin", "recruiter"] },
+  { to: "/app/configuration", label: "Configuration", icon: SlidersHorizontal, roles: ["admin"] },
+  { to: "/app/audit", label: "Audit history", icon: ShieldCheck, roles: ["admin"] },
   { to: "/app/commissions", label: "Commissions", icon: CircleDollarSign, roles: ["admin", "operator", "employee"] },
   { to: "/app/targets", label: "Targets", icon: Target, roles: ["admin", "operator", "employee"] },
   { to: "/app/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "operator", "employee", "recruiter"] },
@@ -39,6 +43,8 @@ const pageTitles: Record<string, [string, string]> = {
   leads: ["Lead pipeline", "Qualify, assign, and convert every opportunity"],
   sales: ["Sales workspace", "Track funded deals, gross profit, and delivery"],
   team: ["Team operations", "People, roles, and workload visibility"],
+  configuration: ["Workspace configuration", "Lead sources and finance reference data"],
+  audit: ["Audit history", "Trace important operational changes"],
   commissions: ["Commission control", "Transparent earnings and approval workflow"],
   targets: ["Monthly targets", "Align goals with measurable progress"],
   analytics: ["Performance analytics", "Decision-ready dealership trends"],
@@ -96,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button className="icon-control" aria-label="Notifications"><Bell size={19} /><i /></button>
           <div className="profile-wrap">
             <button className="profile-control" onClick={() => setProfileOpen((value) => !value)}><b>{initials(user.firstName, user.lastName, user.email)}</b><span><strong>{[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email}</strong><small>{user.role.replace("_", " ")}</small></span><ChevronDown size={15} /></button>
-            {profileOpen && <div className="profile-menu"><button><Settings2 size={16} />Account settings</button><button onClick={() => void signOut()}><LogOut size={16} />Sign out</button></div>}
+            {profileOpen && <div className="profile-menu"><button disabled title="Profile management is being migrated"><Settings2 size={16} />Account settings</button><button onClick={() => void signOut()}><LogOut size={16} />Sign out</button></div>}
           </div>
         </div>
       </header>
