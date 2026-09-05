@@ -5,7 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
 import toast from "react-hot-toast";
 import { api, idempotentJson } from "../lib/api";
-import type { CatalogVehicle, IntelligenceSummary } from "../types/domain";
+import type { CatalogVehicle, IntelligenceSummary, SourceHealth } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
 const currency = (cents: number | null) => cents === null ? "Price unavailable" : new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(cents / 100);
@@ -215,5 +215,36 @@ export function AcquisitionPage() {
         <div className="source-run-list">{runDetail.data.sources.map((sourceRun) => <article key={sourceRun.id}><div><strong>{sourceRun.sourceName}</strong><small>{sourceRun.discoveredCount} discovered · {sourceRun.validCount} valid · {sourceRun.rejectedCount} rejected · attempt {sourceRun.attemptCount}</small>{sourceRun.errorMessage && <p>{sourceRun.errorCode ? `${sourceRun.errorCode}: ` : ""}{sourceRun.errorMessage}</p>}</div><span className={`status-chip ${sourceRun.status}`}>{sourceRun.status}</span>{canRunLive && sourceRun.status === "failed" && <button disabled={replay.isPending} onClick={() => replay.mutate({ runId: runDetail.data!.id, sourceRunId: sourceRun.id })}>Replay</button>}</article>)}</div>
       </div>}
     </WorkflowModal>
+  </div>;
+}
+
+
+export function SourceControlPage() {
+  const queryClient = useQueryClient();
+  const sources = useQuery({
+    queryKey: ["sources", "configuration"],
+    queryFn: () => api<{ data: SourceHealth[] }>("/sources").then((value) => value.data),
+  });
+  const update = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: Partial<Pick<SourceHealth, "enabled" | "liveEnabled">> }) =>
+      api(`/sources/${key}`, { method: "PATCH", body: JSON.stringify(value) }),
+    onSuccess: async () => {
+      toast.success("Source safety controls updated");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sources", "configuration"] }),
+        queryClient.invalidateQueries({ queryKey: ["intelligence"] }),
+      ]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  if (sources.isLoading) return <PageSkeleton />;
+  if (sources.isError) return <ErrorState message="Source configuration is unavailable." />;
+  return <div className="page-stack">
+    <section className="page-intro"><div><span>ACQUISITION GOVERNANCE</span><h2>Source safety controls.</h2><p>Independent kill switches let operators stop an adapter or live network traffic immediately without redeploying code.</p></div></section>
+    <section className="surface source-control-table">
+      <div className="surface-head"><div><span>REGISTERED ADAPTERS</span><h3>{sources.data?.length ?? 0} acquisition sources</h3></div></div>
+      {sources.data?.map((source) => <article key={source.key}><div><strong>{source.name}</strong><code>{source.key}</code></div><label>Adapter enabled<input type="checkbox" checked={source.enabled} disabled={update.isPending} onChange={(event) => update.mutate({ key: source.key, value: { enabled: event.target.checked } })} /></label><label>Live network access<input type="checkbox" checked={source.liveEnabled} disabled={update.isPending || !source.enabled} onChange={(event) => update.mutate({ key: source.key, value: { liveEnabled: event.target.checked } })} /></label><span className={`status-chip ${source.latestStatus ?? "idle"}`}>{source.latestStatus ?? "idle"}</span></article>)}
+    </section>
+    <div className="warning-banner"><AlertTriangle /><span><strong>Two controls are intentional.</strong> “Adapter enabled” disables every mode; “Live network access” only allows controlled third-party acquisition when the server-wide live-scraping switch is also enabled.</span></div>
   </div>;
 }
