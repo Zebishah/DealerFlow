@@ -11,6 +11,20 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: rta_test
+          POSTGRES_USER: rta_test
+          POSTGRES_PASSWORD: rta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rta_test -d rta_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: rta-marketing/backend
@@ -27,7 +41,10 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
+      - run: node --env-file=.env.test --import tsx src/db/migrate.ts
       - run: npm test
+        env:
+          RUN_DATABASE_TESTS: "true"
       - run: npm run build
 
   frontend:
