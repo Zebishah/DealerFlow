@@ -41,6 +41,12 @@ services:
         sync: false
       - key: SQS_SCRAPE_QUEUE_URL
         sync: false
+      - key: S3_DOCUMENT_BUCKET
+        sync: false
+      - key: DOCUMENT_UPLOAD_MAX_BYTES
+        value: "10000000"
+      - key: DOCUMENT_URL_TTL_SECONDS
+        value: "300"
       - key: QUEUE_OUTBOX_POLL_MS
         value: "5000"
       - key: QUEUE_OUTBOX_BATCH_SIZE
@@ -51,7 +57,7 @@ services:
         generateValue: true
 
   - type: web
-    name: rta-intelligence
+    name: rta-operations
     runtime: static
     rootDir: rta-marketing/frontend
     buildCommand: npm ci && npm run build
