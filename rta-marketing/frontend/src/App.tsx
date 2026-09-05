@@ -12,6 +12,7 @@ import { SalesPage } from "./pages/SalesPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PerformanceBoardPage } from "./pages/PerformanceBoardPage";
 import { Redirect, useNavigation } from "./router/Navigation";
+import type { UserRole } from "./types/domain";
 
 const pages: Record<string, () => JSX.Element> = {
   "/app/overview": OverviewPage,
@@ -31,6 +32,24 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/acquisition": AcquisitionPage,
 };
 
+const routeRoles: Record<string, UserRole[]> = {
+  "/app/overview": ["admin", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/leads": ["admin", "employee", "virtual_assistant", "recruiter"],
+  "/app/sales": ["admin", "employee", "virtual_assistant", "recruiter"],
+  "/app/team": ["admin", "recruiter"],
+  "/app/configuration": ["admin"],
+  "/app/audit": ["admin"],
+  "/app/settings": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/commissions": ["admin", "employee"],
+  "/app/targets": ["admin", "employee"],
+  "/app/analytics": ["admin", "employee", "recruiter"],
+  "/app/performance-board": ["admin", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/inventory": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/saved-vehicles": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/compare": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/acquisition": ["admin", "operator", "recruiter"],
+};
+
 export function App() {
   const { user, loading } = useAuth();
   const { path } = useNavigation();
@@ -40,6 +59,10 @@ export function App() {
   const normalizedPath = path.startsWith("/AdminLayout") || path.startsWith("/EmployeeLayout") || path.startsWith("/VirtualAssistantLayout") ? "/app/overview" : path;
   const platformPaths = new Set(["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/settings"]);
   if (!user.workspaceId && !platformPaths.has(normalizedPath)) return <Redirect to="/app/acquisition" />;
+  const allowedRoles = routeRoles[normalizedPath];
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Redirect to={user.workspaceId ? "/app/overview" : "/app/acquisition"} />;
+  }
   const Page = pages[normalizedPath];
   if (!Page) return <Redirect to="/app/overview" />;
   return <AppShell><Page /></AppShell>;
