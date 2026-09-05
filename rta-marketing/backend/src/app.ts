@@ -43,7 +43,7 @@ export function createApp() {
         return callback(new Error("Origin is not allowed"));
       },
       credentials: true,
-      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["content-type", "idempotency-key", "x-csrf-token", "x-demo-session-id", "x-request-id"],
     }),
   );
