@@ -26,8 +26,8 @@ RTA is a portfolio-grade, multi-role dealership workspace connected to a durable
 - At-least-once-safe ingestion, VIN/fingerprint identity resolution and price observations
 - Zod validation at environment, request, queue and source-record boundaries
 - Session cookies, CSRF protection, RBAC, rate limiting, Helmet, strict CORS and safe errors
-- Structured request logging, health probes, source-level progress and audit events
-- Deterministic demo fixtures, backend tests, frontend lint/typecheck/build and GitHub Actions CI
+- Structured request/job telemetry, health probes, source-level progress and audit events
+- Deterministic demo fixtures, PostgreSQL/API integration tests, frontend behavior tests and GitHub Actions CI
 
 ## Runtime architecture
 
@@ -113,6 +113,7 @@ npm run build
 cd ../frontend
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
 
