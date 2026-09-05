@@ -10,12 +10,4 @@ resolve_s3 = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 region = "ap-south-1"
-<<<<<<< Updated upstream
-parameter_overrides = "ScrapeQueueArn=REPLACE_QUEUE_ARN ScrapeDlqArn=REPLACE_DLQ_ARN DatabaseUrl=REPLACE_NEON_POOLED_URL ChromiumLayerArn=REPLACE_CHROMIUM_LAYER_VERSION_ARN"
-=======
-<<<<<<< HEAD
-parameter_overrides = "ScrapeQueueArn=REPLACE_QUEUE_ARN ScrapeDlqArn=REPLACE_DLQ_ARN DatabaseUrl=REPLACE_NEON_POOLED_URL LiveScrapingEnabled=false"
-=======
-parameter_overrides = "ScrapeQueueArn=REPLACE_QUEUE_ARN ScrapeDlqArn=REPLACE_DLQ_ARN DatabaseUrl=REPLACE_NEON_POOLED_URL ChromiumLayerArn=REPLACE_CHROMIUM_LAYER_VERSION_ARN"
->>>>>>> 587b15eead1d6b04a3a3062aa8e506cef0d2aab8
->>>>>>> Stashed changes
+parameter_overrides = "ScrapeQueueArn=REPLACE_QUEUE_ARN ScrapeDlqArn=REPLACE_DLQ_ARN DatabaseUrl=REPLACE_NEON_POOLED_URL LiveScrapingEnabled=false ChromiumLayerArn=REPLACE_CHROMIUM_LAYER_VERSION_ARN"

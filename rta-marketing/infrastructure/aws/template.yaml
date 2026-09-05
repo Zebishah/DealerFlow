@@ -10,21 +10,10 @@ Parameters:
   DatabaseUrl:
     Type: String
     NoEcho: true
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
   LiveScrapingEnabled:
     Type: String
     Default: "false"
     AllowedValues: ["true", "false"]
-  PuppeteerLayerArn:
-    Type: String
-    Default: ""
-
-Conditions:
-  HasPuppeteerLayer: !Not [!Equals [!Ref PuppeteerLayerArn, ""]]
-=======
->>>>>>> Stashed changes
   ChromiumLayerArn:
     Type: String
     Default: ""
@@ -32,10 +21,6 @@ Conditions:
 
 Conditions:
   HasChromiumLayer: !Not [!Equals [!Ref ChromiumLayerArn, ""]]
-<<<<<<< Updated upstream
-=======
->>>>>>> 587b15eead1d6b04a3a3062aa8e506cef0d2aab8
->>>>>>> Stashed changes
 
 Resources:
   ScrapeWorker:
@@ -48,21 +33,10 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 1024
       Timeout: 600
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
-      Layers:
-        - !If [HasPuppeteerLayer, !Ref PuppeteerLayerArn, !Ref AWS::NoValue]
-=======
->>>>>>> Stashed changes
       Layers: !If
         - HasChromiumLayer
         - [!Ref ChromiumLayerArn]
         - !Ref AWS::NoValue
-<<<<<<< Updated upstream
-=======
->>>>>>> 587b15eead1d6b04a3a3062aa8e506cef0d2aab8
->>>>>>> Stashed changes
       Environment:
         Variables:
           NODE_ENV: production
