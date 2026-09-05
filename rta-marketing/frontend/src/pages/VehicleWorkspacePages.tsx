@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Car, ChevronRight, Heart, Plus, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { WorkflowModal } from "../components/WorkflowModal";
 import { api } from "../lib/api";
@@ -82,7 +82,7 @@ function VehicleCard({
   return <article className="vehicle-card">
     <div className="vehicle-photo">
       {vehicle.imageUrl
-        ? <img src={vehicle.imageUrl} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} loading="lazy" />
+        ? <img src={vehicle.imageUrl} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} loading="lazy" decoding="async" />
         : <Car size={42} />}
       <span>{vehicle.sourceName}</span>
       <button className={`vehicle-save ${saved ? "active" : ""}`} type="button" onClick={onSave} aria-label={saved ? "Remove saved vehicle" : "Save vehicle"}><Heart size={17} fill={saved ? "currentColor" : "none"} /></button>
@@ -121,15 +121,16 @@ export function InventoryPage() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("");
   const [sort, setSort] = useState("newest");
+  const deferredQuery = useDeferredValue(query);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const summary = useQuery({ queryKey: ["intelligence", "summary"], queryFn: () => api<{ data: IntelligenceSummary }>("/dashboard/summary").then((value) => value.data) });
   const saved = useQuery({ queryKey: ["saved-vehicles"], queryFn: () => api<{ data: CatalogVehicle[] }>("/saved-vehicles").then((value) => value.data) });
   const catalog = useQuery({
-    queryKey: ["catalog", query, source, sort],
+    queryKey: ["catalog", deferredQuery, source, sort],
     queryFn: () => {
       const params = new URLSearchParams({ limit: "48", sort });
-      if (query.trim()) params.set("q", query.trim());
+      if (deferredQuery.trim()) params.set("q", deferredQuery.trim());
       if (source) params.set("source", source);
       return api<CatalogResponse>(`/vehicles?${params}`);
     },
