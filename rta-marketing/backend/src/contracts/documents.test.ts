@@ -8,11 +8,14 @@ import {
   validateDocumentFile,
 } from "./documents.js";
 
-test("document policy accepts only approved files within the size limit", () => {
-  assert.doesNotThrow(() => validateDocumentFile({ mimeType: "application/pdf", sizeBytes: 1_000 }, 10_000));
+void test("document policy accepts only approved files within the size limit", () => {
+  assert.doesNotThrow(() =>
+    validateDocumentFile({ mimeType: "application/pdf", sizeBytes: 1_000 }, 10_000),
+  );
   assert.throws(
     () => validateDocumentFile({ mimeType: "text/html", sizeBytes: 1_000 }, 10_000),
-    (error) => error instanceof AppError && error.code === "DOCUMENT_TYPE_NOT_ALLOWED",
+    (error) =>
+      error instanceof AppError && error.code === "DOCUMENT_TYPE_NOT_ALLOWED",
   );
   assert.throws(
     () => validateDocumentFile({ mimeType: "image/png", sizeBytes: 10_001 }, 10_000),
@@ -20,8 +23,11 @@ test("document policy accepts only approved files within the size limit", () => 
   );
 });
 
-test("document object keys are normalized and isolated by workspace and user", () => {
-  assert.equal(sanitizeDocumentFileName("../../Policy Résumé (final).pdf"), "..-..-Policy-R-sum-final-.pdf");
+void test("document object keys are normalized and isolated by workspace and user", () => {
+  assert.equal(
+    sanitizeDocumentFileName("../../Policy Résumé (final).pdf"),
+    "..-..-Policy-R-sum-final-.pdf",
+  );
   const key = createDocumentStorageKey("workspace-a", "user-a", "../policy.pdf");
   assert.equal(ownsDocumentStorageKey(key, "workspace-a", "user-a"), true);
   assert.equal(ownsDocumentStorageKey(key, "workspace-a", "user-b"), false);
