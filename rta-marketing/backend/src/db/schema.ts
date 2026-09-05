@@ -37,6 +37,8 @@ export const saleStatus = pgEnum("sale_status", [
   "cancelled",
 ]);
 export const saleType = pgEnum("sale_type", ["retail", "wholesale"]);
+export const documentKind = pgEnum("document_kind", ["insurance", "drivers_license", "omvic", "employment", "other"]);
+export const documentStatus = pgEnum("document_status", ["pending", "verified", "rejected"]);
 export const runMode = pgEnum("run_mode", ["fixture", "live"]);
 export const runStatus = pgEnum("run_status", [
   "queued",
@@ -93,6 +95,43 @@ export const users = pgTable(
   (table) => [
     uniqueIndex("users_email_uq").on(sql`lower(${table.email})`),
     index("users_workspace_role_idx").on(table.workspaceId, table.role),
+  ],
+);
+
+export const employeeDocuments = pgTable(
+  "employee_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    uploadedByUserId: uuid("uploaded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    kind: documentKind("kind").notNull(),
+    status: documentStatus("status").notNull().default("pending"),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    storageKey: text("storage_key").notNull(),
+    checksumSha256: text("checksum_sha256"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNotes: text("review_notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("employee_documents_storage_key_uq").on(table.storageKey),
+    index("employee_documents_workspace_user_idx").on(table.workspaceId, table.userId),
+    index("employee_documents_workspace_status_idx").on(table.workspaceId, table.status),
+    index("employee_documents_expires_idx").on(table.expiresAt),
   ],
 );
 
@@ -596,3 +635,4 @@ export type UserRole = User["role"];
 export type Workspace = typeof workspaces.$inferSelect;
 export type Lead = typeof leads.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
+export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
