@@ -11,6 +11,7 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { SalesPage } from "./pages/SalesPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PerformanceBoardPage } from "./pages/PerformanceBoardPage";
+import { DocumentsPage } from "./pages/DocumentsPage";
 import { Redirect, useNavigation } from "./router/Navigation";
 import type { UserRole } from "./types/domain";
 
@@ -26,6 +27,7 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/targets": TargetsPage,
   "/app/analytics": AnalyticsPage,
   "/app/performance-board": PerformanceBoardPage,
+  "/app/documents": DocumentsPage,
   "/app/inventory": InventoryPage,
   "/app/saved-vehicles": SavedVehiclesPage,
   "/app/compare": CompareVehiclesPage,
@@ -45,6 +47,7 @@ const routeRoles: Record<string, UserRole[]> = {
   "/app/targets": ["admin", "employee"],
   "/app/analytics": ["admin", "employee", "recruiter"],
   "/app/performance-board": ["admin", "employee", "virtual_assistant", "recruiter", "viewer"],
+  "/app/documents": ["admin", "employee"],
   "/app/inventory": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
   "/app/saved-vehicles": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
   "/app/compare": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
