@@ -1,6 +1,6 @@
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
-import { AcquisitionPage } from "./pages/IntelligencePages";
+import { AcquisitionPage, SourceControlPage } from "./pages/IntelligencePages";
 import { CompareVehiclesPage, InventoryPage, SavedVehiclesPage } from "./pages/VehicleWorkspacePages";
 import { LeadsPage } from "./pages/LeadsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -30,6 +30,7 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/saved-vehicles": SavedVehiclesPage,
   "/app/compare": CompareVehiclesPage,
   "/app/acquisition": AcquisitionPage,
+  "/app/source-control": SourceControlPage,
 };
 
 const routeRoles: Record<string, UserRole[]> = {
@@ -48,6 +49,7 @@ const routeRoles: Record<string, UserRole[]> = {
   "/app/saved-vehicles": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
   "/app/compare": ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"],
   "/app/acquisition": ["admin", "operator", "recruiter"],
+  "/app/source-control": ["admin", "operator"],
 };
 
 export function App() {
@@ -57,7 +59,7 @@ export function App() {
   if (path === "/login") return <LoginPage />;
   if (!user) return <Redirect to="/login" />;
   const normalizedPath = path.startsWith("/AdminLayout") || path.startsWith("/EmployeeLayout") || path.startsWith("/VirtualAssistantLayout") ? "/app/overview" : path;
-  const platformPaths = new Set(["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/settings"]);
+  const platformPaths = new Set(["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control", "/app/settings"]);
   if (!user.workspaceId && !platformPaths.has(normalizedPath)) return <Redirect to="/app/acquisition" />;
   const allowedRoles = routeRoles[normalizedPath];
   if (allowedRoles && !allowedRoles.includes(user.role)) {
