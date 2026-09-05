@@ -18,7 +18,7 @@ interface ScraperLimits { maxPages: number; minDelayMs: number; }
 type LegacyScraper = (page: Page, url: string, limits: ScraperLimits) => Promise<LegacyResult>;
 type UrlBuilder = (filters: ScrapeFilters) => string | null;
 
-const legacyRequire = createRequire(import.meta.url);
+const legacyRequire = createRequire(__filename);
 
 function loadLegacyModules(source: SourceKey): { buildUrl: UrlBuilder; scrape: LegacyScraper } {
   const cwd = process.cwd();
