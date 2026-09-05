@@ -1,6 +1,7 @@
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
-import { AcquisitionPage, InventoryPage } from "./pages/IntelligencePages";
+import { AcquisitionPage } from "./pages/IntelligencePages";
+import { CompareVehiclesPage, InventoryPage, SavedVehiclesPage } from "./pages/VehicleWorkspacePages";
 import { LeadsPage } from "./pages/LeadsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { AnalyticsPage, CommissionsPage, TargetsPage } from "./pages/OperationsPages";
@@ -23,6 +24,8 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/targets": TargetsPage,
   "/app/analytics": AnalyticsPage,
   "/app/inventory": InventoryPage,
+  "/app/saved-vehicles": SavedVehiclesPage,
+  "/app/compare": CompareVehiclesPage,
   "/app/acquisition": AcquisitionPage,
 };
 
