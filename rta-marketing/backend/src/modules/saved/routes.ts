@@ -71,11 +71,8 @@ savedRouter.delete(
   "/:vehicleId",
   requireCsrf,
   asyncHandler(async (request, response) => {
-    const identity = owner(request);
     const vehicleId = uuidSchema.parse(request.params.vehicleId);
-    const ownership = identity.userId
-      ? eq(savedVehicles.userId, identity.userId)
-      : eq(savedVehicles.demoSessionId, identity.demoSessionId!);
+    const ownership = eq(savedVehicles.userId, request.user!.id);
     await db.delete(savedVehicles).where(and(eq(savedVehicles.vehicleId, vehicleId), ownership));
     response.status(204).send();
   }),
