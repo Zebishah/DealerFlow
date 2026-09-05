@@ -81,6 +81,20 @@ void test("CORS accepts configured origins and request IDs round-trip", async ()
   });
 });
 
+void test("CORS rejects unknown browser origins with a safe 403 contract", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const response = await fetch(`${baseUrl}/api/v1/auth/capabilities`, {
+      headers: { origin: "https://untrusted.example" },
+    });
+    assert.equal(response.status, 403);
+    const payload = (await response.json()) as {
+      error: { code: string };
+    };
+    assert.equal(payload.error.code, "CORS_ORIGIN_DENIED");
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+  });
+});
+
 void test("unknown endpoints return the documented safe error envelope", async () => {
   await withServer(async ({ baseUrl }) => {
     const response = await fetch(`${baseUrl}/api/v1/not-a-route`);
