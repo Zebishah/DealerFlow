@@ -19,27 +19,62 @@ Do not run migrations automatically on every Render startup.
 
 Create a Web Service from this repository:
 
-- Root directory: `backend`
+- Root directory: `rta-marketing/backend`
 - Runtime: Node
 - Build command: `npm ci && npm run build`
 - Start command: `npm start`
 - Health check: `/health/ready`
 - Plan: Free
 
-Add the API variables from `backend/.env.example`. Use a dedicated IAM producer policy that allows only `sqs:SendMessage` and `sqs:GetQueueAttributes` on the main queue. It must not receive or delete messages.
+Add the API variables from `backend/.env.example`. Use a dedicated Render API IAM principal. Grant only `sqs:SendMessage` and `sqs:GetQueueAttributes` on the main queue; it must not receive or delete queue messages. If employee documents are enabled, add the object-scoped S3 permissions described below.
 
 ## 3. Render frontend
 
 Create a Static Site:
 
-- Root directory: `rta-scrapper`
+- Root directory: `rta-marketing/frontend`
 - Build command: `npm ci && npm run build`
 - Publish directory: `dist`
 - Environment: `VITE_API_URL=https://YOUR-API.onrender.com/api/v1`
 
-Add a rewrite from `/*` to `/index.html` if client-side routes are introduced later.
+Add a rewrite from `/*` to `/index.html` so direct visits to role-aware client routes resolve correctly.
 
-## 4. Lambda worker
+## 4. Private employee documents
+
+Create a dedicated S3 bucket in the API region. Enable **Block all public access**, leave ACLs disabled, and use default server-side encryption. Set `S3_DOCUMENT_BUCKET` to the bucket name—not its ARN or URL.
+
+Add this statement to the Render API IAM policy, replacing the bucket name:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+  "Resource": "arn:aws:s3:::YOUR_PRIVATE_BUCKET/documents/*"
+}
+```
+
+The browser never receives AWS credentials. The API authorizes a request and creates a five-minute pre-signed URL; S3 then accepts only the signed method, key, content type, size and encryption headers.
+
+Configure bucket CORS with the exact frontend origins:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:5173",
+      "https://YOUR-FRONTEND.onrender.com"
+    ],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["content-type", "x-amz-server-side-encryption"],
+    "ExposeHeaders": ["etag"],
+    "MaxAgeSeconds": 300
+  }
+]
+```
+
+Never make the bucket public. Download links are short-lived and generated only after workspace/owner authorization.
+
+## 5. Lambda worker
 
 Build/deploy the worker as a Lambda-compatible artifact whose handler is `dist/worker/lambda.handler`. Configure:
 
@@ -58,13 +93,14 @@ Attach a least-privilege execution role with CloudWatch Logs and SQS consumer ac
 
 For fixture mode, no browser is launched. Before enabling live mode, package a Lambda-compatible Chromium binary/layer, confirm source terms/robots expectations, run parser fixtures, and verify one adapter at a time.
 
-## 5. Final checks
+## 6. Final checks
 
 1. Open API `/health/live` and `/health/ready`.
 2. Open the dashboard and run fixture acquisition.
 3. Confirm four SQS messages are processed and the queue returns to zero.
 4. Confirm one completed run and populated catalog in PostgreSQL.
 5. Run the same fixture again and confirm listing count remains stable while observations increase.
-6. Confirm DLQ CloudWatch alarm and AWS Budget alerts are active.
+6. Upload a small PDF as the employee user, verify it as admin, and confirm an unauthorized role cannot list or download it.
+7. Confirm DLQ CloudWatch alarm and AWS Budget alerts are active.
 
 Render free services may sleep, Neon may suspend idle compute, and AWS free-tier eligibility depends on account and region. The architecture minimizes idle work, but “free” is a quota, not an unlimited guarantee.
