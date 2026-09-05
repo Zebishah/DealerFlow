@@ -24,6 +24,7 @@ import {
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { dealershipAdminRouter } from "./admin-routes.js";
+import { documentRouter } from "./document-routes.js";
 
 const uuidSchema = z.string().uuid();
 const roleSchema = z.enum([
@@ -124,6 +125,7 @@ function visibleToUser(user: AuthenticatedUser, workspaceId: string): SQL {
 export const dealershipRouter = Router();
 dealershipRouter.use(requireSession);
 dealershipRouter.use("/admin", dealershipAdminRouter);
+dealershipRouter.use("/documents", documentRouter);
 
 dealershipRouter.get(
   "/bootstrap",
