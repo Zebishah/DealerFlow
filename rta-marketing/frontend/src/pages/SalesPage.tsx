@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleDollarSign, Download, Plus } from "lucide-react";
+import { CircleDollarSign, Download, Pencil, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -50,6 +50,46 @@ function newSaleForm(): SaleForm {
   };
 }
 
+function formFromSale(sale: Sale): SaleForm {
+  return {
+    salespersonId: sale.salespersonId,
+    financeProviderId: sale.financeProviderId ?? "",
+    externalSaleId: sale.externalSaleId,
+    type: sale.type,
+    status: sale.status,
+    customerName: sale.customerName,
+    customerEmail: sale.customerEmail ?? "",
+    customerPhone: sale.customerPhone ?? "",
+    vehicleVin: sale.vehicleVin ?? "",
+    vehicleDescription: sale.vehicleDescription,
+    salePrice: (sale.salePriceCents / 100).toFixed(2),
+    grossProfit: (sale.grossProfitCents / 100).toFixed(2),
+    commissionRate: (sale.commissionRateBasisPoints / 100).toFixed(2),
+    soldAt: sale.soldAt.slice(0, 10),
+    notes: sale.notes ?? "",
+  };
+}
+
+function salePayload(value: SaleForm) {
+  return {
+    salespersonId: value.salespersonId || undefined,
+    financeProviderId: value.financeProviderId || null,
+    externalSaleId: value.externalSaleId.trim(),
+    type: value.type,
+    status: value.status,
+    customerName: value.customerName.trim(),
+    customerEmail: value.customerEmail.trim() || null,
+    customerPhone: value.customerPhone.trim() || null,
+    vehicleVin: value.vehicleVin.trim().toUpperCase() || null,
+    vehicleDescription: value.vehicleDescription.trim(),
+    salePriceCents: cents(value.salePrice),
+    grossProfitCents: cents(value.grossProfit),
+    commissionRateBasisPoints: Math.round(Number(value.commissionRate) * 100),
+    soldAt: new Date(`${value.soldAt}T12:00:00`).toISOString(),
+    notes: value.notes.trim() || null,
+  };
+}
+
 function cents(value: string): number {
   return Math.round(Number(value) * 100);
 }
@@ -64,6 +104,7 @@ export function SalesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [form, setForm] = useState<SaleForm>(newSaleForm);
   const canWrite = Boolean(user && writableRoles.includes(user.role));
 
@@ -80,25 +121,10 @@ export function SalesPage() {
 
   const createSale = useMutation({
     mutationFn: (submission: { form: SaleForm; idempotencyKey: string }) => {
-      const value = submission.form;
-      const payload = {
-        salespersonId: value.salespersonId || undefined,
-        financeProviderId: value.financeProviderId || null,
-        externalSaleId: value.externalSaleId.trim(),
-        type: value.type,
-        status: value.status,
-        customerName: value.customerName.trim(),
-        customerEmail: value.customerEmail.trim() || null,
-        customerPhone: value.customerPhone.trim() || null,
-        vehicleVin: value.vehicleVin.trim().toUpperCase() || null,
-        vehicleDescription: value.vehicleDescription.trim(),
-        salePriceCents: cents(value.salePrice),
-        grossProfitCents: cents(value.grossProfit),
-        commissionRateBasisPoints: Math.round(Number(value.commissionRate) * 100),
-        soldAt: new Date(`${value.soldAt}T12:00:00`).toISOString(),
-        notes: value.notes.trim() || null,
-      };
-      return api<{ data: { id: string; version: number } }>("/dealership/sales", idempotentJson("POST", payload, submission.idempotencyKey));
+      return api<{ data: { id: string; version: number } }>(
+        "/dealership/sales",
+        idempotentJson("POST", salePayload(submission.form), submission.idempotencyKey),
+      );
     },
     onSuccess: async () => {
       toast.success("Sale recorded");
@@ -111,13 +137,44 @@ export function SalesPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const updateSale = useMutation({
+    mutationFn: (submission: { sale: Sale; form: SaleForm }) =>
+      api<{ data: Sale }>(`/dealership/sales/${submission.sale.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...salePayload(submission.form), version: submission.sale.version }),
+      }),
+    onSuccess: async () => {
+      toast.success("Sale updated");
+      setModalOpen(false);
+      setEditingSale(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dealership", "sales"] }),
+        queryClient.invalidateQueries({ queryKey: ["dealership", "summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["dealership", "audit-events"] }),
+      ]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saving = createSale.isPending || updateSale.isPending;
+
   function openCreate() {
+    setEditingSale(null);
     setForm(newSaleForm());
     setModalOpen(true);
   }
 
+  function openEdit(sale: Sale) {
+    setEditingSale(sale);
+    setForm(formFromSale(sale));
+    setModalOpen(true);
+  }
+
   function closeModal() {
-    if (!createSale.isPending) setModalOpen(false);
+    if (!saving) {
+      setModalOpen(false);
+      setEditingSale(null);
+    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -131,7 +188,11 @@ export function SalesPage() {
       toast.error("Enter valid financial amounts");
       return;
     }
-    createSale.mutate({ form, idempotencyKey: crypto.randomUUID() });
+    if (editingSale) {
+      updateSale.mutate({ sale: editingSale, form });
+    } else {
+      createSale.mutate({ form, idempotencyKey: crypto.randomUUID() });
+    }
   }
 
   function exportCsv() {
@@ -185,7 +246,7 @@ export function SalesPage() {
         {salesQuery.data?.length ? (
           <div className="responsive-table">
             <table>
-              <thead><tr><th>Deal</th><th>Customer</th><th>Vehicle</th><th>Type</th><th>Value</th><th>Gross</th><th>Status</th></tr></thead>
+              <thead><tr><th>Deal</th><th>Customer</th><th>Vehicle</th><th>Type</th><th>Value</th><th>Gross</th><th>Status</th>{canWrite && <th><span className="sr-only">Actions</span></th>}</tr></thead>
               <tbody>
                 {salesQuery.data.map((sale) => (
                   <tr key={sale.id}>
@@ -196,6 +257,7 @@ export function SalesPage() {
                     <td><strong>{currency(sale.salePriceCents)}</strong></td>
                     <td>{currency(sale.grossProfitCents)}</td>
                     <td><span className={`status-chip ${sale.status}`}>{sale.status}</span></td>
+                    {canWrite && <td className="row-actions"><button className="icon-button" type="button" onClick={() => openEdit(sale)} aria-label={`Edit sale ${sale.externalSaleId}`} title="Edit sale"><Pencil size={16} /></button></td>}
                   </tr>
                 ))}
               </tbody>
@@ -206,10 +268,10 @@ export function SalesPage() {
 
       <WorkflowModal
         open={modalOpen}
-        eyebrow="DEAL ENTRY"
-        title="Record sale"
-        description="Financial values are stored as integer cents and commission rates as basis points."
-        busy={createSale.isPending}
+        eyebrow={editingSale ? "DEAL UPDATE" : "DEAL ENTRY"}
+        title={editingSale ? `Edit ${editingSale.externalSaleId}` : "Record sale"}
+        description="Financial values are stored as integer cents and commission rates as basis points. Updates use optimistic concurrency control."
+        busy={saving}
         onClose={closeModal}
       >
         <form className="workflow-form" onSubmit={submit}>
@@ -231,8 +293,8 @@ export function SalesPage() {
             <label className="form-span">Notes<textarea maxLength={4000} rows={4} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
           </div>
           <footer className="modal-actions">
-            <button type="button" className="filter-button" disabled={createSale.isPending} onClick={closeModal}>Cancel</button>
-            <button type="submit" className="primary-action" disabled={createSale.isPending}>{createSale.isPending ? "Recording…" : "Record sale"}</button>
+            <button type="button" className="filter-button" disabled={saving} onClick={closeModal}>Cancel</button>
+            <button type="submit" className="primary-action" disabled={saving}>{saving ? "Saving…" : editingSale ? "Save changes" : "Record sale"}</button>
           </footer>
         </form>
       </WorkflowModal>
