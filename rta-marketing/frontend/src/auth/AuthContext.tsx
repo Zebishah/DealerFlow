@@ -7,6 +7,7 @@ interface AuthValue {
   loading: boolean;
   login(email: string, password: string): Promise<SessionUser>;
   logout(): Promise<void>;
+  refresh(): Promise<SessionUser>;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -32,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      setCsrfToken(result.data.csrfToken);
+      setUser(result.data.user);
+      return result.data.user;
+    },
+    async refresh() {
+      const result = await api<{ data: { user: SessionUser; csrfToken: string } }>("/auth/session");
       setCsrfToken(result.data.csrfToken);
       setUser(result.data.user);
       return result.data.user;

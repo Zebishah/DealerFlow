@@ -8,6 +8,7 @@ import { TeamPage } from "./pages/TeamPage";
 import { AuditPage, ConfigurationPage } from "./pages/AdminPages";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SalesPage } from "./pages/SalesPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { Redirect, useNavigation } from "./router/Navigation";
 
 const pages: Record<string, () => JSX.Element> = {
@@ -17,6 +18,7 @@ const pages: Record<string, () => JSX.Element> = {
   "/app/team": TeamPage,
   "/app/configuration": ConfigurationPage,
   "/app/audit": AuditPage,
+  "/app/settings": ProfilePage,
   "/app/commissions": CommissionsPage,
   "/app/targets": TargetsPage,
   "/app/analytics": AnalyticsPage,
