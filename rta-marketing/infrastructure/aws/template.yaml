@@ -1,9 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: RTA fixture-first SQS ingestion worker
+Description: RTA SQS ingestion and dead-letter reconciliation workers
 
 Parameters:
   ScrapeQueueArn:
+    Type: String
+  ScrapeDlqArn:
     Type: String
   DatabaseUrl:
     Type: String
@@ -55,6 +57,44 @@ Resources:
         Target: es2022
         External: [puppeteer]
 
+  DeadLetterReconciler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: rta-scrape-dlq-reconciler
+      CodeUri: ../../backend
+      Handler: src/worker/dead-letter.handler
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      MemorySize: 256
+      Timeout: 60
+      Environment:
+        Variables:
+          NODE_ENV: production
+          LOG_LEVEL: info
+          DATABASE_URL: !Ref DatabaseUrl
+          DATABASE_POOL_MAX: "1"
+          DATABASE_IDLE_TIMEOUT_MS: "10000"
+          DATABASE_CONNECT_TIMEOUT_MS: "5000"
+      Events:
+        ScrapeDeadLetterQueue:
+          Type: SQS
+          Properties:
+            Queue: !Ref ScrapeDlqArn
+            BatchSize: 10
+            FunctionResponseTypes: [ReportBatchItemFailures]
+            ScalingConfig:
+              MaximumConcurrency: 2
+            Enabled: true
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [src/worker/dead-letter.ts]
+        Minify: true
+        Sourcemap: false
+        Target: es2022
+
 Outputs:
   WorkerFunctionArn:
     Value: !GetAtt ScrapeWorker.Arn
+  DeadLetterReconcilerFunctionArn:
+    Value: !GetAtt DeadLetterReconciler.Arn
