@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
 import { db } from "../db/client.js";
@@ -36,6 +36,8 @@ function safeEqual(left: string, right: string): boolean {
 }
 
 export async function createSession(userId: string) {
+  await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+
   const token = randomBytes(32).toString("base64url");
   const csrfToken = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + env.SESSION_TTL_SECONDS * 1000);
