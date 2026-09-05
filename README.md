@@ -1,7 +1,7 @@
-# RTA Vehicle Intelligence
+# RTA Automotive Operations & Vehicle Intelligence
 
-A production-oriented vehicle inventory platform built with React, TypeScript, Express, PostgreSQL, Amazon SQS, and AWS Lambda.
+A production-oriented dealership operations platform built with React, TypeScript, Express, PostgreSQL, Amazon SQS, and AWS Lambda.
 
-The hardened portfolio branch demonstrates transactional-outbox job publication, idempotent ingestion, VIN/fingerprint identity resolution, price observations, server-side catalog search, operator RBAC, CSRF protection, controlled browser automation, structured logs, migrations, tests, Docker, and CI.
+RTA combines a role-aware dealership workspace—leads, sales, commissions, targets, team administration, audit history, analytics, and a presentation board—with an asynchronous vehicle-acquisition pipeline. The portfolio branch demonstrates transactional outbox delivery, idempotent writes, optimistic concurrency, typed source adapters, normalized vehicle identity, per-user shortlists, security controls, observability, migrations, tests, Docker, and CI.
 
-See the [project overview](rta-marketing/README.md), [architecture decisions](rta-marketing/docs/ARCHITECTURE.md), and [deployment guide](rta-marketing/docs/DEPLOYMENT.md).
+Start with the [project guide](rta-marketing/README.md), then review the [architecture decisions](rta-marketing/docs/ARCHITECTURE.md) and [deployment guide](rta-marketing/docs/DEPLOYMENT.md).
