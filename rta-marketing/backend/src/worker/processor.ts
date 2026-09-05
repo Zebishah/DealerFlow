@@ -296,8 +296,25 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
 
 export async function markJobsDeadLetter(sourceRunIds: string[]): Promise<void> {
   if (sourceRunIds.length === 0) return;
+
+  const affectedRuns = await db
+    .select({ runId: sourceRuns.runId })
+    .from(sourceRuns)
+    .where(inArray(sourceRuns.id, sourceRunIds));
+
   await db
     .update(sourceRuns)
-    .set({ status: "dead_letter", finishedAt: new Date(), updatedAt: new Date() })
+    .set({
+      status: "dead_letter",
+      errorCode: "SQS_MAX_RECEIVES_EXCEEDED",
+      errorMessage:
+        "The source job exhausted its queue delivery attempts and was moved to the dead-letter queue",
+      finishedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(inArray(sourceRuns.id, sourceRunIds));
+
+  for (const runId of new Set(affectedRuns.map((row) => row.runId))) {
+    await recomputeRun(runId);
+  }
 }
