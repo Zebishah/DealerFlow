@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleDollarSign,
   Gauge,
+  Heart,
   LogOut,
   Menu,
   Settings2,
@@ -34,7 +35,9 @@ const nav = [
   { to: "/app/commissions", label: "Commissions", icon: CircleDollarSign, roles: ["admin", "operator", "employee"] },
   { to: "/app/targets", label: "Targets", icon: Target, roles: ["admin", "operator", "employee"] },
   { to: "/app/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "operator", "employee", "recruiter"] },
-  { to: "/app/inventory", label: "Vehicle intelligence", icon: Car, roles: ["admin", "operator", "employee", "recruiter", "viewer"] },
+  { to: "/app/inventory", label: "Vehicle intelligence", icon: Car, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
+  { to: "/app/saved-vehicles", label: "Saved vehicles", icon: Heart, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
+  { to: "/app/compare", label: "Compare vehicles", icon: SlidersHorizontal, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/acquisition", label: "Acquisition", icon: Activity, roles: ["admin", "operator", "recruiter"] },
 ] as const;
 
@@ -50,6 +53,8 @@ const pageTitles: Record<string, [string, string]> = {
   targets: ["Monthly targets", "Align goals with measurable progress"],
   analytics: ["Performance analytics", "Decision-ready dealership trends"],
   inventory: ["Vehicle intelligence", "Normalized inventory across Ontario sources"],
+  "saved-vehicles": ["Saved vehicles", "Your private vehicle shortlist"],
+  compare: ["Compare vehicles", "Evaluate normalized attributes side by side"],
   acquisition: ["Acquisition operations", "Observable SQS-backed scraping jobs"],
 };
 
@@ -90,9 +95,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? "Loading workspace…"}</strong><small><i />{workspace?.mode === "demo" ? "Portfolio demo data" : "Live operations"}</small></div>
       <nav aria-label="Primary navigation">
         <p>WORKSPACE</p>
-        {items.filter((item) => !["/app/inventory", "/app/acquisition"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
         <p>INTELLIGENCE</p>
-        {items.filter((item) => ["/app/inventory", "/app/acquisition"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
       </nav>
       <div className="side-status"><span><i />API connected</span><small>PostgreSQL · SQS · Lambda</small></div>
     </aside>
