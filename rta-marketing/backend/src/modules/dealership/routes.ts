@@ -72,6 +72,10 @@ const saleInputSchema = z.object({
   notes: z.string().trim().max(4_000).nullable().optional(),
 });
 
+const saleUpdateSchema = saleInputSchema.partial().extend({
+  version: z.number().int().min(1),
+});
+
 const listQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   status: leadStatusSchema.optional(),
@@ -351,6 +355,78 @@ dealershipRouter.post(
       return { body: created, reused: false };
     });
     response.status(result.reused ? 200 : 201).json({ data: result.body, meta: { idempotentReplay: result.reused } });
+  }),
+);
+
+dealershipRouter.patch(
+  "/sales/:id",
+  requireRoles("admin", "operator", "employee"),
+  requireCsrf,
+  asyncHandler(async (request, response) => {
+    const workspaceId = requireWorkspace(request);
+    const id = uuidSchema.parse(request.params.id);
+    const { version, ...input } = saleUpdateSchema.parse(request.body);
+    const scope = request.user!.role === "employee"
+      ? and(eq(sales.workspaceId, workspaceId), eq(sales.salespersonId, request.user!.id))!
+      : eq(sales.workspaceId, workspaceId);
+
+    const updated = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(sales)
+        .where(and(scope, eq(sales.id, id)))
+        .limit(1);
+      if (!existing) throw new AppError(404, "SALE_NOT_FOUND", "Sale was not found");
+      if (existing.version !== version) {
+        throw new AppError(409, "STALE_WRITE", "This sale changed after you opened it; refresh and try again");
+      }
+
+      const salespersonId = request.user!.role === "employee"
+        ? request.user!.id
+        : input.salespersonId ?? existing.salespersonId;
+      const leadId = input.leadId === undefined ? existing.leadId : input.leadId;
+      const financeProviderId = input.financeProviderId === undefined
+        ? existing.financeProviderId
+        : input.financeProviderId;
+
+      const [salesperson, relatedLead, provider] = await Promise.all([
+        tx.select({ id: users.id }).from(users)
+          .where(and(eq(users.id, salespersonId), eq(users.workspaceId, workspaceId), eq(users.isActive, true))).limit(1),
+        leadId
+          ? tx.select({ id: leads.id }).from(leads).where(and(eq(leads.id, leadId), eq(leads.workspaceId, workspaceId))).limit(1)
+          : Promise.resolve([]),
+        financeProviderId
+          ? tx.select({ id: financeProviders.id }).from(financeProviders)
+              .where(and(eq(financeProviders.id, financeProviderId), eq(financeProviders.workspaceId, workspaceId), eq(financeProviders.isActive, true))).limit(1)
+          : Promise.resolve([]),
+      ]);
+      if (!salesperson[0]) throw new AppError(400, "INVALID_SALESPERSON", "Salesperson is not an active workspace member");
+      if (leadId && !relatedLead[0]) throw new AppError(400, "INVALID_SALE_LEAD", "Lead does not belong to this workspace");
+      if (financeProviderId && !provider[0]) throw new AppError(400, "INVALID_FINANCE_PROVIDER", "Finance provider is not active in this workspace");
+
+      const grossProfitCents = input.grossProfitCents ?? existing.grossProfitCents;
+      const commissionRateBasisPoints = input.commissionRateBasisPoints ?? existing.commissionRateBasisPoints;
+      const [sale] = await tx.update(sales).set({
+        ...input,
+        salespersonId,
+        leadId,
+        financeProviderId,
+        commissionAmountCents: Math.round(grossProfitCents * commissionRateBasisPoints / 10_000),
+        version: version + 1,
+        updatedAt: new Date(),
+      }).where(and(eq(sales.id, id), eq(sales.version, version))).returning();
+      if (!sale) throw new AppError(409, "STALE_WRITE", "This sale changed after you opened it; refresh and try again");
+
+      await tx.insert(auditEvents).values({
+        workspaceId,
+        actorUserId: request.user!.id,
+        action: "sale.updated",
+        entityType: "sale",
+        entityId: id,
+        metadata: { version: sale.version, status: sale.status },
+      });
+      return sale;
+    });
+
+    response.json({ data: updated });
   }),
 );
 
