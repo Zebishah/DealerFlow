@@ -5,6 +5,7 @@ import { Toaster } from "react-hot-toast";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import "./styles.css";
+import "./workflow.css";
 import { NavigationProvider } from "./router/Navigation";
 
 const queryClient = new QueryClient({

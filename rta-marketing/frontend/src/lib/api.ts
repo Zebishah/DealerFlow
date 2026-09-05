@@ -32,10 +32,14 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function idempotentJson(method: "POST" | "PATCH", value: unknown): RequestInit {
+export function idempotentJson(
+  method: "POST" | "PATCH",
+  value: unknown,
+  idempotencyKey = crypto.randomUUID(),
+): RequestInit {
   return {
     method,
-    headers: { "idempotency-key": crypto.randomUUID() },
+    headers: { "idempotency-key": idempotencyKey },
     body: JSON.stringify(value),
   };
 }
