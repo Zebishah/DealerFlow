@@ -43,7 +43,7 @@ void test("legacy adapter derives a stable ID from URL instead of array order", 
   assert.equal(first.condition, "used");
 });
 
-void test("legacy adapter rejects records without durable identity", () => {
+void test("legacy adapter rejects records without a source URL", () => {
   assert.throws(
     () =>
       adaptLegacyListing(
@@ -52,6 +52,6 @@ void test("legacy adapter rejects records without durable identity", () => {
         {},
       ),
     (error: unknown) =>
-      error instanceof AppError && error.code === "LISTING_ID_MISSING",
+      error instanceof AppError && error.code === "LISTING_URL_MISSING",
   );
 });
