@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { requireCsrf, requireRoles, requireWorkspace } from "../../auth/session.js";
+import { requireCsrf, requireRoles, requireWorkspace, type AuthenticatedUser } from "../../auth/session.js";
 import { env } from "../../config/env.js";
 import { db } from "../../db/client.js";
 import { auditEvents, employeeDocuments, users } from "../../db/schema.js";
@@ -48,7 +48,7 @@ function safeFileName(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(-100) || "document";
 }
 
-async function targetUser(requestUser: Express.Request["user"], workspaceId: string, requestedId?: string) {
+async function targetUser(requestUser: AuthenticatedUser | undefined, workspaceId: string, requestedId?: string) {
   if (!requestUser) throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
   const userId = requestUser.role === "admin" ? requestedId ?? requestUser.id : requestUser.id;
   const [member] = await db.select({ id: users.id }).from(users)
