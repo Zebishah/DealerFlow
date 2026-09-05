@@ -35,7 +35,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 export function idempotentJson(
   method: "POST" | "PATCH",
   value: unknown,
-  idempotencyKey = crypto.randomUUID(),
+  idempotencyKey: string = crypto.randomUUID(),
 ): RequestInit {
   return {
     method,
