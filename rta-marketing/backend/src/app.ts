@@ -70,6 +70,25 @@ export function createApp() {
     }
   });
 
+  app.use(
+    "/api/v1/auth/login",
+    rateLimit({
+      windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+      limit: env.AUTH_RATE_LIMIT_MAX,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      skipSuccessfulRequests: true,
+      handler: (request, response) => {
+        response.status(429).json({
+          error: {
+            code: "LOGIN_RATE_LIMITED",
+            message: "Too many failed login attempts. Try again later.",
+            requestId: request.id,
+          },
+        });
+      },
+    }),
+  );
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/dashboard", dashboardRouter);
   app.use("/api/v1/dealership", dealershipRouter);
