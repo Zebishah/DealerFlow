@@ -46,6 +46,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
         env:
           VITE_API_URL: http://localhost:5000/api/v1
