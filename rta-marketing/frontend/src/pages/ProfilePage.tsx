@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { KeyRound, Save, ShieldCheck, UserRound } from "lucide-react";
+import { KeyRound, Save, ShieldCheck, User } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -50,7 +50,7 @@ export function ProfilePage() {
     <section className="page-intro"><div><span>ACCOUNT SECURITY</span><h2>Your profile and credentials.</h2><p>Update identity information and rotate your password without exposing authentication secrets to the browser.</p></div></section>
     <section className="settings-grid">
       <form className="surface settings-card" onSubmit={saveProfile}>
-        <header><span><UserRound /></span><div><h3>Profile information</h3><p>Your role and email are controlled by an administrator.</p></div></header>
+        <header><span><User /></span><div><h3>Profile information</h3><p>Your role and email are controlled by an administrator.</p></div></header>
         <div className="settings-fields"><label>Email<input value={user?.email ?? ""} disabled /></label><label>Role<input className="capitalize" value={user?.role.replace("_", " ") ?? ""} disabled /></label><label>First name<input required minLength={1} maxLength={80} value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Last name<input required minLength={1} maxLength={80} value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div>
         <footer><button className="primary-action" disabled={profile.isPending}><Save size={16} />{profile.isPending ? "Saving…" : "Save profile"}</button></footer>
       </form>
