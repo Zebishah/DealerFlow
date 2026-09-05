@@ -13,8 +13,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/lib/normalization.test.ts src/contracts/scrape.test.ts src/queue/outbox-policy.test.ts",
-    "test:coverage": "node --import tsx --test --experimental-test-coverage src/lib/normalization.test.ts src/contracts/scrape.test.ts src/queue/outbox-policy.test.ts"
+    "test": "node --import tsx --test src/lib/normalization.test.ts src/contracts/scrape.test.ts src/contracts/documents.test.ts src/queue/outbox-policy.test.ts",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage src/lib/normalization.test.ts src/contracts/scrape.test.ts src/contracts/documents.test.ts src/queue/outbox-policy.test.ts"
   },
   "private": true,
   "engines": {
