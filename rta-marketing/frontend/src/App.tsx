@@ -38,6 +38,8 @@ export function App() {
   if (path === "/login") return <LoginPage />;
   if (!user) return <Redirect to="/login" />;
   const normalizedPath = path.startsWith("/AdminLayout") || path.startsWith("/EmployeeLayout") || path.startsWith("/VirtualAssistantLayout") ? "/app/overview" : path;
+  const platformPaths = new Set(["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/settings"]);
+  if (!user.workspaceId && !platformPaths.has(normalizedPath)) return <Redirect to="/app/acquisition" />;
   const Page = pages[normalizedPath];
   if (!Page) return <Redirect to="/app/overview" />;
   return <AppShell><Page /></AppShell>;
