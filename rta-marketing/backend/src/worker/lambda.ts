@@ -1,4 +1,5 @@
 import type { SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { logger } from "../lib/logger.js";
 import { processScrapeJob } from "./processor.js";
 
 export async function handler(event: SQSEvent): Promise<SQSBatchResponse> {
@@ -7,7 +8,10 @@ export async function handler(event: SQSEvent): Promise<SQSBatchResponse> {
     try {
       await processScrapeJob(JSON.parse(record.body) as unknown);
     } catch (error) {
-      console.error("SQS scrape record failed", { messageId: record.messageId, error });
+      logger.error(
+        { err: error, messageId: record.messageId },
+        "SQS scrape record failed",
+      );
       batchItemFailures.push({ itemIdentifier: record.messageId });
     }
   }
