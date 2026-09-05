@@ -90,3 +90,37 @@ void test("unknown endpoints return the documented safe error envelope", async (
     assert.match(payload.error.message, /GET \/api\/v1\/not-a-route/);
   });
 });
+
+void test(
+  "login endpoint applies a stricter failed-attempt limit",
+  { skip: process.env.RUN_DATABASE_TESTS !== "true" },
+  async () => {
+    await withServer(async ({ baseUrl }) => {
+      for (let attempt = 1; attempt <= 10; attempt += 1) {
+        const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "missing-user@rta.test",
+            password: "incorrect-password",
+          }),
+        });
+        assert.equal(response.status, 401);
+      }
+
+      const blocked = await fetch(`${baseUrl}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "missing-user@rta.test",
+          password: "incorrect-password",
+        }),
+      });
+      assert.equal(blocked.status, 429);
+      const payload = (await blocked.json()) as {
+        error: { code: string };
+      };
+      assert.equal(payload.error.code, "LOGIN_RATE_LIMITED");
+    });
+  },
+);
