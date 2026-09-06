@@ -1,7 +1,4 @@
-// config/sites/humberview.js
 module.exports = {
-  name: "YokdaleVW.com",
-  baseUrl: "https://www.yorkdalevw.ca",
-
-  pagination: null,
+  name: "Mercedes-Benz of Westwood",
+  baseUrl: "https://www.mbwestwood.com/llm/inventory/",
 };

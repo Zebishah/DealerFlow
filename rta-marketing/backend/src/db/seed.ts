@@ -59,10 +59,10 @@ const ids = {
 } as const;
 
 const sourceDefinitions = [
-  { key: "autotrader", name: "AutoTrader", minDelayMs: 1800 },
-  { key: "autoplanet", name: "AutoPlanet", minDelayMs: 1600 },
-  { key: "humberview", name: "Humberview Volkswagen", minDelayMs: 1800 },
-  { key: "yorkdalevw", name: "Yorkdale Volkswagen", minDelayMs: 1800 },
+  { key: "autotrader", name: "INFINITI of Peoria", minDelayMs: 2500 },
+  { key: "autoplanet", name: "Nimnicht Chevrolet", minDelayMs: 2500 },
+  { key: "humberview", name: "Baron MINI", minDelayMs: 2500 },
+  { key: "yorkdalevw", name: "Mercedes-Benz of Westwood", minDelayMs: 2500 },
 ] as const;
 
 async function seedScrapeSources(): Promise<void> {

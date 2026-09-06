@@ -1,11 +1,8 @@
 import type { Page } from "puppeteer-core";
 import type { RawListing } from "../contracts/listing.js";
 import type { ScrapeFilters, SourceKey } from "../contracts/scrape.js";
-import { scrapeAutoPlanet } from "./autoplanet.js";
-import { scrapeAutoTrader } from "./autotrader.js";
 import type { ScraperLimits } from "./common.js";
-import { scrapeHumberview } from "./humberview.js";
-import { scrapeYorkdaleVolkswagen } from "./yorkdalevw.js";
+import { scrapePublicInventory } from "./public-inventory.js";
 
 type SourceScraper = (
   page: Page,
@@ -15,10 +12,10 @@ type SourceScraper = (
 ) => Promise<RawListing[]>;
 
 const scrapers: Record<SourceKey, SourceScraper> = {
-  autoplanet: scrapeAutoPlanet,
-  autotrader: scrapeAutoTrader,
-  humberview: scrapeHumberview,
-  yorkdalevw: scrapeYorkdaleVolkswagen,
+  autoplanet: scrapePublicInventory,
+  autotrader: scrapePublicInventory,
+  humberview: scrapePublicInventory,
+  yorkdalevw: scrapePublicInventory,
 };
 
 export function scraperFor(source: SourceKey): SourceScraper {
