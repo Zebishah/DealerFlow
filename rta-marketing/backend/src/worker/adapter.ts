@@ -1,7 +1,10 @@
 import { mkdir } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { Page } from "puppeteer-core";
+import { buildUrl as buildAutoPlanetUrl } from "../../services/url-builders/autoPlanet.builder.js";
+import { buildUrl as buildAutoTraderUrl } from "../../services/url-builders/autotrader.builder.js";
+import { buildUrl as buildHumberviewUrl } from "../../services/url-builders/humberview.builder.js";
+import { buildUrl as buildYorkdaleUrl } from "../../services/url-builders/yorkdalevw.builder.js";
 import { workerEnv } from "../config/worker-env.js";
 import type { RawListing } from "../contracts/listing.js";
 import type { ScrapeFilters, SourceKey } from "../contracts/scrape.js";
@@ -11,21 +14,19 @@ import { launchScraperBrowser } from "./browser.js";
 import { getFixtureListings } from "./fixtures.js";
 
 type UrlBuilder = (filters: ScrapeFilters) => string | null;
-const legacyRequire = createRequire(__filename);
+const urlBuilders: Record<SourceKey, UrlBuilder> = {
+  autotrader: buildAutoTraderUrl,
+  autoplanet: buildAutoPlanetUrl,
+  humberview: buildHumberviewUrl,
+  yorkdalevw: buildYorkdaleUrl,
+};
 
 function loadUrlBuilder(source: SourceKey): UrlBuilder {
-  const cwd = process.cwd();
-  const definitions: Record<SourceKey, string> = {
-    autotrader: `${cwd}/services/url-builders/autotrader.builder.js`,
-    autoplanet: `${cwd}/services/url-builders/autoPlanet.builder.js`,
-    humberview: `${cwd}/services/url-builders/humberview.builder.js`,
-    yorkdalevw: `${cwd}/services/url-builders/yorkdalevw.builder.js`,
-  };
-  const builderModule = legacyRequire(definitions[source]) as { buildUrl?: unknown };
-  if (typeof builderModule.buildUrl !== "function") {
+  const builder = urlBuilders[source];
+  if (!builder) {
     throw new AppError(500, "SOURCE_URL_BUILDER_MISSING", `URL builder missing for ${source}`);
   }
-  return builderModule.buildUrl as UrlBuilder;
+  return builder;
 }
 
 export async function acquireListings(
@@ -57,7 +58,20 @@ export async function acquireListings(
       waitUntil: "domcontentloaded",
       timeout: workerEnv.BROWSER_NAVIGATION_TIMEOUT_MS,
     });
-    if (!navigation || navigation.status() >= 500) {
+    const navigationStatus = navigation?.status() ?? 0;
+    if (navigationStatus === 403) {
+      throw new AppError(502, "SOURCE_ACCESS_BLOCKED", `${source} rejected the browser request`, {
+        retryable: false,
+        status: navigationStatus,
+      });
+    }
+    if (navigationStatus === 429) {
+      throw new AppError(429, "SOURCE_RATE_LIMITED", `${source} rate-limited the browser request`, {
+        retryable: true,
+        status: navigationStatus,
+      });
+    }
+    if (!navigation || navigationStatus >= 500) {
       throw new AppError(502, "SOURCE_NAVIGATION_FAILED", `${source} returned an invalid navigation response`, {
         retryable: true,
         status: navigation?.status() ?? null,

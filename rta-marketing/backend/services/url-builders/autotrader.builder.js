@@ -8,14 +8,16 @@ const buildUrl = (filters) => {
     maxYear,
     minPrice,
     maxPrice,
-    postal,
+    postalCode,
     minMileage,
     maxMileage,
     transmission,
-    exteriorColor,
+    color,
+    exteriorColor = color,
     bodyStyle,
     radius = 100,
-    keywords = "",
+    keyword = "",
+    keywords = keyword,
   } = filters;
 
   // Get slugs for province/city
@@ -59,7 +61,7 @@ const buildUrl = (filters) => {
   // if (slugs.provinceName) params.append("prv", slugs.provinceName);
 
   // Postal code
-  params.append("loc", postal || "A1A1A1");
+  params.append("loc", postalCode || "A1A1A1");
 
   // Exterior color
   if (exteriorColor) params.append("clr", exteriorColor);

@@ -25,22 +25,23 @@ const buildUrl = (filters) => {
     maxYear,
     minPrice,
     maxPrice,
-    keywords = "",
+    keyword = "",
+    keywords = keyword,
     minMileage,
     maxMileage,
     transmission,
-    exteriorColor,
+    color,
+    exteriorColor = color,
     bodyStyle,
   } = filters;
 
   // --- Build path ---
-  let path = "/en/group-all-inventory";
+  let path = "/en/all-inventory";
 
-  if (make) {
-    path += `/${encodeURIComponent(make.toLowerCase())}`;
-  }
-  if (model) {
-    path += `/${encodeURIComponent(model.toLowerCase().replace(/\s+/g, "-"))}`;
+  if (make || model) {
+    path = "/en/used-inventory";
+    if (make) path += `/${encodeURIComponent(make.toLowerCase())}`;
+    if (model) path += `/${encodeURIComponent(model.toLowerCase().replace(/\s+/g, "-"))}`;
   }
 
   // --- Build query params ---

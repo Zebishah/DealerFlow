@@ -45,11 +45,13 @@ const buildUrl = (filters) => {
     maxYear,
     minPrice,
     maxPrice,
-    keywords = "",
+    keyword = "",
+    keywords = keyword,
     minMileage,
     maxMileage,
     transmission,
-    exteriorColor,
+    color,
+    exteriorColor = color,
     bodyStyle,
   } = filters;
 
@@ -100,7 +102,7 @@ const buildUrl = (filters) => {
   const shouldUseSlug = (make || model) && filterCount <= 2 && !hasColorFilter;
 
   // --- Build URL ---
-  let path = "/inventory/used/";
+  let path = "/inventory.html";
   const params = new URLSearchParams();
 
   if (shouldUseSlug) {

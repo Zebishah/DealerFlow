@@ -1,4 +1,3 @@
-import chromium from "@sparticuz/chromium";
 import puppeteer, { type Browser, type LaunchOptions } from "puppeteer-core";
 import { workerEnv } from "../config/worker-env.js";
 import { AppError } from "../lib/errors.js";
@@ -9,9 +8,16 @@ function runningInLambda(): boolean {
 
 export async function launchScraperBrowser(): Promise<Browser> {
   const inLambda = runningInLambda();
-  const executablePath = inLambda
-    ? await chromium.executablePath()
-    : workerEnv.BROWSER_EXECUTABLE_PATH;
+  let executablePath = workerEnv.BROWSER_EXECUTABLE_PATH;
+  let chromiumArgs: string[] = [];
+
+  if (inLambda) {
+    const chromiumModule = await import("@sparticuz/chromium");
+    const chromium = chromiumModule.default;
+    executablePath = await chromium.executablePath();
+    chromiumArgs = chromium.args;
+  }
+
   if (!executablePath) {
     throw new AppError(
       503,
@@ -24,7 +30,7 @@ export async function launchScraperBrowser(): Promise<Browser> {
     executablePath,
     headless: true,
     args: [
-      ...(inLambda ? chromium.args : []),
+      ...chromiumArgs,
       "--disable-dev-shm-usage",
       ...(workerEnv.BROWSER_DISABLE_SANDBOX
         ? ["--no-sandbox", "--disable-setuid-sandbox"]

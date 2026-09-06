@@ -84,7 +84,7 @@ const envSchema = z
     SCRAPE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(5),
     DEMO_MODE: optionalBooleanString.default(true),
     DEFAULT_SCRAPE_MODE: z.enum(["fixture", "live"]).default("fixture"),
-    ALLOW_LIVE_SCRAPING: optionalBooleanString.default(false),
+    ALLOW_LIVE_SCRAPING: optionalBooleanString.default(true),
   })
   .superRefine((value, context) => {
     if (

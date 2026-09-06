@@ -2,7 +2,7 @@
 module.exports = {
   name: "HumberviewVW.com",
   baseUrl: "https://www.humberviewvw.com",
-  urlTemplate: "/en/group-all-inventory/{make}/{model}",
+  urlTemplate: "/en/all-inventory/{make}/{model}",
   queryParams: "?year={year}&maxPrice={maxPrice}",
   selectors: {
     item: ".inventory-item",

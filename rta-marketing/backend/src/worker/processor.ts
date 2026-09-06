@@ -342,6 +342,7 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
         mode: job.mode,
         durationMs: Date.now() - jobStartedAt,
         errorCode: safe.code,
+        errorMessage: safe.message,
       },
       "Scrape source job failed",
     );

@@ -107,6 +107,19 @@ export async function waitForInventory(
   stateSelector: string,
   timeoutMs: number,
 ): Promise<"cards" | "zero"> {
+  const accessState = await page.evaluate(() => ({
+    title: document.title,
+    body: document.body.innerText.slice(0, 2000),
+  }));
+  const accessText = `${accessState.title}\n${accessState.body}`;
+  if (/sorry,\s*you have been blocked|attention required|you are unable to access|cloudflare|403 forbidden|access denied|request rejected/i.test(accessText)) {
+    throw new AppError(502, "SOURCE_ACCESS_BLOCKED", `${source} rejected this browser session`, {
+      retryable: false,
+      title: accessState.title,
+      url: page.url(),
+    });
+  }
+
   try {
     await page.waitForSelector(`${cardSelector}, ${stateSelector}`, { timeout: timeoutMs });
   } catch (error) {
@@ -120,7 +133,11 @@ export async function waitForInventory(
       const cardCount = document.querySelectorAll(cards).length;
       const text = document.querySelector(status)?.textContent?.trim().toLowerCase() ?? "";
       const body = document.body.innerText.toLowerCase();
-      return { cardCount, text, blocked: body.includes("sorry, you have been blocked") };
+      return {
+        cardCount,
+        text,
+        blocked: /sorry,\s*you have been blocked|attention required|you are unable to access|cloudflare|403 forbidden|access denied|request rejected/i.test(body),
+      };
     },
     { cardSelector, stateSelector },
   );

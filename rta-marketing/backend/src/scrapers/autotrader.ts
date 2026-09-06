@@ -3,7 +3,7 @@ import type { RawListing } from "../contracts/listing.js";
 import type { ScrapeFilters } from "../contracts/scrape.js";
 import { parseBatch, waitForInventory, type ScraperLimits } from "./common.js";
 
-const cardSelector = ".result-item.enhanced, [data-testid='listing-card'], article a[href*='/offers/']";
+const cardSelector = ".result-item.enhanced, [data-testid='listing-card'], article a[href*='/offers/'], a[href*='/a/']";
 const stateSelector = "#titleCount, [data-testid='results-count'], main";
 
 export async function scrapeAutoTrader(
@@ -19,7 +19,7 @@ export async function scrapeAutoTrader(
       const seen = new Set<string>();
       const values: Array<Record<string, string | null>> = [];
       for (const candidate of Array.from(document.querySelectorAll(selector))) {
-        const card = candidate.closest(".result-item.enhanced, [data-testid='listing-card'], article") ?? candidate;
+        const card = candidate.closest(".result-item.enhanced, [data-testid='listing-card'], article, li, [class*='card']") ?? candidate;
         const link = card.matches("a") ? card as HTMLAnchorElement : card.querySelector<HTMLAnchorElement>("a[href*='/a/'], a[href*='/offers/']");
         const url = link?.href ? new URL(link.href, origin).href : "";
         if (!url || seen.has(url)) continue;
