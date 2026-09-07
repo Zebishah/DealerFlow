@@ -17,6 +17,7 @@ import { logger } from "../lib/logger.js";
 import { AppError } from "../lib/errors.js";
 import { acquireListings } from "./adapter.js";
 import { recomputeRun } from "./run-status.js";
+import { isPermanentCode } from "./failure-policy.js";
 
 export interface JobResult {
   skipped: boolean;
@@ -165,6 +166,8 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
       runStatus: scrapeRuns.status,
       sourceDbId: sources.id,
       sourceMinDelayMs: sources.minDelayMs,
+      previousErrorCode: sourceRuns.errorCode,
+      previousErrorMessage: sourceRuns.errorMessage,
     })
     .from(sourceRuns)
     .innerJoin(scrapeRuns, eq(sourceRuns.runId, scrapeRuns.id))
@@ -191,6 +194,12 @@ export async function processScrapeJob(input: unknown): Promise<JobResult> {
       "Scrape source job skipped because it is already terminal",
     );
     return { skipped: true, discovered: 0, inserted: 0, updated: 0, rejected: 0 };
+  }
+
+  // A failed DLQ send or lost acknowledgement must not revisit a blocked site.
+  // Explicit replay clears the saved error before publishing a fresh delivery.
+  if (["failed", "dead_letter"].includes(context.sourceRunStatus) && isPermanentCode(context.previousErrorCode)) {
+    throw new AppError(502, context.previousErrorCode!, context.previousErrorMessage ?? "Permanent source failure", { retryable: false });
   }
 
   logger.info(

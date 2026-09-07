@@ -8,6 +8,8 @@ import { workerEnv } from "../config/worker-env.js";
 import { pool } from "../db/client.js";
 import { processScrapeJob } from "./processor.js";
 import { logger } from "../lib/logger.js";
+import { deliverScrapeMessage } from "./failure-policy.js";
+import { forwardPermanentFailure } from "./failed-job.js";
 
 if (!workerEnv.SQS_SCRAPE_QUEUE_URL) {
   throw new Error("SQS_SCRAPE_QUEUE_URL is required for the local worker");
@@ -37,12 +39,12 @@ async function consumeOnce(): Promise<number> {
         QueueUrl: queueUrl,
         ReceiptHandle: receiptHandle,
         VisibilityTimeout: workerEnv.SQS_VISIBILITY_TIMEOUT_SECONDS,
-      }));
+      })).catch((error) => logger.error({ err: error, messageId: message.MessageId }, "SQS visibility heartbeat failed"));
     }, Math.max(30_000, (workerEnv.SQS_VISIBILITY_TIMEOUT_SECONDS * 1000) / 2));
     heartbeat.unref();
 
     try {
-      await processScrapeJob(JSON.parse(message.Body) as unknown);
+      await deliverScrapeMessage(message.Body, processScrapeJob, forwardPermanentFailure);
       await client.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle }));
     } catch (error) {
       logger.error({ err: error, messageId: message.MessageId }, "Local SQS job failed and will be retried");

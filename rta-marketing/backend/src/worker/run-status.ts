@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { scrapeRuns, sourceRuns } from "../db/schema.js";
 
@@ -70,13 +70,12 @@ export async function markJobsDeadLetter(
     .update(sourceRuns)
     .set({
       status: "dead_letter",
-      errorCode: "SQS_MAX_RECEIVES_EXCEEDED",
-      errorMessage:
-        "The source job exhausted its queue delivery attempts and was moved to the dead-letter queue",
+      errorCode: sql`coalesce(${sourceRuns.errorCode}, 'SQS_MAX_RECEIVES_EXCEEDED')`,
+      errorMessage: sql`coalesce(${sourceRuns.errorMessage}, 'The source job exhausted its queue delivery attempts and was moved to the dead-letter queue')`,
       finishedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(inArray(sourceRuns.id, sourceRunIds));
+    .where(and(inArray(sourceRuns.id, sourceRunIds), inArray(sourceRuns.status, ["queued", "failed", "dead_letter"])));
 
   for (const runId of new Set(affectedRuns.map((row) => row.runId))) {
     await recomputeRun(runId);

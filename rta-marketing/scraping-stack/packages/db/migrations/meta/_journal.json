@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788731855447,
+      "tag": "0000_perpetual_steel_serpent",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788733927591,
+      "tag": "0001_add_vehicle_listing_fields",
+      "breakpoints": true
+    }
+  ]
+}

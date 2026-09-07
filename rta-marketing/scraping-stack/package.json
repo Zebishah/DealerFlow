@@ -1,0 +1,38 @@
+{
+  "name": "rta-scraping-stack",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "npm run build --workspace=@rta/shared && npm run build --workspace=@rta/db && npm run build --workspace=@rta/scrapers && npm run build --workspace=@rta/api && npm run build --workspace=@rta/worker && npm run build --workspace=@rta/frontend",
+    "db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config packages/db/drizzle.config.ts",
+    "dev:api": "npm run dev --workspace=@rta/api",
+    "dev:worker": "npm run dev --workspace=@rta/worker",
+    "dev:frontend": "npm run dev --workspace=@rta/frontend",
+    "scrape:once": "tsx apps/worker/src/enqueue-once.ts"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "bullmq": "^5.58.5",
+    "crawlee": "^3.15.0",
+    "dotenv": "^17.2.2",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.1.0",
+    "ioredis": "^5.6.0",
+    "pg": "^8.16.3",
+    "pino": "^10.1.0",
+    "playwright": "^1.55.0",
+    "robots-parser": "^3.0.1",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.18.6",
+    "@types/pg": "^8.15.5",
+    "drizzle-kit": "^0.31.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}

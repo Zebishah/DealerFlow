@@ -1,0 +1,60 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - rta_scraping_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to a Neon connection string}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      API_PORT: 4000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}
+    ports:
+      - "4000:4000"
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to a Neon connection string}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SCRAPE_CRON: ${SCRAPE_CRON:-0 */6 * * *}
+      SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)}
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+      SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}
+    depends_on:
+      redis: { condition: service_healthy }
+
+volumes:
+  rta_scraping_redis:
