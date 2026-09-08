@@ -45,7 +45,6 @@ async function scrapeAllSites(siteKey?: string): Promise<void> {
 }
 
 for (const site of config.sites) await ensureSite(site);
-await queue.upsertJobScheduler("all-sites-schedule", { pattern: config.SCRAPE_CRON }, { name: "scrape-all-sites", data: { type: "scrape-all-sites" } });
 const worker = new Worker<ScrapeJobData>("vehicle-scrape", async (job) => { await scrapeAllSites(job.data.siteKey); }, { connection, concurrency: 1 });
 worker.on("completed", (job) => logger.info({ jobId: job.id, siteKey: job.data.siteKey ?? "all" }, "scrape job completed"));
 worker.on("failed", (job, error) => logger.error({ jobId: job?.id, siteKey: job?.data.siteKey ?? "all", err: error }, "scrape job failed"));
@@ -54,7 +53,7 @@ await verifyDatabase();
 await queue.waitUntilReady();
 await worker.waitUntilReady();
 await writeFile("/tmp/rta-worker-ready", "ready\n");
-logger.info({ cron: config.SCRAPE_CRON, sites: config.sites.length, database: "connected", redis: "connected" }, "scraping worker started");
+logger.info({ mode: "manual", sites: config.sites.length, database: "connected", redis: "connected" }, "scraping worker started");
 
 async function shutdown(): Promise<void> { await rm("/tmp/rta-worker-ready", { force: true }); await worker.close(); await queue.close(); await closeDatabase(); process.exit(0); }
 process.on("SIGTERM", () => void shutdown());

@@ -53,7 +53,6 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
-      SCRAPE_CRON: ${SCRAPE_CRON:-0 */6 * * *}
       SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)}
       CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
       SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}

@@ -1,4 +1,4 @@
-# RTA scheduled scraping stack
+# RTA manual scraping stack
 
 This is a separate portfolio implementation of the vehicle-scraping pipeline. It preserves the original RTA AWS/SQS/Lambda code under the parent application while providing a Docker-only alternative using BullMQ and self-hosted Redis.
 
@@ -20,7 +20,7 @@ React/Vite on Vercel ── HTTPS ──► Nginx on Oracle VM
                                              Cheerio / Playwright
 ```
 
-The API is separate from scraping. API requests remain fast while the worker executes scheduled jobs, applies retries/backoff, respects robots.txt, and persists each site’s results. The API never waits for a third-party page to load.
+The API is separate from scraping. API requests remain fast while the worker executes manually queued jobs, applies retries/backoff, respects robots.txt, and persists each site’s results. The API never waits for a third-party page to load.
 
 BullMQ with self-hosted Redis makes queue behavior visible and portable on the Oracle VM, with a named Redis volume for persistence. The scraping API and worker share a private Docker network with Redis; Redis has no host-published port. The existing RTA project also demonstrates AWS SQS/Lambda as a separate cloud-worker design; this stack does not delete or replace that implementation.
 
@@ -30,7 +30,7 @@ Neon PostgreSQL and Drizzle provide foreign-key integrity, JSONB fallback data, 
 
 ```text
 apps/api/       Express API reference and dependency health endpoint
-apps/worker/    BullMQ scheduler and worker process
+apps/worker/    BullMQ worker process
 apps/frontend/  Vite demonstration UI, deployed separately
 packages/db/    Drizzle schema and migrations
 packages/shared Config, site definitions, and Zod contracts
@@ -62,7 +62,7 @@ VITE_API_URL=http://localhost:4000 npm run dev
 
 The dashboard shows a `Scrape now` button on every configured source. Clicking it sends a `POST` request to the API, which queues a site-specific BullMQ job; the worker then performs the real crawl and writes the results to Neon. Open the frontend at the Vite URL, click a PakWheels or OLX card's button, wait for the success message, then open the card to view the saved listings. The API applies a 15-second per-source cooldown to prevent accidental duplicate clicks.
 
-The worker registers one BullMQ scheduler with the cron value in `SCRAPE_CRON` (default: every six hours). Jobs use three attempts with exponential backoff and bounded Redis cleanup. All configured sources run with `Promise.allSettled`, so one failure is logged without preventing the other sources from being attempted. API startup runs the Drizzle migration before opening port 4000, and both API and worker emit structured Pino logs.
+The worker does not register an automatic scheduler. It waits for a manually queued BullMQ job from the API or `npm run scrape:once`. Jobs use three attempts with exponential backoff and bounded Redis cleanup. All configured sources run with `Promise.allSettled`, so one failure is logged without preventing the other sources from being attempted. API startup runs the Drizzle migration before opening port 4000, and both API and worker emit structured Pino logs.
 
 ### Run one real source immediately
 
