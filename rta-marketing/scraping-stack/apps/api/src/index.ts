@@ -3,12 +3,13 @@ import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { count, desc, eq, max } from "drizzle-orm";
 import { db, schema, verifyDatabase } from "@rta/db";
-import { loadConfig, logger } from "@rta/shared";
+import { createRedisConnectionConfig, loadConfig, logger } from "@rta/shared";
 
 const config = loadConfig();
-const redis = new Redis({ host: config.REDIS_HOST, port: config.REDIS_PORT, password: config.REDIS_PASSWORD || undefined, lazyConnect: true });
+const connection = createRedisConnectionConfig(config);
+const redis = new Redis({ ...connection, lazyConnect: true });
 const scrapeQueue = new Queue("vehicle-scrape", {
-  connection: { host: config.REDIS_HOST, port: config.REDIS_PORT, password: config.REDIS_PASSWORD || undefined, maxRetriesPerRequest: null },
+  connection,
 });
 const manualScrapeCooldown = new Map<string, number>();
 const app = express();

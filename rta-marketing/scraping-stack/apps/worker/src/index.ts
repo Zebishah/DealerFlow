@@ -2,11 +2,11 @@ import { rm, writeFile } from "node:fs/promises";
 import { Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { db, schema, closeDatabase, verifyDatabase } from "@rta/db";
-import { loadConfig, logger, type ScrapedItem, type SiteConfig } from "@rta/shared";
+import { createRedisConnectionConfig, loadConfig, logger, type ScrapedItem, type SiteConfig } from "@rta/shared";
 import { scrapeSite } from "@rta/scrapers";
 
 const config = loadConfig();
-const connection = { host: config.REDIS_HOST, port: config.REDIS_PORT, password: config.REDIS_PASSWORD || undefined, maxRetriesPerRequest: null as null };
+const connection = createRedisConnectionConfig(config);
 const queue = new Queue("vehicle-scrape", { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5_000 }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } } });
 
 type ScrapeJobData = { type: "scrape-all-sites"; siteKey?: string };

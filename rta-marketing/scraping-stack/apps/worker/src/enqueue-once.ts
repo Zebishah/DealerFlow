@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { loadConfig } from "@rta/shared";
+import { createRedisConnectionConfig, loadConfig } from "@rta/shared";
 
 const config = loadConfig();
 const requestedSite = process.argv.slice(2).find((argument) => argument.startsWith("--site="))?.slice("--site=".length);
@@ -8,12 +8,7 @@ if (requestedSite && !config.sites.some((site) => site.key === requestedSite)) {
   throw new Error(`Unknown site '${requestedSite}'. Configured sites: ${config.sites.map((site) => site.key).join(", ")}`);
 }
 
-const connection = {
-  host: config.REDIS_HOST,
-  port: config.REDIS_PORT,
-  password: config.REDIS_PASSWORD || undefined,
-  maxRetriesPerRequest: null as null,
-};
+const connection = createRedisConnectionConfig(config);
 const queue = new Queue("vehicle-scrape", { connection });
 const job = await queue.add(`manual-${requestedSite ?? "all"}-${Date.now()}`, {
   type: "scrape-all-sites",
