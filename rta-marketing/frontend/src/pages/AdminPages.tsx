@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Landmark, Link2, Plus, ScrollText, ToggleLeft, ToggleRight } from "lucide-react";
+import { Eye, Landmark, Link2, Plus, ScrollText, ToggleLeft, ToggleRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import type { AuditEvent, NamedResource } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
+import { WorkflowModal } from "../components/WorkflowModal";
 
 type ResourceKind = "lead-sources" | "finance-providers";
 
@@ -65,6 +66,7 @@ export function ConfigurationPage() {
 }
 
 export function AuditPage() {
+  const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
   const events = useQuery({
     queryKey: ["dealership", "admin", "audit-events"],
     queryFn: () => api<{ data: AuditEvent[] }>("/dealership/admin/audit-events?limit=100").then((result) => result.data),
@@ -76,7 +78,10 @@ export function AuditPage() {
     <section className="page-intro"><div><span>ACCOUNTABILITY</span><h2>Operational audit history.</h2><p>Security-sensitive and business-critical mutations are recorded with actor, entity, and server timestamp.</p></div></section>
     <section className="surface audit-surface">
       <div className="surface-head"><div><span>RECENT EVENTS</span><h3>{events.data?.length ?? 0} recorded changes</h3></div></div>
-      {events.data?.length ? <div className="audit-list">{events.data.map((event) => <article key={event.id}><span><ScrollText /></span><div><strong>{event.action.replaceAll("_", " ").replaceAll(".", " · ")}</strong><p>{event.entityType.replaceAll("_", " ")} · {event.entityId.slice(0, 12)}</p></div><div><strong>{[event.actorFirstName, event.actorLastName].filter(Boolean).join(" ") || event.actorEmail || "System"}</strong><time>{new Date(event.createdAt).toLocaleString("en-CA")}</time></div></article>)}</div> : <div className="empty-state"><ScrollText /><strong>No audit events yet</strong><span>Changes will appear after an operational mutation.</span></div>}
+      {events.data?.length ? <div className="audit-list">{events.data.map((event) => <article key={event.id}><span><ScrollText /></span><div><strong>{event.action.replaceAll("_", " ").replaceAll(".", " · ")}</strong><p>{event.entityType.replaceAll("_", " ")} · {event.entityId.slice(0, 12)}</p></div><div className="audit-event-meta"><strong>{[event.actorFirstName, event.actorLastName].filter(Boolean).join(" ") || event.actorEmail || "System"}</strong><time>{new Date(event.createdAt).toLocaleString("en-CA")}</time><button type="button" className="audit-view-button" onClick={() => setSelectedEvent(event)}><Eye size={12} />View details</button></div></article>)}</div> : <div className="empty-state"><ScrollText /><strong>No audit events yet</strong><span>Changes will appear after an operational mutation.</span></div>}
     </section>
+    <WorkflowModal open={Boolean(selectedEvent)} eyebrow="AUDIT EVENT" title="Recorded operation" description="This is the security record for the selected workspace change." onClose={() => setSelectedEvent(null)}>
+      {selectedEvent && <div className="audit-detail"><div><span>Action</span><strong>{selectedEvent.action.replaceAll("_", " ").replaceAll(".", " · ")}</strong></div><div><span>Entity</span><strong>{selectedEvent.entityType.replaceAll("_", " ")}</strong><small>{selectedEvent.entityId}</small></div><div><span>Actor</span><strong>{[selectedEvent.actorFirstName, selectedEvent.actorLastName].filter(Boolean).join(" ") || selectedEvent.actorEmail || "System"}</strong><small>{new Date(selectedEvent.createdAt).toLocaleString("en-CA")}</small></div>{Object.keys(selectedEvent.metadata).length > 0 && <div><span>Recorded details</span><dl>{Object.entries(selectedEvent.metadata).map(([key, value]) => <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{value === null || value === undefined ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl></div>}<footer className="modal-actions"><button type="button" className="primary-action" onClick={() => setSelectedEvent(null)}>Close</button></footer></div>}
+    </WorkflowModal>
   </div>;
 }

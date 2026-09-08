@@ -22,15 +22,15 @@ The API and worker use the same Neon database and SQS queue. Use Neon’s pooled
 
 ## Required attributes
 
-### API on Render
+### Primary RTA API (AWS/SQS deployment)
 
 | Variable | Production value |
 |---|---|
 | `NODE_ENV` | `production` |
-| `HOST` / `PORT` | `0.0.0.0` / Render-provided `PORT` |
+| `HOST` / `PORT` | `0.0.0.0` / provider-managed application port |
 | `LOG_LEVEL` | `info` |
 | `TRUST_PROXY` | `true` |
-| `PUBLIC_APP_URL` | Exact Render frontend URL |
+| `PUBLIC_APP_URL` | Exact Vercel frontend URL |
 | `CORS_ORIGINS` | Exact frontend URL, comma-separated if more than one |
 | `DATABASE_URL` | Neon pooled connection URL |
 | `AWS_REGION` | Queue region, e.g. `ap-south-1` |
@@ -39,12 +39,12 @@ The API and worker use the same Neon database and SQS queue. Use Neon’s pooled
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dedicated API producer IAM user keys |
 | `SESSION_SECRET` / `CSRF_SECRET` | Two independent 48+ character secrets |
 | `SESSION_COOKIE_SECURE` | `true` |
-| `SESSION_COOKIE_SAME_SITE` | `none` when frontend/API are on different Render sites |
+| `SESSION_COOKIE_SAME_SITE` | `none` when frontend/API use different origins |
 | `DEMO_MODE` | `true` |
 | `DEFAULT_SCRAPE_MODE` | `fixture` |
 | `ALLOW_LIVE_SCRAPING` | `false` until live adapters are verified |
 
-Do not add `AWS_PROFILE` on Render. Remove `SEED_OPERATOR_PASSWORD` after running the explicit seed command.
+Do not add `AWS_PROFILE` to a deployed service. Remove `SEED_OPERATOR_PASSWORD` after running the explicit seed command.
 
 ### Lambda worker
 
@@ -63,13 +63,30 @@ Do not add `AWS_PROFILE` on Render. Remove `SEED_OPERATOR_PASSWORD` after runnin
 
 Do not add permanent AWS access keys to Lambda. Its execution role supplies temporary credentials automatically. SQS queue URL is not required by the Lambda handler because the event-source mapping supplies messages.
 
-### Render static frontend
+### Browser frontend (Vercel)
 
 | Variable | Production value |
 |---|---|
-| `VITE_API_URL` | `https://YOUR-API.onrender.com/api/v1` |
+| `VITE_API_URL` | The HTTPS URL of the API used by that frontend, including `/api/v1` where applicable |
 
 Only public browser configuration may use the `VITE_` prefix. Never expose database, AWS, cookie, or session values through Vite.
+
+### Scraping stack (Oracle Docker Compose)
+
+The scraping API and BullMQ worker run on the same Oracle VM as Redis. Redis is
+internal to the Compose network and is never published to the host or the
+internet.
+
+| Variable | Production value |
+|---|---|
+| `DATABASE_URL` | Neon pooled connection URL |
+| `REDIS_HOST` / `REDIS_PORT` | `redis` / `6379` |
+| `REDIS_PASSWORD` | Long random value shared only by the Compose services |
+| `CORS_ORIGIN` | Exact Vercel production URL |
+| `API_PORT` | `4000` |
+
+The API is bound to `127.0.0.1:4000` on the VM so host Nginx can proxy HTTPS
+traffic to it. Do not add a Redis port mapping.
 
 ## Why fixture mode is the default
 

@@ -6,7 +6,10 @@ This document records design choices implemented in the portfolio branch. It avo
 
 RTA is a modular monolith with a separately deployed ingestion worker. The API owns authentication, catalog queries, run commands, and reliable job publication. The worker owns source acquisition, validation, normalization, identity resolution, and persistence.
 
-Microservices were intentionally rejected: the current scale does not justify distributed ownership, service discovery, additional deployments, or cross-service contracts.
+The scraping stack is intentionally isolated from the primary RTA API. It is a
+small Docker Compose application on Oracle containing the scraping API, a
+BullMQ worker, and private Redis. The primary RTA API continues to use its
+existing AWS SQS/Lambda path.
 
 ## Reliable job creation
 
@@ -45,11 +48,16 @@ The DLQ isolates repeatedly failing messages. A dedicated reconciliation Lambda 
 - Live scraping has independent API and worker kill switches.
 - Zod validates requests, queue messages, and raw listing records.
 - Helmet, strict CORS, request limits, rate limiting, safe errors, request IDs, and structured redacted logging are enabled.
-- AWS Lambda uses an IAM execution role; only the Render API requires producer credentials.
+- AWS Lambda uses an IAM execution role; the primary API uses narrowly scoped
+  SQS producer credentials. The scraping API uses its private Compose Redis
+  connection and does not expose Redis publicly.
 
 ## Caching and performance
 
-Redis is intentionally not used. TanStack Query provides browser-side request deduplication, stale-data caching, and background refresh. PostgreSQL indexes support current server-side filters. Adding Redis now would duplicate state, consume another quota, and introduce invalidation complexity without measured benefit.
+The primary RTA API does not use Redis for browser-query caching. TanStack Query
+provides browser-side request deduplication, stale-data caching, and background
+refresh. The separate scraping stack uses Redis only as BullMQ's internal job
+backend; it is not exposed as a public cache or data API.
 
 If production measurements later show repeated expensive aggregate queries, add a short-lived server cache only for those measured endpoints, with explicit invalidation and hit-rate telemetry.
 

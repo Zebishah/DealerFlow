@@ -1,6 +1,10 @@
 # Free-tier deployment guide
 
-The intended topology is a Render static frontend, a Render free web API, Neon PostgreSQL, Amazon SQS/DLQ, and an AWS Lambda worker. Free tiers have limits and can change; configure AWS Budgets before enabling live work.
+The production topology has two separate application paths: the primary RTA
+API continues to use Neon, Amazon SQS/DLQ, and AWS Lambda; the scraping stack
+runs as an Oracle Docker Compose deployment containing Redis, the scraping API,
+and the BullMQ worker. The browser frontend is deployed to Vercel. Neon is the
+database for both application paths.
 
 ## Lambda Chromium layer
 
@@ -35,37 +39,55 @@ DATABASE_MIGRATION_URL='YOUR_DIRECT_NEON_URL' npm run db:migrate
 DATABASE_URL='YOUR_POOLED_NEON_URL' SEED_OPERATOR_EMAIL='you@example.com' SEED_OPERATOR_PASSWORD='a-long-unique-password' npm run db:seed
 ```
 
-Do not run migrations automatically on every Render startup.
+Do not run migrations automatically on every primary API startup.
 
-## 2. Render API
+## 2. Oracle scraping stack
 
-Create a Web Service from this repository:
+On the Oracle VM, deploy the three scraping-stack services together:
 
-- Root directory: `rta-marketing/backend`
-- Runtime: Node
-- Build command: `npm ci && npm run build`
-- Start command: `npm start`
-- Health check: `/health/ready`
-- Plan: Free
+```bash
+cd rta-marketing/scraping-stack
+cp .env.example .env
+${EDITOR:-nano} .env
+docker compose config --quiet
+docker compose up -d --build --force-recreate
+docker compose ps
+```
 
-Add the API variables from `backend/.env.example`. Use a dedicated Render API IAM principal. Grant only `sqs:SendMessage` and `sqs:GetQueueAttributes` on the main queue; it must not receive or delete queue messages. If employee documents are enabled, add the object-scoped S3 permissions described below.
+Set `DATABASE_URL` to Neon, choose a strong `REDIS_PASSWORD`, and set
+`CORS_ORIGIN` to the final Vercel URL. Redis has no published host port. The
+scraping API is bound to `127.0.0.1:4000` for host Nginx; the worker and API
+reach Redis at `redis:6379` through the private Compose network.
 
-## 3. Render frontend
+## 3. Nginx and HTTPS
 
-Create a Static Site:
+Install Nginx on the Oracle host and proxy the API container:
 
-- Root directory: `rta-marketing/frontend`
-- Build command: `npm ci && npm run build`
-- Publish directory: `dist`
-- Environment: `VITE_API_URL=https://YOUR-API.onrender.com/api/v1`
+```bash
+sudo apt-get update
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+sudo cp scraping-stack/deploy/nginx.conf /etc/nginx/sites-available/rta-scraping
+sudo ln -s /etc/nginx/sites-available/rta-scraping /etc/nginx/sites-enabled/rta-scraping
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot --nginx -d YOUR_DOMAIN
+```
 
-Add a rewrite from `/*` to `/index.html` so direct visits to role-aware client routes resolve correctly.
+Allow only SSH, HTTP, and HTTPS in the Oracle VCN and UFW rules. Do not open
+Redis, the worker, or port 4000 publicly.
 
-## 4. Private employee documents
+## 4. Vercel frontend
+
+Deploy the scraping frontend with the Vite preset and set
+`VITE_API_URL=https://YOUR_DOMAIN`. Configure the same URL as `CORS_ORIGIN`
+in the Oracle `.env`, recreate the API container, and verify the browser has
+no CORS errors.
+
+## 5. Private employee documents
 
 Create a dedicated S3 bucket in the API region. Enable **Block all public access**, leave ACLs disabled, and use default server-side encryption. Set `S3_DOCUMENT_BUCKET` to the bucket name—not its ARN or URL.
 
-Add this statement to the Render API IAM policy, replacing the bucket name:
+Add this statement to the primary API IAM policy, replacing the bucket name:
 
 ```json
 {
@@ -84,7 +106,7 @@ Configure bucket CORS with the exact frontend origins:
   {
     "AllowedOrigins": [
       "http://localhost:5173",
-      "https://YOUR-FRONTEND.onrender.com"
+      "https://YOUR-FRONTEND.vercel.app"
     ],
     "AllowedMethods": ["PUT", "GET"],
     "AllowedHeaders": ["content-type", "x-amz-server-side-encryption"],
@@ -96,7 +118,7 @@ Configure bucket CORS with the exact frontend origins:
 
 Never make the bucket public. Download links are short-lived and generated only after workspace/owner authorization.
 
-## 5. Lambda workers
+## 6. Lambda workers
 
 Export both queue ARNs before deployment:
 
@@ -161,4 +183,6 @@ For fixture mode, no browser is launched and no Chromium layer is required. Befo
 7. Force a disposable test message through the maximum receive count and confirm the reconciler marks its source run `dead_letter`.
 8. Confirm DLQ/Lambda CloudWatch alarms and AWS Budget alerts are active.
 
-Render free services may sleep, Neon may suspend idle compute, and AWS free-tier eligibility depends on account and region. The architecture minimizes idle work, but “free” is a quota, not an unlimited guarantee.
+Neon may suspend idle compute, and AWS free-tier eligibility depends on account
+and region. The architecture minimizes idle work, but “free” is a quota, not an
+unlimited guarantee.

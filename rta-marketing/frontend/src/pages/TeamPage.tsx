@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, ShieldCheck, Users } from "lucide-react";
+import { Pencil, Plus, Search, ShieldCheck, Users } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -34,6 +34,8 @@ export function TeamPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [form, setForm] = useState<MemberForm>(emptyMember);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | WorkspaceRole>("all");
 
   const bootstrap = useQuery({
     queryKey: ["dealership", "bootstrap"],
@@ -122,6 +124,15 @@ export function TeamPage() {
         createdAt: "",
         updatedAt: "",
       }));
+  const filteredMembers = members.filter((member) => {
+    const normalized = search.trim().toLowerCase();
+    const matchesRole = roleFilter === "all" || member.role === roleFilter;
+    const matchesSearch = !normalized || [member.firstName, member.lastName, member.email].filter(Boolean).join(" ").toLowerCase().includes(normalized);
+    return matchesRole && matchesSearch;
+  });
+  const activeMembers = members.filter((member) => member.isActive).length;
+  const activeSalespeople = members.filter((member) => member.isActive && member.role === "employee").length;
+  const supportMembers = members.filter((member) => member.isActive && member.role === "virtual_assistant").length;
 
   return (
     <div className="page-stack">
@@ -129,13 +140,24 @@ export function TeamPage() {
         <div>
           <span>PEOPLE & ACCESS</span>
           <h2>One team, clear responsibilities.</h2>
-          <p>Workspace-scoped roles restrict sensitive operations while account changes remain visible and auditable.</p>
+          <p>{user?.role === "recruiter" ? "Review team coverage, active capacity, and role readiness without access to administrative controls." : "Workspace-scoped roles restrict sensitive operations while account changes remain visible and auditable."}</p>
         </div>
         {isAdmin && <button className="light-action" onClick={openCreate}><Plus size={17} />Add team member</button>}
       </section>
 
+      <section className="feature-metrics team-metrics">
+        <article><span>Active people</span><strong>{activeMembers}</strong></article>
+        <article><span>Sales capacity</span><strong>{activeSalespeople}</strong></article>
+        <article><span>Lead support</span><strong>{supportMembers}</strong></article>
+      </section>
+
+      <section className="surface team-directory-controls">
+        <div><span>TEAM DIRECTORY</span><h3>Find the right person quickly</h3></div>
+        <div className="team-filter-row"><label className="team-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or email" /></label><select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as typeof roleFilter)}><option value="all">All roles</option><option value="admin">Administrators</option><option value="employee">Salespeople</option><option value="virtual_assistant">Virtual assistants</option><option value="recruiter">Recruiters</option><option value="viewer">Viewers</option></select></div>
+      </section>
+
       <section className="team-grid">
-        {members.map((member) => (
+        {filteredMembers.map((member) => (
           <article className="team-card" key={member.id}>
             <span className="avatar large">{member.firstName?.[0] ?? member.email[0]}{member.lastName?.[0] ?? ""}</span>
             <div>
@@ -149,7 +171,7 @@ export function TeamPage() {
         ))}
       </section>
 
-      {!members.length && <div className="surface empty-state"><Users /><strong>No team members</strong><span>Add the first workspace member.</span></div>}
+      {!filteredMembers.length && <div className="surface empty-state"><Users /><strong>{members.length ? "No matching team members" : "No team members"}</strong><span>{members.length ? "Try a different role or search term." : "Add the first workspace member."}</span></div>}
 
       <section className="architecture-note">
         <ShieldCheck />

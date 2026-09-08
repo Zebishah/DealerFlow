@@ -28,7 +28,7 @@ import { NavLink, useNavigation } from "../router/Navigation";
 const nav = [
   { to: "/app/overview", label: "Overview", icon: Gauge, roles: ["admin", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/leads", label: "Lead pipeline", icon: UserPlus, roles: ["admin", "employee", "virtual_assistant", "recruiter"] },
-  { to: "/app/sales", label: "Sales", icon: CircleDollarSign, roles: ["admin", "employee", "virtual_assistant", "recruiter"] },
+  { to: "/app/sales", label: "Sales", icon: CircleDollarSign, roles: ["admin", "employee", "recruiter"] },
   { to: "/app/team", label: "Team", icon: Users, roles: ["admin", "recruiter"] },
   { to: "/app/configuration", label: "Configuration", icon: SlidersHorizontal, roles: ["admin"] },
   { to: "/app/audit", label: "Audit history", icon: ShieldCheck, roles: ["admin"] },
@@ -40,7 +40,7 @@ const nav = [
   { to: "/app/inventory", label: "Vehicle intelligence", icon: Car, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/saved-vehicles", label: "Saved vehicles", icon: Heart, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/compare", label: "Compare vehicles", icon: SlidersHorizontal, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
-  { to: "/app/acquisition", label: "Acquisition", icon: Activity, roles: ["admin", "operator", "recruiter"] },
+  { to: "/app/acquisition", label: "Scraping workspace", icon: Activity, roles: ["admin", "operator", "recruiter"] },
   { to: "/app/source-control", label: "Source controls", icon: ShieldCheck, roles: ["admin", "operator"] },
 ] as const;
 
@@ -57,10 +57,11 @@ const pageTitles: Record<string, [string, string]> = {
   analytics: ["Performance analytics", "Decision-ready dealership trends"],
   "performance-board": ["Performance board", "Auto-refreshing team visibility"],
   documents: ["Employee documents", "Private insurance and compliance records"],
-  inventory: ["Vehicle intelligence", "Normalized inventory across Ontario sources"],
+  inventory: ["Vehicle intelligence", "Search and compare persisted scraper listings"],
   "saved-vehicles": ["Saved vehicles", "Your private vehicle shortlist"],
-  compare: ["Compare vehicles", "Evaluate normalized attributes side by side"],
-  acquisition: ["Acquisition operations", "Observable SQS-backed scraping jobs"],
+  compare: ["Compare vehicles", "Evaluate scraped attributes side by side"],
+  acquisition: ["Scraping workspace", "Collect and inspect persisted vehicle listings"],
+  "scraping-results": ["Scraping workspace", "Collect and inspect persisted vehicle listings"],
   "source-control": ["Source controls", "Operational kill switches for acquisition adapters"],
 };
 
@@ -99,10 +100,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
     <aside className={`side-nav ${mobileOpen ? "open" : ""}`}>
       <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>RTA</strong><span>OPERATIONS</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
-      <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{workspace?.mode === "demo" ? "Portfolio demo data" : user.workspaceId ? "Live operations" : "Acquisition control plane"}</small></div>
+      <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{user.workspaceId ? "Workspace operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
         <p>WORKSPACE</p>
-        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/scraping-results", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
         <p>INTELLIGENCE</p>
         {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
       </nav>

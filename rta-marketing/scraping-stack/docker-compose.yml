@@ -1,14 +1,15 @@
 services:
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}"]
     restart: always
-    ports:
-      - "6380:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
+    networks: [scraping]
     volumes:
       - rta_scraping_redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -23,15 +24,17 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to a Neon connection string}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
       API_PORT: 4000
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set the Vercel production URL in .env}
       SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
+    networks: [scraping]
     depends_on:
       redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -49,12 +52,23 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to a Neon connection string}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
       SCRAPE_CRON: ${SCRAPE_CRON:-0 */6 * * *}
       SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)}
       CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
       SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}
+    networks: [scraping]
     depends_on:
       redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/rta-worker-ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
 
 volumes:
   rta_scraping_redis:
+
+networks:
+  scraping:
+    driver: bridge

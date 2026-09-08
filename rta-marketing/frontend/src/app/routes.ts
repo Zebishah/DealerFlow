@@ -6,7 +6,7 @@ type RouteComponent = ComponentType | LazyExoticComponent<ComponentType>;
 const AuditPage = lazy(async () => ({ default: (await import("../pages/AdminPages")).AuditPage }));
 const ConfigurationPage = lazy(async () => ({ default: (await import("../pages/AdminPages")).ConfigurationPage }));
 const DocumentsPage = lazy(async () => ({ default: (await import("../pages/DocumentsPage")).DocumentsPage }));
-const AcquisitionPage = lazy(async () => ({ default: (await import("../pages/IntelligencePages")).AcquisitionPage }));
+const ScrapingWorkspacePage = lazy(async () => ({ default: (await import("../pages/ScrapingResultsPage")).ScrapingResultsPage }));
 const SourceControlPage = lazy(async () => ({ default: (await import("../pages/IntelligencePages")).SourceControlPage }));
 const LeadsPage = lazy(async () => ({ default: (await import("../pages/LeadsPage")).LeadsPage }));
 const AnalyticsPage = lazy(async () => ({ default: (await import("../pages/OperationsPages")).AnalyticsPage }));
@@ -49,7 +49,7 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
   },
   "/app/sales": {
     component: SalesPage,
-    roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    roles: ["admin", "employee", "recruiter"],
     workspace: "required",
   },
   "/app/team": {
@@ -113,7 +113,12 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
     workspace: "optional",
   },
   "/app/acquisition": {
-    component: AcquisitionPage,
+    component: ScrapingWorkspacePage,
+    roles: ["admin", "operator", "recruiter"],
+    workspace: "optional",
+  },
+  "/app/scraping-results": {
+    component: ScrapingWorkspacePage,
     roles: ["admin", "operator", "recruiter"],
     workspace: "optional",
   },

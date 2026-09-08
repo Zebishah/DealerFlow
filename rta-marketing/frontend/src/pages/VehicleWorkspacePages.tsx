@@ -1,10 +1,13 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Car, ChevronRight, Heart, Plus, Search, X } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { useAuth } from "../auth/AuthContext";
+import { ScrapedVehicleCard, ScrapedVehicleDetailsModal } from "../components/ScrapedVehicleCard";
 import { WorkflowModal } from "../components/WorkflowModal";
 import { api } from "../lib/api";
-import type { CatalogVehicle, IntelligenceSummary } from "../types/domain";
+import { useDebouncedValue } from "../lib/useDebouncedValue";
+import type { CatalogVehicle, SavedScrapedListing, ScrapedListing, ScrapingResultsResponse, SessionUser } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
 type VehicleDetail = {
@@ -30,38 +33,85 @@ type VehicleDetail = {
   }>;
 };
 
-type CatalogResponse = { data: CatalogVehicle[]; page: { total: number; hasNext: boolean; nextCursor: string | null; limit: number } };
 const compareKey = "rta-compare-vehicles";
+function comparisonStorageKey(user: SessionUser | null): string {
+  return `${compareKey}:${user?.id ?? "anonymous"}:${user?.workspaceId ?? "platform"}`;
+}
 const currency = (value: number | null) => value === null
   ? "Price unavailable"
   : new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(value / 100);
 
-function readComparison(): CatalogVehicle[] {
+function readComparison(storageKey: string): CatalogVehicle[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(compareKey) ?? "[]") as CatalogVehicle[];
+    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as CatalogVehicle[];
     return Array.isArray(parsed) ? parsed.slice(0, 4) : [];
   } catch {
     return [];
   }
 }
 
-function writeComparison(vehicles: CatalogVehicle[]) {
-  localStorage.setItem(compareKey, JSON.stringify(vehicles.slice(0, 4)));
+function writeComparison(vehicles: CatalogVehicle[], storageKey: string) {
+  localStorage.setItem(storageKey, JSON.stringify(vehicles.slice(0, 4)));
   window.dispatchEvent(new Event("rta-compare-changed"));
 }
 
-function useComparison() {
-  const [items, setItems] = useState<CatalogVehicle[]>(readComparison);
+function useCatalogComparison() {
+  const { user } = useAuth();
+  const storageKey = comparisonStorageKey(user);
+  const [comparison, setComparison] = useState<{ storageKey: string; items: CatalogVehicle[] }>(() => ({
+    storageKey,
+    items: readComparison(storageKey),
+  }));
   useEffect(() => {
-    const refresh = () => setItems(readComparison());
+    const refresh = () => setComparison({ storageKey, items: readComparison(storageKey) });
+    refresh();
     window.addEventListener("rta-compare-changed", refresh);
     window.addEventListener("storage", refresh);
     return () => {
       window.removeEventListener("rta-compare-changed", refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, []);
-  return items;
+  }, [storageKey]);
+  return { items: comparison.storageKey === storageKey ? comparison.items : [], storageKey };
+}
+
+const scrapedCompareKey = "rta-compare-scraped-listings";
+function scrapedComparisonStorageKey(user: SessionUser | null): string {
+  return `${scrapedCompareKey}:${user?.id ?? "anonymous"}:${user?.workspaceId ?? "platform"}`;
+}
+
+function readScrapedComparison(storageKey: string): ScrapedListing[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as ScrapedListing[];
+    return Array.isArray(parsed) ? parsed.slice(0, 4) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeScrapedComparison(items: ScrapedListing[], storageKey: string) {
+  localStorage.setItem(storageKey, JSON.stringify(items.slice(0, 4)));
+  window.dispatchEvent(new Event("rta-scraped-compare-changed"));
+}
+
+function useScrapedComparison() {
+  const { user } = useAuth();
+  const storageKey = scrapedComparisonStorageKey(user);
+  const [comparison, setComparison] = useState<{ storageKey: string; items: ScrapedListing[] }>(() => ({
+    storageKey,
+    items: readScrapedComparison(storageKey),
+  }));
+  useEffect(() => {
+    const refresh = () => setComparison({ storageKey, items: readScrapedComparison(storageKey) });
+    refresh();
+    window.addEventListener("rta-scraped-compare-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("rta-scraped-compare-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [storageKey]);
+  return { items: comparison.storageKey === storageKey ? comparison.items : [], storageKey };
 }
 
 function VehicleCard({
@@ -83,8 +133,8 @@ function VehicleCard({
     <div className="vehicle-photo">
       {vehicle.imageUrl
         ? <img src={vehicle.imageUrl} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} loading="lazy" decoding="async" />
-        : <Car size={42} />}
-      <span>{vehicle.sourceName}</span>
+        : <div className="vehicle-photo-placeholder"><Car size={42} /><span>No image available</span></div>}
+      <span className="vehicle-source-label">{vehicle.sourceName}</span>
       <button className={`vehicle-save ${saved ? "active" : ""}`} type="button" onClick={onSave} aria-label={saved ? "Remove saved vehicle" : "Save vehicle"}><Heart size={17} fill={saved ? "currentColor" : "none"} /></button>
     </div>
     <div className="vehicle-info">
@@ -117,44 +167,45 @@ function VehicleDetails({ vehicleId, onClose }: { vehicleId: string | null; onCl
 
 export function InventoryPage() {
   const queryClient = useQueryClient();
-  const compare = useComparison();
+  const { items: compare, storageKey } = useScrapedComparison();
   const [query, setQuery] = useState("");
-  const [source, setSource] = useState("");
-  const [sort, setSort] = useState("newest");
-  const deferredQuery = useDeferredValue(query);
-  const [detailId, setDetailId] = useState<string | null>(null);
-
-  const summary = useQuery({ queryKey: ["intelligence", "summary"], queryFn: () => api<{ data: IntelligenceSummary }>("/dashboard/summary").then((value) => value.data) });
-  const saved = useQuery({ queryKey: ["saved-vehicles"], queryFn: () => api<{ data: CatalogVehicle[] }>("/saved-vehicles").then((value) => value.data) });
-  const catalog = useInfiniteQuery({
-    queryKey: ["catalog", deferredQuery, source, sort],
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: "48", sort });
-      if (deferredQuery.trim()) params.set("q", deferredQuery.trim());
-      if (source) params.set("source", source);
-      if (pageParam) params.set("cursor", pageParam);
-      return api<CatalogResponse>(`/vehicles?${params}`);
-    },
-    getNextPageParam: (lastPage) => lastPage.page.nextCursor ?? undefined,
-  });
-  const catalogItems = catalog.data?.pages.flatMap((page) => page.data) ?? [];
-  const savedIds = useMemo(() => new Set(saved.data?.map((vehicle) => vehicle.vehicleId)), [saved.data]);
-  const compareIds = useMemo(() => new Set(compare.map((vehicle) => vehicle.vehicleId)), [compare]);
-
-  const toggleSave = useMutation({
-    mutationFn: ({ id, isSaved }: { id: string; isSaved: boolean }) => api(`/saved-vehicles/${id}`, { method: isSaved ? "DELETE" : "POST" }),
-    onSuccess: async (_data, variables) => {
-      toast.success(variables.isSaved ? "Removed from saved vehicles" : "Vehicle saved");
-      await queryClient.invalidateQueries({ queryKey: ["saved-vehicles"] });
+  const [siteId, setSiteId] = useState("");
+  const [minYear, setMinYear] = useState("");
+  const [maxYear, setMaxYear] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [maxMileage, setMaxMileage] = useState("");
+  const [selectedItem, setSelectedItem] = useState<ScrapedListing | null>(null);
+  const savedScraped = useQuery({ queryKey: ["saved-scraped-vehicles"], queryFn: () => api<{ data: SavedScrapedListing[] }>("/saved-vehicles/scraped").then((value) => value.data) });
+  const saveScraped = useMutation({
+    mutationFn: ({ id, saved }: { id: number; saved: boolean }) => api(`/saved-vehicles/scraped/${id}`, { method: saved ? "DELETE" : "POST" }),
+    onSuccess: async (_value, variables) => {
+      toast.success(variables.saved ? "Removed from saved vehicles" : "Vehicle saved");
+      await queryClient.invalidateQueries({ queryKey: ["saved-scraped-vehicles"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const filterValues = useMemo(() => ({ query, siteId, minYear, maxYear, maxPrice, maxMileage }), [maxMileage, maxPrice, maxYear, minYear, query, siteId]);
+  const appliedFilters = useDebouncedValue(filterValues);
+  const results = useInfiniteQuery({
+    queryKey: ["scraped-inventory", appliedFilters],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: "48", offset: String(pageParam) });
+      if (appliedFilters.query.trim()) params.set("q", appliedFilters.query.trim());
+      if (appliedFilters.siteId) params.set("siteId", appliedFilters.siteId);
+      if (appliedFilters.minYear) params.set("minYear", appliedFilters.minYear);
+      if (appliedFilters.maxYear) params.set("maxYear", appliedFilters.maxYear);
+      if (appliedFilters.maxPrice) params.set("maxPrice", appliedFilters.maxPrice);
+      if (appliedFilters.maxMileage) params.set("maxMileage", appliedFilters.maxMileage);
+      return api<ScrapingResultsResponse>(`/scraping-results?${params.toString()}`);
+    },
+    getNextPageParam: (lastPage) => lastPage.page.hasMore ? lastPage.page.offset + lastPage.page.limit : undefined,
+  });
 
-  function toggleCompare(vehicle: CatalogVehicle) {
-    const current = readComparison();
-    if (current.some((item) => item.vehicleId === vehicle.vehicleId)) {
-      writeComparison(current.filter((item) => item.vehicleId !== vehicle.vehicleId));
+  function toggleCompare(vehicle: ScrapedListing) {
+    const current = readScrapedComparison(storageKey);
+    if (current.some((item) => item.id === vehicle.id)) {
+      writeScrapedComparison(current.filter((item) => item.id !== vehicle.id), storageKey);
       toast.success("Removed from comparison");
       return;
     }
@@ -162,55 +213,72 @@ export function InventoryPage() {
       toast.error("Compare up to four vehicles at a time");
       return;
     }
-    writeComparison([...current, vehicle]);
+    writeScrapedComparison([...current, vehicle], storageKey);
     toast.success("Added to comparison");
   }
 
-  if (catalog.isLoading) return <PageSkeleton />;
-  if (catalog.isError) return <ErrorState message="The normalized inventory catalog is unavailable." />;
+  if (results.isLoading) return <PageSkeleton />;
+  if (results.isError) return <ErrorState message="Scraped vehicle inventory is unavailable." />;
+
+  const firstPage = results.data?.pages[0];
+  const sites = firstPage?.data.sites ?? [];
+  const items = results.data?.pages.flatMap((page) => page.data.items) ?? [];
+  const compareIds = new Set(compare.map((vehicle) => vehicle.id));
+  const savedIds = new Set((savedScraped.data ?? []).map((vehicle) => vehicle.id));
+  const clearFilters = () => { setQuery(""); setSiteId(""); setMinYear(""); setMaxYear(""); setMaxPrice(""); setMaxMileage(""); };
 
   return <div className="page-stack">
-    <section className="intelligence-banner"><div><span>MARKET INTELLIGENCE</span><h2>Search every acquired listing from one reliable catalog.</h2><p>Source records are validated, normalized, deduplicated, and retained with provenance.</p></div><div><Car /><strong>{catalog.data?.pages[0]?.page.total ?? 0}</strong><span>active source listings</span></div></section>
+    <section className="intelligence-banner"><div><span>VEHICLE INTELLIGENCE</span><h2>Search every vehicle collected by the scraper.</h2><p>PakWheels and OLX records are stored in Neon with source, mileage, location, image, and original listing links preserved.</p></div><div><Car /><strong>{firstPage?.page.total ?? 0}</strong><span>scraped listings</span></div></section>
     <section className="page-toolbar">
-      <div className="search-control"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search make, model, trim, or keyword" /></div>
-      <select value={source} onChange={(event) => setSource(event.target.value)}><option value="">All acquisition sources</option>{summary.data?.sourceHealth.map((item) => <option value={item.key} key={item.key}>{item.name}</option>)}</select>
-      <select value={sort} onChange={(event) => setSort(event.target.value)}><option value="newest">Recently seen</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="year_desc">Newest model year</option></select>
+      <div className="search-control"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vehicle or city" /></div>
+      <select value={siteId} onChange={(event) => setSiteId(event.target.value)}><option value="">All scraping sites</option>{sites.map((site) => <option value={site.id} key={site.id}>{site.name}</option>)}</select>
+      <input className="compact-filter-input" type="number" min="1980" value={minYear} onChange={(event) => setMinYear(event.target.value)} placeholder="Min year" aria-label="Minimum year" />
+      <input className="compact-filter-input" type="number" min="1980" value={maxYear} onChange={(event) => setMaxYear(event.target.value)} placeholder="Max year" aria-label="Maximum year" />
+      <button className="filter-button" type="button" onClick={clearFilters}>Clear filters</button>
       <span className="selection-count">{compare.length}/4 selected</span>
     </section>
-    {catalogItems.length ? <section className="vehicle-grid">{catalogItems.map((vehicle) => <VehicleCard key={vehicle.listingId} vehicle={vehicle} saved={savedIds.has(vehicle.vehicleId)} compared={compareIds.has(vehicle.vehicleId)} onSave={() => toggleSave.mutate({ id: vehicle.vehicleId, isSaved: savedIds.has(vehicle.vehicleId) })} onCompare={() => toggleCompare(vehicle)} onDetails={() => setDetailId(vehicle.vehicleId)} />)}</section> : <div className="empty-state surface"><Car /><strong>No inventory matches your search</strong><span>Run an acquisition or adjust the filters.</span></div>}
-    {catalog.hasNextPage && <div className="pagination-actions"><button className="filter-button" type="button" onClick={() => catalog.fetchNextPage()} disabled={catalog.isFetchingNextPage}>{catalog.isFetchingNextPage ? "Loading more…" : "Load more vehicles"}</button></div>}
-    <VehicleDetails vehicleId={detailId} onClose={() => setDetailId(null)} />
+    {items.length ? <section className="vehicle-grid">{items.map((vehicle) => <ScrapedVehicleCard key={vehicle.id} item={vehicle} saved={savedIds.has(vehicle.id)} onSave={() => saveScraped.mutate({ id: vehicle.id, saved: savedIds.has(vehicle.id) })} compared={compareIds.has(vehicle.id)} onCompare={() => toggleCompare(vehicle)} onDetails={() => setSelectedItem(vehicle)} />)}</section> : <div className="empty-state surface"><Car /><strong>No scraped vehicles match your search</strong><span>Run a scrape or adjust the filters.</span></div>}
+    {results.hasNextPage && <div className="pagination-actions"><button className="filter-button" type="button" onClick={() => results.fetchNextPage()} disabled={results.isFetchingNextPage}>{results.isFetchingNextPage ? "Loading more…" : "Load more vehicles"}</button></div>}
+    <ScrapedVehicleDetailsModal item={selectedItem} onClose={() => setSelectedItem(null)} />
   </div>;
 }
 
 export function SavedVehiclesPage() {
   const queryClient = useQueryClient();
-  const compare = useComparison();
+  const { items: compare, storageKey } = useCatalogComparison();
+  const { items: scrapedCompare, storageKey: scrapedStorageKey } = useScrapedComparison();
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [selectedScraped, setSelectedScraped] = useState<ScrapedListing | null>(null);
   const saved = useQuery({ queryKey: ["saved-vehicles"], queryFn: () => api<{ data: CatalogVehicle[] }>("/saved-vehicles").then((value) => value.data) });
+  const savedScraped = useQuery({ queryKey: ["saved-scraped-vehicles"], queryFn: () => api<{ data: SavedScrapedListing[] }>("/saved-vehicles/scraped").then((value) => value.data) });
   const remove = useMutation({
     mutationFn: (id: string) => api(`/saved-vehicles/${id}`, { method: "DELETE" }),
     onSuccess: async () => { toast.success("Removed from saved vehicles"); await queryClient.invalidateQueries({ queryKey: ["saved-vehicles"] }); },
     onError: (error: Error) => toast.error(error.message),
   });
-  if (saved.isLoading) return <PageSkeleton />;
-  if (saved.isError) return <ErrorState message="Saved vehicles could not be loaded." />;
+  const removeScraped = useMutation({
+    mutationFn: (id: number) => api(`/saved-vehicles/scraped/${id}`, { method: "DELETE" }),
+    onSuccess: async () => { toast.success("Removed from saved vehicles"); await queryClient.invalidateQueries({ queryKey: ["saved-scraped-vehicles"] }); },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  if (saved.isLoading || savedScraped.isLoading) return <PageSkeleton />;
+  if (saved.isError || savedScraped.isError) return <ErrorState message="Saved vehicles could not be loaded." />;
   const compareIds = new Set(compare.map((vehicle) => vehicle.vehicleId));
-  return <div className="page-stack"><section className="page-intro"><div><span>PERSONAL SHORTLIST</span><h2>Saved vehicles.</h2><p>Your shortlist is isolated to your authenticated account and stored in PostgreSQL.</p></div></section>{saved.data?.length ? <section className="vehicle-grid">{saved.data.map((vehicle) => <VehicleCard key={vehicle.vehicleId} vehicle={vehicle} saved compared={compareIds.has(vehicle.vehicleId)} onSave={() => remove.mutate(vehicle.vehicleId)} onCompare={() => { const current = readComparison(); if (compareIds.has(vehicle.vehicleId)) writeComparison(current.filter((item) => item.vehicleId !== vehicle.vehicleId)); else if (current.length < 4) writeComparison([...current, vehicle]); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setDetailId(vehicle.vehicleId)} />)}</section> : <div className="empty-state surface"><Heart /><strong>No saved vehicles yet</strong><span>Save inventory from Vehicle intelligence to build a shortlist.</span></div>}<VehicleDetails vehicleId={detailId} onClose={() => setDetailId(null)} /></div>;
+  const scrapedCompareIds = new Set(scrapedCompare.map((vehicle) => vehicle.id));
+  const hasSavedVehicles = Boolean(saved.data?.length || savedScraped.data?.length);
+  return <div className="page-stack"><section className="page-intro"><div><span>PERSONAL SHORTLIST</span><h2>Saved vehicles.</h2><p>Your saved scraped listings are private to your account and remain available here until you remove them.</p></div></section>{savedScraped.data?.length ? <section className="saved-section"><div className="surface-head"><div><span>SCRAPED LISTINGS</span><h3>Saved from vehicle intelligence</h3></div><span className="status-chip completed">{savedScraped.data.length} saved</span></div><section className="vehicle-grid">{savedScraped.data.map((vehicle) => <ScrapedVehicleCard key={vehicle.id} item={vehicle} saved onSave={() => removeScraped.mutate(vehicle.id)} compared={scrapedCompareIds.has(vehicle.id)} onCompare={() => { const current = readScrapedComparison(scrapedStorageKey); if (scrapedCompareIds.has(vehicle.id)) writeScrapedComparison(current.filter((item) => item.id !== vehicle.id), scrapedStorageKey); else if (current.length < 4) writeScrapedComparison([...current, vehicle], scrapedStorageKey); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setSelectedScraped(vehicle)} />)}</section></section> : null}{saved.data?.length ? <section className="saved-section"><div className="surface-head"><div><span>NORMALIZED INVENTORY</span><h3>Saved catalog vehicles</h3></div></div><section className="vehicle-grid">{saved.data.map((vehicle) => <VehicleCard key={vehicle.vehicleId} vehicle={vehicle} saved compared={compareIds.has(vehicle.vehicleId)} onSave={() => remove.mutate(vehicle.vehicleId)} onCompare={() => { const current = readComparison(storageKey); if (compareIds.has(vehicle.vehicleId)) writeComparison(current.filter((item) => item.vehicleId !== vehicle.vehicleId), storageKey); else if (current.length < 4) writeComparison([...current, vehicle], storageKey); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setDetailId(vehicle.vehicleId)} />)}</section></section> : null}{!hasSavedVehicles && <div className="empty-state surface"><Heart /><strong>No saved vehicles yet</strong><span>Use the heart button on a vehicle card to build your private shortlist.</span></div>}<VehicleDetails vehicleId={detailId} onClose={() => setDetailId(null)} /><ScrapedVehicleDetailsModal item={selectedScraped} onClose={() => setSelectedScraped(null)} /></div>;
 }
 
 export function CompareVehiclesPage() {
-  const items = useComparison();
-  if (!items.length) return <div className="page-stack"><section className="page-intro"><div><span>DECISION WORKSPACE</span><h2>Vehicle comparison.</h2><p>Compare up to four normalized vehicles side by side.</p></div></section><div className="empty-state surface"><Plus /><strong>No vehicles selected</strong><span>Add vehicles from the intelligence catalog.</span></div></div>;
-  const rows: Array<[string, (vehicle: CatalogVehicle) => string]> = [
-    ["Price", (vehicle) => currency(vehicle.priceCents)],
-    ["Year", (vehicle) => String(vehicle.year)],
-    ["Condition", (vehicle) => vehicle.isUsed ? "Pre-owned" : "New"],
-    ["Trim", (vehicle) => vehicle.trim ?? "Not provided"],
-    ["Mileage", (vehicle) => vehicle.odometerKm === null ? "Unavailable" : `${vehicle.odometerKm.toLocaleString()} km`],
-    ["Dealer", (vehicle) => vehicle.dealerName ?? "Unavailable"],
-    ["Location", (vehicle) => vehicle.location ?? "Location unavailable"],
-    ["Source", (vehicle) => vehicle.sourceName],
+  const { items, storageKey } = useScrapedComparison();
+  if (!items.length) return <div className="page-stack"><section className="page-intro"><div><span>DECISION WORKSPACE</span><h2>Vehicle comparison.</h2><p>Compare up to four scraped vehicles side by side.</p></div></section><div className="empty-state surface"><Plus /><strong>No vehicles selected</strong><span>Add vehicles from Vehicle intelligence to compare their scraped details.</span></div></div>;
+  const rows: Array<[string, (vehicle: ScrapedListing) => string]> = [
+    ["Price", (vehicle) => vehicle.price ?? "Unavailable"],
+    ["Year", (vehicle) => vehicle.year ?? "Unavailable"],
+    ["Mileage", (vehicle) => vehicle.mileage ?? "Unavailable"],
+    ["City", (vehicle) => vehicle.city ?? "Unavailable"],
+    ["Source", (vehicle) => vehicle.siteName],
+    ["Scraped", (vehicle) => new Date(vehicle.scrapedAt).toLocaleDateString("en-CA")],
   ];
-  return <div className="page-stack"><section className="page-intro"><div><span>DECISION WORKSPACE</span><h2>Vehicle comparison.</h2><p>Source-normalized attributes make meaningful differences easy to scan.</p></div><button className="filter-button" onClick={() => writeComparison([])}>Clear comparison</button></section><section className="surface comparison-table"><table><thead><tr><th>Attribute</th>{items.map((vehicle) => <th key={vehicle.vehicleId}><button aria-label={`Remove ${vehicle.make} ${vehicle.model}`} onClick={() => writeComparison(items.filter((item) => item.vehicleId !== vehicle.vehicleId))}><X size={15} /></button><span>{vehicle.year}</span><strong>{vehicle.make} {vehicle.model}</strong></th>)}</tr></thead><tbody>{rows.map(([label, format]) => <tr key={label}><th>{label}</th>{items.map((vehicle) => <td key={vehicle.vehicleId}>{format(vehicle)}</td>)}</tr>)}</tbody></table></section></div>;
+  return <div className="page-stack"><section className="page-intro"><div><span>DECISION WORKSPACE</span><h2>Compare scraped vehicles.</h2><p>Compare source records side by side before opening the original listings.</p></div><button className="filter-button" onClick={() => writeScrapedComparison([], storageKey)}>Clear comparison</button></section><section className="surface comparison-table"><table><thead><tr><th>Attribute</th>{items.map((vehicle) => <th key={vehicle.id}><button aria-label={`Remove ${vehicle.title}`} onClick={() => writeScrapedComparison(items.filter((item) => item.id !== vehicle.id), storageKey)}><X size={15} /></button><span>{vehicle.year ?? "Year unavailable"}</span><strong>{vehicle.title}</strong><a href={vehicle.listingUrl} target="_blank" rel="noreferrer">Open listing</a></th>)}</tr></thead><tbody>{rows.map(([label, format]) => <tr key={label}><th>{label}</th>{items.map((vehicle) => <td key={vehicle.id}>{format(vehicle)}</td>)}</tr>)}</tbody></table></section></div>;
 }

@@ -1,5 +1,5 @@
 import { CheerioCrawler, RequestQueue } from "crawlee";
-import { assertRobotsAllowed, absoluteUrl, validateItem, wait, type ScraperOptions } from "./common.js";
+import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, validateItem, wait, type ScraperOptions } from "./common.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
 
 export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
@@ -26,8 +26,16 @@ export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions)
         const year = card.find(".ad-specs i.pw-date").first().parent("li").text().replace(/\s+/g, " ").trim() || null;
         const mileage = card.find(".ad-specs i.pw-mileage").first().parent("li").text().replace(/\s+/g, " ").trim() || null;
         const city = card.find(".search-vehicle-info li").first().text().replace(/\s+/g, " ").trim() || null;
-        const image = card.find(".img-box img").first();
-        const thumbnailUrl = absoluteUrl(image.attr("src") ?? image.attr("data-src"), site.baseUrl);
+        const image = card.find(".img-box img, img").first();
+        const thumbnailUrl = imageUrlFromCandidates([
+          image.attr("data-src"),
+          image.attr("data-lazy-src"),
+          image.attr("data-original"),
+          image.attr("data-image"),
+          image.attr("data-srcset"),
+          image.attr("srcset"),
+          image.attr("src"),
+        ], site.baseUrl);
         if (!title || !listingUrl) return;
         const item = validateItem(site, {
           title,

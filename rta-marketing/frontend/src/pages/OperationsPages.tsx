@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, CircleDollarSign, Pencil, Plus, Target, Users as UsersRound } from "lucide-react";
+import { Activity, ArrowUpRight, BarChart3, CircleDollarSign, Pencil, Plus, Target, Users as UsersRound } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -114,8 +114,18 @@ export function CommissionsPage() {
   if (summary.isLoading || bootstrap.isLoading || (isAdmin && rules.isLoading)) return <PageSkeleton />;
   if (summary.isError || bootstrap.isError || (isAdmin && rules.isError)) return <ErrorState message="Commission data is unavailable." />;
 
+  const recentSales = summary.data?.recentSales ?? [];
+  const period = summary.data?.period ?? currentMonth();
+
   return <div className="page-stack">
     <FeatureDashboard icon={CircleDollarSign} eyebrow="EARNINGS" title="Commission transparency" description="Commission is calculated from funded gross profit using integer basis points—avoiding floating-point money errors." metrics={[{ label: "Earned this month", value: currency(summary.data?.sales.commissionCents ?? 0) }, { label: "Funded deals", value: String(summary.data?.sales.funded ?? 0) }, { label: "Calculation", value: "Gross × rate" }]} />
+    {!isAdmin && <section className="operations-grid employee-operations-grid">
+      <article className="surface employee-activity-panel">
+        <div className="surface-head"><div><span>MY EARNINGS</span><h3>Recent commission activity</h3></div><span className="status-chip completed">Personal view</span></div>
+        {recentSales.length ? <div className="employee-activity-list">{recentSales.slice(0, 5).map((sale) => <div className="employee-activity-row" key={sale.id}><span className="activity-icon"><Activity size={15} /></span><div><strong>{sale.customerName}</strong><small>{sale.vehicleDescription} · {new Date(sale.soldAt).toLocaleDateString("en-CA")}</small></div><span className={`status-chip ${sale.status}`}>{sale.status}</span><b>{currency(sale.salePriceCents)}</b></div>)}</div> : <div className="compact-empty"><CircleDollarSign /><strong>No commission activity yet</strong><span>Funded sales assigned to you will appear here with their current status.</span></div>}
+      </article>
+      <article className="surface employee-guidance-panel"><div className="surface-head"><div><span>PERIOD SNAPSHOT</span><h3>{period} earnings</h3></div><ArrowUpRight size={17} /></div><div className="employee-guidance-stat"><strong>{currency(summary.data?.sales.commissionCents ?? 0)}</strong><span>Commission credited from funded deals</span></div><p>Commission is calculated from the funded gross profit and the effective rate assigned to your workspace or salesperson profile.</p></article>
+    </section>}
     {isAdmin && <section className="surface management-surface">
       <div className="surface-head"><div><span>COMMISSION POLICY</span><h3>Effective-dated rules</h3></div><button className="primary-action" onClick={openCreate}><Plus size={16} />New rule</button></div>
       {rules.data?.length ? <div className="management-list">{rules.data.map((rule) => <article key={rule.id}><div><strong>{rule.name}</strong><small>{displayPerson(rule, "Workspace default")} · from {new Date(rule.effectiveFrom).toLocaleDateString("en-CA")}</small></div><div className="rule-rates"><span>Retail <b>{rule.retailRateBasisPoints / 100}%</b></span><span>Wholesale <b>{rule.wholesaleRateBasisPoints / 100}%</b></span></div><span className={`status-chip ${rule.isActive ? "funded" : "cancelled"}`}>{rule.isActive ? "active" : "inactive"}</span><button className="small-action" onClick={() => openEdit(rule)}><Pencil size={14} />Manage</button></article>)}</div> : <div className="empty-state"><CircleDollarSign /><strong>No commission rules</strong><span>Create a default or salesperson-specific rule.</span></div>}
@@ -192,8 +202,21 @@ export function TargetsPage() {
   if (summary.isLoading || bootstrap.isLoading || (isAdmin && targets.isLoading)) return <PageSkeleton />;
   if (summary.isError || bootstrap.isError || (isAdmin && targets.isError)) return <ErrorState message="Target data is unavailable." />;
 
+  const target = summary.data?.target;
+  const sales = summary.data?.sales;
+  const dealTarget = (target?.retailTarget ?? 0) + (target?.wholesaleTarget ?? 0);
+  const dealProgress = dealTarget ? Math.min(100, Math.round((sales?.funded ?? 0) / dealTarget * 100)) : 0;
+  const grossProgress = target?.grossProfitTargetCents ? Math.min(100, Math.round((sales?.grossProfitCents ?? 0) / target.grossProfitTargetCents * 100)) : 0;
+
   return <div className="page-stack">
     <FeatureDashboard icon={Target} eyebrow="GOALS" title="Monthly performance targets" description="Retail, wholesale, and gross-profit targets are scoped by workspace and salesperson." metrics={[{ label: "Retail target", value: String(summary.data?.target?.retailTarget ?? "—") }, { label: "Wholesale target", value: String(summary.data?.target?.wholesaleTarget ?? "—") }, { label: "Gross target", value: summary.data?.target ? currency(summary.data.target.grossProfitTargetCents) : "—" }]} />
+    {!isAdmin && <section className="operations-grid employee-operations-grid">
+      <article className="surface target-progress-panel">
+        <div className="surface-head"><div><span>MY PROGRESS</span><h3>Progress this month</h3></div><span className={`status-chip ${target ? (grossProgress >= 75 ? "completed" : "contacted") : "cancelled"}`}>{target ? `${grossProgress}% of gross goal` : "Not assigned"}</span></div>
+        {target ? <div className="progress-metrics"><div><header><span>Funded deals</span><strong>{sales?.funded ?? 0} / {dealTarget}</strong></header><div className="target-progress-track"><i style={{ width: `${dealProgress}%` }} /></div><small>Combined retail and wholesale target</small></div><div><header><span>Gross profit</span><strong>{currency(sales?.grossProfitCents ?? 0)} / {currency(target.grossProfitTargetCents)}</strong></header><div className="target-progress-track"><i style={{ width: `${grossProgress}%` }} /></div><small>Based on funded sales credited to you</small></div></div> : <div className="compact-empty"><Target /><strong>No personal target assigned</strong><span>Your administrator has not assigned a target for this month yet.</span></div>}
+      </article>
+      <article className="surface employee-guidance-panel"><div className="surface-head"><div><span>WORKING TOWARD</span><h3>Keep your pipeline moving</h3></div><ArrowUpRight size={17} /></div><p>Targets help you track funded deals and gross profit during the current month. Your figures update as sales are approved and funded.</p><div className="target-breakdown"><span><b>{target?.retailTarget ?? "—"}</b> retail deals</span><span><b>{target?.wholesaleTarget ?? "—"}</b> wholesale deals</span></div></article>
+    </section>}
     {isAdmin && <section className="surface management-surface">
       <div className="surface-head"><div><span>GOAL PLANNING</span><h3>Monthly salesperson targets</h3></div><div className="head-actions"><input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /><button className="primary-action" onClick={openCreate}><Plus size={16} />Set target</button></div></div>
       {targets.data?.length ? <div className="management-list">{targets.data.map((target) => <article key={target.id}><div><strong>{displayPerson(target, "Workspace target")}</strong><small>{target.month} · updated {new Date(target.updatedAt).toLocaleDateString("en-CA")}</small></div><div className="rule-rates"><span>Retail <b>{target.retailTarget}</b></span><span>Wholesale <b>{target.wholesaleTarget}</b></span><span>Gross <b>{currency(target.grossProfitTargetCents)}</b></span></div><button className="small-action" onClick={() => openEdit(target)}><Pencil size={14} />Edit</button></article>)}</div> : <div className="empty-state"><Target /><strong>No targets for {month}</strong><span>Set a workspace or salesperson target.</span></div>}

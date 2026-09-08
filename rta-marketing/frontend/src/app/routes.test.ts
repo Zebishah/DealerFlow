@@ -29,6 +29,23 @@ describe("route authorization policy", () => {
     expect(canAccessRoute(documents, "employee", null)).toBe(false);
   });
 
+  it("keeps role-specific dashboards and controls separated", () => {
+    const sales = appRoutes["/app/sales"];
+    const team = appRoutes["/app/team"];
+    const acquisition = appRoutes["/app/acquisition"];
+    const performance = appRoutes["/app/performance-board"];
+    expect(sales && team && acquisition && performance).toBeTruthy();
+    if (!sales || !team || !acquisition || !performance) return;
+
+    expect(canAccessRoute(sales, "employee", "workspace-1")).toBe(true);
+    expect(canAccessRoute(sales, "virtual_assistant", "workspace-1")).toBe(false);
+    expect(canAccessRoute(team, "recruiter", "workspace-1")).toBe(true);
+    expect(canAccessRoute(team, "employee", "workspace-1")).toBe(false);
+    expect(canAccessRoute(acquisition, "recruiter", "workspace-1")).toBe(true);
+    expect(canAccessRoute(acquisition, "virtual_assistant", "workspace-1")).toBe(false);
+    expect(canAccessRoute(performance, "virtual_assistant", "workspace-1")).toBe(true);
+  });
+
   it("resolves safe default and legacy destinations", () => {
     expect(defaultPath("workspace-1")).toBe("/app/overview");
     expect(defaultPath(null)).toBe("/app/acquisition");

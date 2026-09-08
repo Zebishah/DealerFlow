@@ -36,6 +36,20 @@ export function absoluteUrl(value: string | undefined, baseUrl: string): string 
   }
 }
 
+/** Prefer a real lazy-loaded image over a transparent placeholder in src. */
+export function imageUrlFromCandidates(candidates: Array<string | undefined | null>, baseUrl: string): string | null {
+  for (const candidate of candidates) {
+    const value = candidate?.trim();
+    if (!value || value.startsWith("data:") || value.startsWith("blob:")) continue;
+    const srcsetCandidate = value.includes(",")
+      ? value.split(",").map((entry) => entry.trim().split(/\s+/)[0]).filter(Boolean).at(-1)
+      : value;
+    const absolute = absoluteUrl(srcsetCandidate, baseUrl);
+    if (absolute && !/transparent|placeholder|spacer|blank\.gif/i.test(absolute)) return absolute;
+  }
+  return null;
+}
+
 export function validateItem(site: SiteConfig, value: Omit<ScrapedItem, "rawData"> & { rawData: Record<string, unknown> }): ScrapedItem | null {
   const parsed = scrapedItemSchema.safeParse(value);
   if (!parsed.success) {

@@ -1,7 +1,4 @@
-import {
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "../auth/AuthContext";
@@ -25,10 +22,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <NavigationProvider>
         <AuthProvider>{children}</AuthProvider>
-        <Toaster
-          position="top-right"
-          toastOptions={{ duration: 4_000 }}
-        />
+        <Toaster position="top-right" toastOptions={{ duration: 4_000 }} />
       </NavigationProvider>
     </QueryClientProvider>
   );

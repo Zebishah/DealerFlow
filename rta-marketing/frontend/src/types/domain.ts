@@ -108,6 +108,7 @@ export interface CatalogVehicle {
   source: string;
   sourceName: string;
   title: string;
+  url: string;
   make: string;
   model: string;
   trim: string | null;
@@ -120,6 +121,46 @@ export interface CatalogVehicle {
   location: string | null;
   isUsed: boolean;
   lastSeenAt: string;
+}
+
+export interface ScrapingSite {
+  id: number;
+  name: string;
+  baseUrl: string;
+  itemCount: number;
+  lastScrapedAt: string | null;
+}
+
+export interface ScrapedListing {
+  id: number;
+  siteId: number;
+  siteName: string;
+  title: string;
+  price: string | null;
+  year: string | null;
+  mileage: string | null;
+  city: string | null;
+  listingUrl: string;
+  thumbnailUrl: string | null;
+  scrapedAt: string;
+}
+
+export interface SavedScrapedListing extends ScrapedListing {
+  savedId: string;
+  savedAt: string;
+}
+
+export interface ScrapingResultsResponse {
+  data: {
+    items: ScrapedListing[];
+    sites: ScrapingSite[];
+  };
+  page: {
+    limit: number;
+    offset: number;
+    total: number;
+    hasMore: boolean;
+  };
 }
 
 

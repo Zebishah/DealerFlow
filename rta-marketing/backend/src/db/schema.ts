@@ -619,6 +619,46 @@ export const ingestionRejections = pgTable(
   ],
 );
 
+// Tables owned by the separate Docker/BullMQ scraper stack. They share Neon
+// with this admin application so operators can inspect its output here.
+export const scrapingSites = pgTable("sites", {
+  id: integer("id").primaryKey(),
+  name: text("name").notNull(),
+  baseUrl: text("base_url").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }),
+});
+
+export const scrapedItems = pgTable("scraped_items", {
+  id: integer("id").primaryKey(),
+  siteId: integer("site_id").notNull(),
+  title: text("title").notNull(),
+  price: text("price"),
+  year: text("year"),
+  mileage: text("mileage"),
+  city: text("city"),
+  listingUrl: text("listing_url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true }).notNull(),
+});
+
+export const savedScrapedItems = pgTable(
+  "saved_scraped_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    scrapedItemId: integer("scraped_item_id")
+      .notNull()
+      .references(() => scrapedItems.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("saved_scraped_items_user_item_uq").on(table.userId, table.scrapedItemId),
+    index("saved_scraped_items_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const scrapeRunRelations = relations(scrapeRuns, ({ many, one }) => ({
   requestedBy: one(users, {
     fields: [scrapeRuns.requestedByUserId],

@@ -5,35 +5,37 @@ This is a separate portfolio implementation of the vehicle-scraping pipeline. It
 ## Architecture
 
 ```text
-React/Vite on Vercel
-          │ HTTPS
-          ▼
-Nginx → API container ───────┐
-          │                  │ Drizzle
-          └────────────── Neon PostgreSQL
-                                 ▲
-Redis container ◄── BullMQ ── worker container
-                                 │
-                         Crawlee scraper modules
-                         Cheerio or Playwright
+React/Vite on Vercel ── HTTPS ──► Nginx on Oracle VM
+                                      │
+                                      ▼
+                              Scraping API container
+                                      │
+                              private Docker network
+                                      ▼
+                              Redis ◄── BullMQ ── Worker
+                                      │              │
+                                      └──── Neon ◄────┘
+                                                     │
+                                             Crawlee scrapers
+                                             Cheerio / Playwright
 ```
 
 The API is separate from scraping. API requests remain fast while the worker executes scheduled jobs, applies retries/backoff, respects robots.txt, and persists each site’s results. The API never waits for a third-party page to load.
 
-BullMQ with self-hosted Redis makes queue behavior visible and portable on the Oracle VM, with a named Redis volume for persistence. The existing RTA project also demonstrates AWS SQS/Lambda as a separate cloud-worker design; this stack does not delete or replace that implementation.
+BullMQ with self-hosted Redis makes queue behavior visible and portable on the Oracle VM, with a named Redis volume for persistence. The scraping API and worker share a private Docker network with Redis; Redis has no host-published port. The existing RTA project also demonstrates AWS SQS/Lambda as a separate cloud-worker design; this stack does not delete or replace that implementation.
 
-Neon PostgreSQL and Drizzle provide foreign-key integrity, JSONB fallback data, and committed migrations. Docker runs Redis, the API, and the worker; the API and worker both use the same Neon `DATABASE_URL`.
+Neon PostgreSQL and Drizzle provide foreign-key integrity, JSONB fallback data, and committed migrations. Docker runs Redis, the scraping API, and the worker on Oracle. The API and worker both use the same Neon `DATABASE_URL`.
 
 ## Repository map
 
 ```text
-apps/api/       Express API and dependency health endpoint
+apps/api/       Express API reference and dependency health endpoint
 apps/worker/    BullMQ scheduler and worker process
 apps/frontend/  Vite demonstration UI, deployed separately
 packages/db/    Drizzle schema and migrations
 packages/shared Config, site definitions, and Zod contracts
 packages/scrapers Crawlee Cheerio/Playwright adapters
-deploy/         Nginx and Oracle VM deployment guide
+deploy/         Oracle VM deployment guide
 ```
 
 ## Local setup
@@ -44,10 +46,11 @@ Requirements: Docker Compose and Node.js 20+ for frontend development.
 cp .env.example .env
 # Edit credentials and SCRAPER_SITES_JSON when URLs are available.
 docker compose up -d --build
-curl http://localhost:4000/health
+docker compose ps
+docker compose logs --no-color --tail=100 worker
 ```
 
-The Compose stack has no local PostgreSQL service. Set the Neon connection string in `DATABASE_URL`; it is passed unchanged to Drizzle, the API, and the worker.
+The Compose stack has Redis, the scraping API, and the worker. Set the Neon connection string, a strong `REDIS_PASSWORD`, and the Vercel `CORS_ORIGIN` in `.env`; the API and worker connect to Redis as `redis:6379` on the private Docker network.
 
 Run the frontend separately:
 

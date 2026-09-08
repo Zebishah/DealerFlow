@@ -43,6 +43,13 @@
       "when": 1788642184078,
       "tag": "0005_rejection_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788950000000,
+      "tag": "0006_saved_scraped_items",
+      "breakpoints": true
     }
   ]
 }

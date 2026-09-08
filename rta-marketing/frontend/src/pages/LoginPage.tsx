@@ -7,7 +7,7 @@ import { Redirect, useNavigation } from "../router/Navigation";
 export function LoginPage() {
   const { user, login } = useAuth();
   const { navigate } = useNavigation();
-  const [email, setEmail] = useState("admin@rta.demo");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -37,6 +37,6 @@ export function LoginPage() {
       <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
       <label>Password<div className="password-field"><input type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff /> : <Eye />}</button></div></label>
       <button className="submit-button" disabled={submitting}>{submitting ? "Signing in…" : <>Sign in securely <ArrowRight size={18} /></>}</button>
-    </form><div className="demo-note"><ShieldCheck size={18} /><span><strong>Portfolio reviewer?</strong><small>Ask the project owner for the seeded demo password. Credentials are never committed.</small></span></div></div></section>
+    </form></div></section>
   </main>;
 }

@@ -1,6 +1,7 @@
+import { rm, writeFile } from "node:fs/promises";
 import { Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
-import { db, schema, closeDatabase } from "@rta/db";
+import { db, schema, closeDatabase, verifyDatabase } from "@rta/db";
 import { loadConfig, logger, type ScrapedItem, type SiteConfig } from "@rta/shared";
 import { scrapeSite } from "@rta/scrapers";
 
@@ -48,8 +49,13 @@ await queue.upsertJobScheduler("all-sites-schedule", { pattern: config.SCRAPE_CR
 const worker = new Worker<ScrapeJobData>("vehicle-scrape", async (job) => { await scrapeAllSites(job.data.siteKey); }, { connection, concurrency: 1 });
 worker.on("completed", (job) => logger.info({ jobId: job.id, siteKey: job.data.siteKey ?? "all" }, "scrape job completed"));
 worker.on("failed", (job, error) => logger.error({ jobId: job?.id, siteKey: job?.data.siteKey ?? "all", err: error }, "scrape job failed"));
-logger.info({ cron: config.SCRAPE_CRON, sites: config.sites.length }, "scraping worker started");
 
-async function shutdown(): Promise<void> { await worker.close(); await queue.close(); await closeDatabase(); process.exit(0); }
+await verifyDatabase();
+await queue.waitUntilReady();
+await worker.waitUntilReady();
+await writeFile("/tmp/rta-worker-ready", "ready\n");
+logger.info({ cron: config.SCRAPE_CRON, sites: config.sites.length, database: "connected", redis: "connected" }, "scraping worker started");
+
+async function shutdown(): Promise<void> { await rm("/tmp/rta-worker-ready", { force: true }); await worker.close(); await queue.close(); await closeDatabase(); process.exit(0); }
 process.on("SIGTERM", () => void shutdown());
 process.on("SIGINT", () => void shutdown());

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, gt, ilike, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { requireSession } from "../../auth/session.js";
+import { requireSession, requireWorkspaceForRoles } from "../../auth/session.js";
 import { db } from "../../db/client.js";
 import { listings, sources, vehicles } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
@@ -46,6 +46,7 @@ function decodeCursor(value: string | undefined): CatalogCursor | undefined {
 
 export const catalogRouter = Router();
 catalogRouter.use(requireSession);
+catalogRouter.use(requireWorkspaceForRoles("admin", "employee", "virtual_assistant", "recruiter", "viewer"));
 
 catalogRouter.get(
   "/",
@@ -124,6 +125,7 @@ catalogRouter.get(
           source: sources.key,
           sourceName: sources.name,
           title: listings.title,
+          url: listings.url,
           make: vehicles.make,
           model: vehicles.model,
           trim: vehicles.trim,

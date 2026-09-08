@@ -37,6 +37,7 @@ const envSchema = z
     AWS_REGION: z.string().min(1),
     AWS_PROFILE: z.string().min(1).optional(),
     SQS_SCRAPE_QUEUE_URL: z.string().url(),
+    SCRAPING_STACK_API_URL: z.string().url().default("http://localhost:4000"),
     S3_DOCUMENT_BUCKET: z.string().min(3).max(63).optional(),
     DOCUMENT_UPLOAD_MAX_BYTES: z.coerce
       .number()

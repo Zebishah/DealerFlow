@@ -1,5 +1,5 @@
 import { PlaywrightCrawler, RequestQueue } from "crawlee";
-import { assertRobotsAllowed, absoluteUrl, validateItem, wait, type ScraperOptions } from "./common.js";
+import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, validateItem, wait, type ScraperOptions } from "./common.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
 
 export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
@@ -41,11 +41,26 @@ export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOption
         const image = Array.from(card.querySelectorAll("img"))
           .find((candidate) => ["Cover Photo", "Cover photo"].includes(candidate.getAttribute("aria-label") ?? ""))
           ?? card.querySelector("img");
-        return { title, price, year, mileage, city: location, listingUrl: link, thumbnailUrl: image?.getAttribute("src") ?? image?.getAttribute("srcset") ?? null };
+        return {
+          title,
+          price,
+          year,
+          mileage,
+          city: location,
+          listingUrl: link,
+          thumbnailCandidates: image ? [
+            image.getAttribute("data-src"),
+            image.getAttribute("data-lazy-src"),
+            image.getAttribute("data-original"),
+            image.getAttribute("data-srcset"),
+            image.getAttribute("srcset"),
+            image.getAttribute("src"),
+          ] : [],
+        };
       }));
       for (const value of extracted) {
         const listingUrl = absoluteUrl(value.listingUrl, site.baseUrl);
-        const thumbnailUrl = absoluteUrl(value.thumbnailUrl ?? undefined, site.baseUrl);
+        const thumbnailUrl = imageUrlFromCandidates(value.thumbnailCandidates ?? [], site.baseUrl);
         if (!value.title || !listingUrl) continue;
         const item = validateItem(site, {
           title: value.title,

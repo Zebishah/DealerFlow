@@ -33,6 +33,10 @@ const reviewSchema = z.object({
   status: z.enum(["verified", "rejected"]),
   reviewNotes: z.string().trim().max(2_000).nullable().optional(),
 });
+const editSchema = z.object({
+  kind,
+  expiresAt: z.coerce.date().nullable().optional(),
+});
 
 async function targetUser(requestUser: AuthenticatedUser | undefined, workspaceId: string, requestedId?: string) {
   if (!requestUser) throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
@@ -129,7 +133,7 @@ documentRouter.post(
         action: "employee_document.uploaded",
         entityType: "employee_document",
         entityId: document.id,
-        metadata: { userId, kind: input.kind, sizeBytes: input.sizeBytes },
+        metadata: { userId, kind: input.kind, fileName: input.fileName, mimeType: input.mimeType, sizeBytes: input.sizeBytes, expiresAt: input.expiresAt?.toISOString() ?? null },
       });
       return document;
     });
@@ -145,10 +149,51 @@ documentRouter.get(
     const access = request.user!.role === "admin"
       ? eq(employeeDocuments.workspaceId, workspaceId)
       : and(eq(employeeDocuments.workspaceId, workspaceId), eq(employeeDocuments.userId, request.user!.id));
-    const [document] = await db.select({ storageKey: employeeDocuments.storageKey }).from(employeeDocuments)
+    const [document] = await db.select({ storageKey: employeeDocuments.storageKey, fileName: employeeDocuments.fileName, userId: employeeDocuments.userId }).from(employeeDocuments)
       .where(and(access, eq(employeeDocuments.id, id))).limit(1);
     if (!document) throw new AppError(404, "DOCUMENT_NOT_FOUND", "Document was not found");
-    response.json({ data: { url: await createDocumentDownloadUrl(document.storageKey), expiresInSeconds: env.DOCUMENT_URL_TTL_SECONDS } });
+    const disposition = request.query.disposition === "attachment" ? "attachment" : "inline";
+    const url = await createDocumentDownloadUrl(document.storageKey, { fileName: document.fileName, disposition });
+    await db.insert(auditEvents).values({
+      workspaceId,
+      actorUserId: request.user!.id,
+      action: disposition === "attachment" ? "employee_document.downloaded" : "employee_document.viewed",
+      entityType: "employee_document",
+      entityId: id,
+      metadata: { userId: document.userId, fileName: document.fileName, disposition },
+    });
+    response.json({ data: { url, expiresInSeconds: env.DOCUMENT_URL_TTL_SECONDS } });
+  }),
+);
+
+documentRouter.patch(
+  "/:id",
+  requireCsrf,
+  asyncHandler(async (request, response) => {
+    const workspaceId = requireWorkspace(request);
+    const id = uuid.parse(request.params.id);
+    const input = editSchema.parse(request.body);
+    const access = request.user!.role === "admin"
+      ? eq(employeeDocuments.workspaceId, workspaceId)
+      : and(eq(employeeDocuments.workspaceId, workspaceId), eq(employeeDocuments.userId, request.user!.id), eq(employeeDocuments.status, "pending"));
+    const updated = await db.transaction(async (tx) => {
+      const [document] = await tx.update(employeeDocuments).set({
+        kind: input.kind,
+        expiresAt: input.expiresAt ?? null,
+        updatedAt: new Date(),
+      }).where(and(access, eq(employeeDocuments.id, id))).returning();
+      if (!document) throw new AppError(404, "DOCUMENT_NOT_FOUND", "Document was not found or cannot be edited");
+      await tx.insert(auditEvents).values({
+        workspaceId,
+        actorUserId: request.user!.id,
+        action: "employee_document.updated",
+        entityType: "employee_document",
+        entityId: id,
+        metadata: { userId: document.userId, kind: input.kind, expiresAt: input.expiresAt?.toISOString() ?? null },
+      });
+      return document;
+    });
+    response.json({ data: updated });
   }),
 );
 
@@ -192,7 +237,7 @@ documentRouter.delete(
     const access = request.user!.role === "admin"
       ? eq(employeeDocuments.workspaceId, workspaceId)
       : and(eq(employeeDocuments.workspaceId, workspaceId), eq(employeeDocuments.userId, request.user!.id), eq(employeeDocuments.status, "pending"));
-    const [document] = await db.select({ storageKey: employeeDocuments.storageKey, userId: employeeDocuments.userId }).from(employeeDocuments)
+    const [document] = await db.select({ storageKey: employeeDocuments.storageKey, userId: employeeDocuments.userId, fileName: employeeDocuments.fileName }).from(employeeDocuments)
       .where(and(access, eq(employeeDocuments.id, id))).limit(1);
     if (!document) throw new AppError(404, "DOCUMENT_NOT_FOUND", "Document was not found or can no longer be removed");
     await deleteDocumentObject(document.storageKey);
@@ -204,7 +249,7 @@ documentRouter.delete(
         action: "employee_document.deleted",
         entityType: "employee_document",
         entityId: id,
-        metadata: { userId: document.userId },
+        metadata: { userId: document.userId, fileName: document.fileName },
       });
     });
     response.status(204).send();

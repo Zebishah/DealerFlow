@@ -18,6 +18,7 @@ import { dealershipRouter } from "./modules/dealership/routes.js";
 import { runsRouter } from "./modules/runs/routes.js";
 import { savedRouter } from "./modules/saved/routes.js";
 import { sourcesRouter } from "./modules/sources/routes.js";
+import { scrapingStackRouter } from "./modules/scraping-stack/routes.js";
 
 export function createApp() {
   const app = express();
@@ -103,6 +104,7 @@ export function createApp() {
   app.use("/api/v1/scrape-runs", runsRouter);
   app.use("/api/v1/saved-vehicles", savedRouter);
   app.use("/api/v1/sources", sourcesRouter);
+  app.use("/api/v1/scraping-results", scrapingStackRouter);
 
   app.use(notFound);
   app.use(errorHandler);

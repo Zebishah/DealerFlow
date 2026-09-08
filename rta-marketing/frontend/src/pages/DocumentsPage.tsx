@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Download, FileText, Trash2, Upload, XCircle } from "lucide-react";
+import { CheckCircle, Download, Eye, FileText, Pencil, Trash2, Upload, XCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -38,6 +38,9 @@ export function DocumentsPage() {
   const [kind, setKind] = useState<DocumentKind>("insurance");
   const [userId, setUserId] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [editingDocument, setEditingDocument] = useState<EmployeeDocument | null>(null);
+  const [editKind, setEditKind] = useState<DocumentKind>("insurance");
+  const [editExpiresAt, setEditExpiresAt] = useState("");
 
   const documents = useQuery({
     queryKey: ["dealership", "documents"],
@@ -107,6 +110,26 @@ export function DocumentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const edit = useMutation({
+    mutationFn: ({ id, kind: nextKind, expiresAt: nextExpiresAt }: { id: string; kind: DocumentKind; expiresAt: string }) =>
+      api(`/dealership/documents/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          kind: nextKind,
+          expiresAt: nextExpiresAt ? new Date(`${nextExpiresAt}T12:00:00`).toISOString() : null,
+        }),
+      }),
+    onSuccess: async () => {
+      toast.success("Document details updated");
+      setEditingDocument(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dealership", "documents"] }),
+        queryClient.invalidateQueries({ queryKey: ["dealership", "admin", "audit-events"] }),
+      ]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => api(`/dealership/documents/${id}`, { method: "DELETE" }),
     onSuccess: async () => {
@@ -116,13 +139,41 @@ export function DocumentsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  async function download(document: EmployeeDocument) {
+  async function getDocumentUrl(document: EmployeeDocument, disposition: "inline" | "attachment" = "inline") {
+    const result = await api<{ data: { url: string } }>(`/dealership/documents/${document.id}/download?disposition=${disposition}`);
+    return result.data.url;
+  }
+
+  async function viewDocument(document: EmployeeDocument) {
+    const tab = window.open("about:blank", "_blank");
     try {
-      const result = await api<{ data: { url: string } }>(`/dealership/documents/${document.id}/download`);
-      window.open(result.data.url, "_blank", "noopener,noreferrer");
+      const url = await getDocumentUrl(document);
+      if (tab) tab.location.href = url;
+      else toast.error("Allow pop-ups to view this document");
     } catch (error) {
+      tab?.close();
       toast.error(error instanceof Error ? error.message : "Document could not be opened");
     }
+  }
+
+  async function downloadDocument(document: EmployeeDocument) {
+    try {
+      const url = await getDocumentUrl(document, "attachment");
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = document.fileName;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.click();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Document could not be downloaded");
+    }
+  }
+
+  function openEdit(document: EmployeeDocument) {
+    setEditingDocument(document);
+    setEditKind(document.kind);
+    setEditExpiresAt(document.expiresAt ? document.expiresAt.slice(0, 10) : "");
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -146,10 +197,13 @@ export function DocumentsPage() {
     <section className="inline-metrics"><div><span>Total records</span><strong>{documents.data?.length ?? 0}</strong></div><div><span>Awaiting review</span><strong>{documents.data?.filter((item) => item.status === "pending").length ?? 0}</strong></div><div><span>Expiring within 30 days</span><strong>{expiring}</strong></div></section>
     <section className="surface data-surface">
       <div className="surface-head"><div><span>COMPLIANCE REGISTER</span><h3>Uploaded credentials and policies</h3></div></div>
-      {documents.data?.length ? <div className="responsive-table"><table><thead><tr><th>Employee</th><th>Document</th><th>Uploaded</th><th>Expiry</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{documents.data.map((document) => <tr key={document.id}><td><strong>{[document.firstName, document.lastName].filter(Boolean).join(" ") || document.email}</strong><small>{document.email}</small></td><td><strong>{kindLabels[document.kind]}</strong><small>{document.fileName} · {(document.sizeBytes / 1_000_000).toFixed(2)} MB</small></td><td>{new Date(document.createdAt).toLocaleDateString("en-CA")}</td><td>{document.expiresAt ? new Date(document.expiresAt).toLocaleDateString("en-CA") : "Not specified"}</td><td><span className={`status-chip ${document.status}`}>{document.status}</span></td><td><div className="document-actions"><button onClick={() => void download(document)} title="Open private document" aria-label="Open private document"><Download size={15} /></button>{isAdmin && document.status === "pending" && <><button className="approve" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "verified" })} title="Verify"><CheckCircle size={15} /></button><button className="reject" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "rejected" })} title="Reject"><XCircle size={15} /></button></>}{(isAdmin || document.status === "pending") && <button className="reject" disabled={remove.isPending} onClick={() => remove.mutate(document.id)} title="Delete"><Trash2 size={15} /></button>}</div></td></tr>)}</tbody></table></div> : <div className="empty-state"><FileText /><strong>No compliance documents</strong><span>Upload an insurance policy, licence or certification to begin.</span></div>}
+      {documents.data?.length ? <div className="responsive-table"><table><thead><tr><th>Employee</th><th>Document</th><th>Uploaded</th><th>Expiry</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{documents.data.map((document) => <tr key={document.id}><td><strong>{[document.firstName, document.lastName].filter(Boolean).join(" ") || document.email}</strong><small>{document.email}</small></td><td><strong>{kindLabels[document.kind]}</strong><small>{document.fileName} · {(document.sizeBytes / 1_000_000).toFixed(2)} MB</small></td><td>{new Date(document.createdAt).toLocaleDateString("en-CA")}</td><td>{document.expiresAt ? new Date(document.expiresAt).toLocaleDateString("en-CA") : "Not specified"}</td><td><span className={`status-chip ${document.status}`}>{document.status}</span></td><td><div className="document-actions"><button onClick={() => void viewDocument(document)} title="View private document" aria-label="View private document"><Eye size={15} /></button><button onClick={() => void downloadDocument(document)} title="Download document" aria-label="Download document"><Download size={15} /></button>{(isAdmin || document.status === "pending") && <button className="edit" onClick={() => openEdit(document)} title="Edit document details" aria-label="Edit document details"><Pencil size={15} /></button>}{isAdmin && document.status === "pending" && <><button className="approve" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "verified" })} title="Verify"><CheckCircle size={15} /></button><button className="reject" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "rejected" })} title="Reject"><XCircle size={15} /></button></>}{(isAdmin || document.status === "pending") && <button className="reject" disabled={remove.isPending} onClick={() => remove.mutate(document.id)} title="Delete"><Trash2 size={15} /></button>}</div></td></tr>)}</tbody></table></div> : <div className="empty-state"><FileText /><strong>No compliance documents</strong><span>Upload an insurance policy, licence or certification to begin.</span></div>}
     </section>
     <WorkflowModal open={modalOpen} eyebrow="SECURE UPLOAD" title="Upload employee document" description="PDF, JPEG or PNG only. The browser uploads directly to encrypted private S3 storage using a five-minute URL." busy={upload.isPending} onClose={() => !upload.isPending && setModalOpen(false)}>
       <form className="workflow-form" onSubmit={submit}><div className="form-grid">{isAdmin && <label className="form-span">Employee<select required value={userId} onChange={(event) => setUserId(event.target.value)}><option value="">Select employee</option>{bootstrap.data?.team.filter((member) => member.isActive && member.role === "employee").map((member) => <option key={member.id} value={member.id}>{[member.firstName, member.lastName].filter(Boolean).join(" ") || member.email}</option>)}</select></label>}<label>Document type<select value={kind} onChange={(event) => setKind(event.target.value as DocumentKind)}>{Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Expiry date<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label><label className="form-span upload-drop">File<input required type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>{file ? `${file.name} · ${(file.size / 1_000_000).toFixed(2)} MB` : "Choose a PDF, JPEG or PNG document"}</span></label></div><footer className="modal-actions"><button type="button" className="filter-button" disabled={upload.isPending} onClick={() => setModalOpen(false)}>Cancel</button><button className="primary-action" disabled={upload.isPending}>{upload.isPending ? "Encrypting and uploading…" : "Upload securely"}</button></footer></form>
+    </WorkflowModal>
+    <WorkflowModal open={Boolean(editingDocument)} eyebrow="DOCUMENT DETAILS" title="Edit document" description="Update the document type or expiry date. The private file remains unchanged." busy={edit.isPending} onClose={() => !edit.isPending && setEditingDocument(null)}>
+      <form className="workflow-form" onSubmit={(event) => { event.preventDefault(); if (editingDocument) edit.mutate({ id: editingDocument.id, kind: editKind, expiresAt: editExpiresAt }); }}><div className="form-grid"><label className="form-span">File<strong className="document-edit-file">{editingDocument?.fileName}</strong></label><label>Document type<select value={editKind} onChange={(event) => setEditKind(event.target.value as DocumentKind)}>{Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Expiry date<input type="date" value={editExpiresAt} onChange={(event) => setEditExpiresAt(event.target.value)} /></label></div><footer className="modal-actions"><button type="button" className="filter-button" disabled={edit.isPending} onClick={() => setEditingDocument(null)}>Cancel</button><button className="primary-action" disabled={edit.isPending}>{edit.isPending ? "Saving changes…" : "Save changes"}</button></footer></form>
     </WorkflowModal>
   </div>;
 }

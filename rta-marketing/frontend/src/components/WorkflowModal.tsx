@@ -31,8 +31,15 @@ export function WorkflowModal({
   children,
 }: WorkflowModalProps) {
   const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  const busyRef = useRef(busy);
   const titleId = useId();
   const descriptionId = useId();
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    busyRef.current = busy;
+  }, [busy, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -51,9 +58,9 @@ export function WorkflowModal({
     }, 0);
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) {
+      if (event.key === "Escape" && !busyRef.current) {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
@@ -88,7 +95,7 @@ export function WorkflowModal({
       window.removeEventListener("keydown", handleKeyDown);
       previousFocus?.focus();
     };
-  }, [busy, onClose, open]);
+  }, [open]);
 
   if (!open) return null;
 

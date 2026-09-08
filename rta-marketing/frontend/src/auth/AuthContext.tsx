@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, setCsrfToken } from "../lib/api";
 import type { SessionUser } from "../types/domain";
 
@@ -13,8 +14,18 @@ interface AuthValue {
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const principalRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const principal = user ? `${user.id}:${user.workspaceId ?? "platform"}` : null;
+    if (principalRef.current !== null && principalRef.current !== principal) {
+      queryClient.clear();
+    }
+    principalRef.current = principal;
+  }, [queryClient, user]);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      queryClient.clear();
       setCsrfToken(result.data.csrfToken);
       setUser(result.data.user);
       return result.data.user;
@@ -45,10 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async logout() {
       await api<void>("/auth/logout", { method: "POST" });
+      queryClient.clear();
       setCsrfToken(null);
       setUser(null);
     },
-  }), [loading, user]);
+  }), [loading, queryClient, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

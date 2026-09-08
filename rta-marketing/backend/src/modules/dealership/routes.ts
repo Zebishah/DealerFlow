@@ -76,6 +76,7 @@ const saleInputSchema = z.object({
 const saleUpdateSchema = saleInputSchema.partial().extend({
   version: z.number().int().min(1),
 });
+type SaleStatus = z.infer<typeof saleInputSchema>["status"];
 
 const listQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
@@ -122,6 +123,46 @@ function visibleToUser(user: AuthenticatedUser, workspaceId: string): SQL {
   return eq(leads.workspaceId, workspaceId);
 }
 
+type LeadReferenceInput = {
+  sourceId?: string | null | undefined;
+  assignedToUserId?: string | null | undefined;
+};
+
+async function validateLeadReferences(input: LeadReferenceInput, workspaceId: string, user: AuthenticatedUser) {
+  if (user.role === "employee" && input.assignedToUserId !== undefined && input.assignedToUserId !== user.id) {
+    throw new AppError(403, "LEAD_ASSIGNMENT_FORBIDDEN", "Salespeople can only own their assigned leads");
+  }
+
+  const [source, assignee] = await Promise.all([
+    input.sourceId
+      ? db.select({ id: leadSources.id }).from(leadSources)
+        .where(and(eq(leadSources.id, input.sourceId), eq(leadSources.workspaceId, workspaceId), eq(leadSources.isActive, true))).limit(1)
+      : Promise.resolve([]),
+    input.assignedToUserId
+      ? db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, input.assignedToUserId), eq(users.workspaceId, workspaceId), eq(users.isActive, true))).limit(1)
+      : Promise.resolve([]),
+  ]);
+
+  if (input.sourceId && !source[0]) {
+    throw new AppError(400, "INVALID_LEAD_SOURCE", "Lead source is not active in this workspace");
+  }
+  if (input.assignedToUserId && !assignee[0]) {
+    throw new AppError(400, "INVALID_LEAD_ASSIGNEE", "Lead assignee is not an active workspace member");
+  }
+}
+
+function assertEmployeeSaleStatus(user: AuthenticatedUser, status: SaleStatus | undefined, existingStatus?: SaleStatus): void {
+  if (user.role !== "employee") return;
+  const allowed = status === undefined || status === "draft" || status === "submitted";
+  if (!allowed) {
+    throw new AppError(403, "SALE_STATUS_FORBIDDEN", "Salespeople can only submit draft or submitted deals");
+  }
+  if (existingStatus && existingStatus !== "draft" && existingStatus !== "submitted") {
+    throw new AppError(409, "SALE_LOCKED", "This sale is locked after approval and cannot be edited by a salesperson");
+  }
+}
+
 export const dealershipRouter = Router();
 dealershipRouter.use(requireSession);
 dealershipRouter.use("/admin", dealershipAdminRouter);
@@ -154,9 +195,12 @@ dealershipRouter.get(
     const month = now.toISOString().slice(0, 7);
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const leadScope = visibleToUser(request.user!, workspaceId);
-    const saleScope = request.user!.role === "employee"
-      ? and(eq(sales.workspaceId, workspaceId), eq(sales.salespersonId, request.user!.id))!
-      : eq(sales.workspaceId, workspaceId);
+    const salesVisible = request.user!.role !== "virtual_assistant";
+    const saleScope = !salesVisible
+      ? sql`false`
+      : request.user!.role === "employee"
+        ? and(eq(sales.workspaceId, workspaceId), eq(sales.salespersonId, request.user!.id))!
+        : eq(sales.workspaceId, workspaceId);
 
     const [leadMetrics, saleMetrics, targetRows, recentLeadRows, recentSaleRows] = await Promise.all([
       db.select({
@@ -175,7 +219,9 @@ dealershipRouter.get(
       db.select().from(monthlyTargets).where(and(
         eq(monthlyTargets.workspaceId, workspaceId),
         eq(monthlyTargets.month, month),
-        request.user!.role === "employee" ? eq(monthlyTargets.userId, request.user!.id) : sql`true`,
+        request.user!.role === "employee"
+          ? eq(monthlyTargets.userId, request.user!.id)
+          : request.user!.role === "virtual_assistant" ? sql`false` : sql`true`,
       )).limit(1),
       db.select({ id: leads.id, firstName: leads.firstName, lastName: leads.lastName, status: leads.status, vehicleInterest: leads.vehicleInterest, createdAt: leads.createdAt })
         .from(leads).where(leadScope).orderBy(desc(leads.createdAt)).limit(5),
@@ -246,7 +292,12 @@ dealershipRouter.post(
   requireCsrf,
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
-    const input = leadInputSchema.parse(request.body);
+    const parsed = leadInputSchema.parse(request.body);
+    const input = {
+      ...parsed,
+      assignedToUserId: request.user!.role === "employee" ? request.user!.id : parsed.assignedToUserId ?? null,
+    };
+    await validateLeadReferences(input, workspaceId, request.user!);
     const key = requireIdempotencyKey(request.header("idempotency-key"));
     const hash = requestHash(input);
 
@@ -295,7 +346,11 @@ dealershipRouter.patch(
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const id = uuidSchema.parse(request.params.id);
-    const { version, ...input } = leadUpdateSchema.parse(request.body);
+    const { version, ...parsed } = leadUpdateSchema.parse(request.body);
+    await validateLeadReferences(parsed, workspaceId, request.user!);
+    const input = request.user!.role === "employee" && parsed.assignedToUserId !== undefined
+      ? { ...parsed, assignedToUserId: request.user!.id }
+      : parsed;
     const access = visibleToUser(request.user!, workspaceId);
     const [updated] = await db.update(leads).set({
       ...input,
@@ -312,6 +367,7 @@ dealershipRouter.patch(
 
 dealershipRouter.get(
   "/sales",
+  requireRoles("admin", "operator", "employee", "recruiter"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const limit = z.coerce.number().int().min(1).max(100).default(25).parse(request.query.limit);
@@ -330,6 +386,7 @@ dealershipRouter.post(
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const input = saleInputSchema.parse(request.body);
+    assertEmployeeSaleStatus(request.user!, input.status);
     const key = requireIdempotencyKey(request.header("idempotency-key"));
     const hash = requestHash(input);
     const salespersonId = request.user!.role === "employee" ? request.user!.id : input.salespersonId;
@@ -393,6 +450,7 @@ dealershipRouter.patch(
       if (existing.version !== version) {
         throw new AppError(409, "STALE_WRITE", "This sale changed after you opened it; refresh and try again");
       }
+      assertEmployeeSaleStatus(request.user!, input.status, existing.status);
 
       const salespersonId = request.user!.role === "employee"
         ? request.user!.id

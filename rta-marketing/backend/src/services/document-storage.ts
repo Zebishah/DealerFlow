@@ -53,10 +53,18 @@ export async function inspectDocumentObject(storageKey: string) {
   }
 }
 
-export async function createDocumentDownloadUrl(storageKey: string): Promise<string> {
+export async function createDocumentDownloadUrl(
+  storageKey: string,
+  options: { fileName?: string; disposition?: "inline" | "attachment" } = {},
+): Promise<string> {
+  const safeFileName = options.fileName?.replace(/["\\\r\n]/g, "_");
   return getSignedUrl(
     client,
-    new GetObjectCommand({ Bucket: bucket(), Key: storageKey }),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: storageKey,
+      ...(safeFileName ? { ResponseContentDisposition: `${options.disposition ?? "inline"}; filename="${safeFileName}"` } : {}),
+    }),
     { expiresIn: env.DOCUMENT_URL_TTL_SECONDS },
   );
 }

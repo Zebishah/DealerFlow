@@ -124,7 +124,7 @@ export function LeadsPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyForm);
+    setForm(user?.role === "employee" ? { ...emptyForm, assignedToUserId: user.id } : emptyForm);
     setModalOpen(true);
   }
 
@@ -224,7 +224,9 @@ export function LeadsPage() {
             <label>Email<input type="email" maxLength={254} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
             <label>Phone<input type="tel" minLength={7} maxLength={40} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
             <label>Lead source<select value={form.sourceId} onChange={(event) => setForm({ ...form, sourceId: event.target.value })}><option value="">Not specified</option>{bootstrap.data?.leadSources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}</select></label>
-            <label>Assigned team member<select value={form.assignedToUserId} onChange={(event) => setForm({ ...form, assignedToUserId: event.target.value })}><option value="">Unassigned</option>{bootstrap.data?.team.filter((member) => member.isActive).map((member) => <option key={member.id} value={member.id}>{[member.firstName, member.lastName].filter(Boolean).join(" ") || member.email}</option>)}</select></label>
+            {user?.role === "employee"
+              ? <label>Lead owner<input value="You" readOnly /></label>
+              : <label>Assigned team member<select value={form.assignedToUserId} onChange={(event) => setForm({ ...form, assignedToUserId: event.target.value })}><option value="">Unassigned</option>{bootstrap.data?.team.filter((member) => member.isActive).map((member) => <option key={member.id} value={member.id}>{[member.firstName, member.lastName].filter(Boolean).join(" ") || member.email}</option>)}</select></label>}
             <label>Pipeline status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as LeadStatus })}><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="converted">Converted</option><option value="lost">Lost</option></select></label>
             <label>External reference<input maxLength={100} value={form.externalReference} onChange={(event) => setForm({ ...form, externalReference: event.target.value })} /></label>
             <label className="form-span">Vehicle interest<input maxLength={200} value={form.vehicleInterest} onChange={(event) => setForm({ ...form, vehicleInterest: event.target.value })} placeholder="Year, make, model, or stock preference" /></label>

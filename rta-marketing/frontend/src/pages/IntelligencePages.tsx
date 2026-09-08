@@ -1,11 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Loader2 as LoaderCircle, Play, ServerCog } from "lucide-react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, AlertTriangle, Car, ExternalLink, Loader2 as LoaderCircle, Play, RefreshCw, ServerCog } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
 import toast from "react-hot-toast";
 import { api, idempotentJson } from "../lib/api";
-import type { IntelligenceSummary, SourceHealth } from "../types/domain";
+import type { IntelligenceSummary, ScrapedListing, ScrapingResultsResponse, ScrapingSite, SourceHealth } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
 type RunDetail = {
@@ -37,6 +37,10 @@ type RunDetail = {
     errorMessage: string | null;
   }>;
 };
+
+function displayRunMode(mode: "fixture" | "live"): string {
+  return mode === "live" ? "Live acquisition" : "Validation run";
+}
 
 export function AcquisitionPage() {
   const { user } = useAuth();
@@ -100,7 +104,7 @@ export function AcquisitionPage() {
       }, idempotencyKey));
     },
     onSuccess: async () => {
-      toast.success(`${mode === "live" ? "Live" : "Fixture"} acquisition queued for ${selectedSources.length} source${selectedSources.length === 1 ? "" : "s"}`);
+      toast.success(`${mode === "live" ? "Live" : "Validation"} acquisition queued for ${selectedSources.length} source${selectedSources.length === 1 ? "" : "s"}`);
       await queryClient.invalidateQueries({ queryKey: ["intelligence"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -141,7 +145,7 @@ export function AcquisitionPage() {
         <label>Acquisition mode
           <select value={mode} onChange={(event) => changeMode(event.target.value as "fixture" | "live")}>
             {canRunLive && <option value="live">Live websites</option>}
-            <option value="fixture">Verified fixtures</option>
+            <option value="fixture">Validation run</option>
           </select>
         </label>
         <button onClick={() => run.mutate(crypto.randomUUID())} disabled={run.isPending || selectedSources.length === 0}>
@@ -177,7 +181,7 @@ export function AcquisitionPage() {
             const selected = selectedSources.includes(source.key);
             return <button type="button" className={`source-item source-choice ${selected ? "selected" : ""}`} key={source.key} disabled={!allowed} onClick={() => toggleSource(source.key, allowed)}>
               <span className="source-check">{selected ? "✓" : ""}</span>
-              <div><strong>{source.name}</strong><small>{allowed ? mode === "live" ? "Live acquisition enabled" : "Fixture adapter available" : mode === "live" ? "Live acquisition disabled" : "Source disabled"}</small></div>
+              <div><strong>{source.name}</strong><small>{allowed ? mode === "live" ? "Live acquisition enabled" : "Validation adapter ready" : mode === "live" ? "Live acquisition disabled" : "Source disabled"}</small></div>
               <span className={`status-chip ${source.latestStatus ?? "idle"}`}>{source.latestStatus ?? "idle"}</span>
             </button>;
           })}
@@ -189,7 +193,7 @@ export function AcquisitionPage() {
         <div className="run-list">
           {summary.data?.recentRuns.map((item) => <div className="run-item" key={item.id}>
             <ServerCog />
-            <button className="run-summary-button" type="button" onClick={() => setSelectedRunId(item.id)}><strong>RUN-{item.id.slice(0, 8).toUpperCase()}</strong><small>{item.mode} · {new Date(item.createdAt).toLocaleString("en-CA")}</small><div className="progress-bar"><i style={{ width: `${item.sourceCount ? item.completedSourceCount / item.sourceCount * 100 : 0}%` }} /></div></button>
+            <button className="run-summary-button" type="button" onClick={() => setSelectedRunId(item.id)}><strong>RUN-{item.id.slice(0, 8).toUpperCase()}</strong><small>{displayRunMode(item.mode)} · {new Date(item.createdAt).toLocaleString("en-CA")}</small><div className="progress-bar"><i style={{ width: `${item.sourceCount ? item.completedSourceCount / item.sourceCount * 100 : 0}%` }} /></div></button>
             <div className="run-status-actions"><span className={`status-chip ${item.status}`}>{item.status}</span>{canRunLive && ["queued", "running"].includes(item.status) && <button disabled={cancel.isPending} onClick={() => cancel.mutate(item.id)}>Cancel</button>}</div>
           </div>)}
         </div>
@@ -206,6 +210,94 @@ export function AcquisitionPage() {
   </div>;
 }
 
+
+type ScrapingFilters = {
+  q: string;
+  siteId: string;
+  minYear: string;
+  maxYear: string;
+  maxPrice: string;
+  maxMileage: string;
+};
+
+const emptyScrapingFilters: ScrapingFilters = { q: "", siteId: "", minYear: "", maxYear: "", maxPrice: "", maxMileage: "" };
+
+function sourceIsTriggerable(site: ScrapingSite): boolean {
+  return /pakwheels\.com|olx\.com\.pk/i.test(site.baseUrl);
+}
+
+export function ScrapingResultsPage() {
+  const [filters, setFilters] = useState<ScrapingFilters>(emptyScrapingFilters);
+  const [triggeringSiteId, setTriggeringSiteId] = useState<number | null>(null);
+  const { user } = useAuth();
+  const canTrigger = user?.role === "admin" || user?.role === "operator";
+  const query = useInfiniteQuery({
+    queryKey: ["scraping-results", filters],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: "24", offset: String(pageParam) });
+      if (filters.q.trim()) params.set("q", filters.q.trim());
+      if (filters.siteId) params.set("siteId", filters.siteId);
+      if (filters.minYear) params.set("minYear", filters.minYear);
+      if (filters.maxYear) params.set("maxYear", filters.maxYear);
+      if (filters.maxPrice) params.set("maxPrice", filters.maxPrice);
+      if (filters.maxMileage) params.set("maxMileage", filters.maxMileage);
+      return api<ScrapingResultsResponse>(`/scraping-results?${params.toString()}`);
+    },
+    getNextPageParam: (lastPage) => lastPage.page.hasMore ? lastPage.page.offset + lastPage.page.limit : undefined,
+    refetchInterval: 15_000,
+  });
+  const trigger = useMutation({
+    mutationFn: (siteId: number) => api(`/scraping-results/${siteId}/trigger`, { method: "POST" }),
+    onMutate: (siteId) => setTriggeringSiteId(siteId),
+    onSuccess: async (_data, siteId) => {
+      toast.success("Scrape queued. New records will appear shortly.");
+      setTriggeringSiteId(null);
+      await query.refetch();
+      void siteId;
+    },
+    onError: (error: Error) => {
+      setTriggeringSiteId(null);
+      toast.error(error.message);
+    },
+  });
+
+  if (query.isLoading) return <PageSkeleton />;
+  if (query.isError) return <ErrorState message="Scraping results are unavailable. Confirm the scraper API and Neon connection are running." />;
+
+  const firstPage = query.data?.pages[0];
+  const sites = firstPage?.data.sites ?? [];
+  const items: ScrapedListing[] = query.data?.pages.flatMap((page) => page.data.items) ?? [];
+  const total = firstPage?.page.total ?? 0;
+  const clearFilters = () => setFilters(emptyScrapingFilters);
+
+  return <div className="page-stack">
+    <section className="operations-hero scraping-results-hero">
+      <div><span>SCRAPING WORKSPACE</span><h2>Collect and review vehicle inventory.</h2><p>Run the Docker scraper for a permitted source, then search the vehicle records persisted in Neon. The legacy SQS and Lambda worker remains available separately for portfolio demonstration.</p></div>
+      <div className="run-control scraping-hero-stats"><span>SCRAPED VEHICLES</span><strong>{total}</strong><small>{sites.length} configured sources</small></div>
+    </section>
+
+    <section className="surface scraping-filter-panel">
+      <div className="surface-head"><div><span>SEARCH SCOPE</span><h3>Vehicle filters</h3></div><button className="filter-button" type="button" onClick={clearFilters}>Clear filters</button></div>
+      <div className="scraping-filter-grid">
+        <label className="scraping-search-field">Car name or keyword<input value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} placeholder="Volkswagen Tiguan" /></label>
+        <label>Scraping site<select value={filters.siteId} onChange={(event) => setFilters({ ...filters, siteId: event.target.value })}><option value="">All sites</option>{sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></label>
+        <label>Minimum year<input type="number" min="1980" value={filters.minYear} onChange={(event) => setFilters({ ...filters, minYear: event.target.value })} /></label>
+        <label>Maximum year<input type="number" min="1980" value={filters.maxYear} onChange={(event) => setFilters({ ...filters, maxYear: event.target.value })} /></label>
+        <label>Maximum price<input type="number" min="0" value={filters.maxPrice} onChange={(event) => setFilters({ ...filters, maxPrice: event.target.value })} placeholder="50000" /></label>
+        <label>Maximum mileage<input type="number" min="0" value={filters.maxMileage} onChange={(event) => setFilters({ ...filters, maxMileage: event.target.value })} placeholder="120000" /></label>
+      </div>
+    </section>
+
+    <section className="surface scraping-site-grid"><div className="surface-head"><div><span>SCRAPER SOURCES</span><h3>Run a collection now</h3></div><RefreshCw size={16} className={query.isFetching ? "spin" : ""} /></div><div className="scraping-site-cards">{sites.map((site) => { const triggerable = sourceIsTriggerable(site); return <article className="scraping-site-card" key={site.id}><div className="source-monogram">{site.name.slice(0, 2).toUpperCase()}</div><div><strong>{site.name}</strong><small>{site.itemCount.toLocaleString()} stored listings{site.lastScrapedAt ? ` · last run ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : " · not run yet"}</small></div><button className="small-action" type="button" disabled={!canTrigger || !triggerable || trigger.isPending} onClick={() => trigger.mutate(site.id)}>{triggeringSiteId === site.id ? "Queueing…" : triggerable ? "Scrape now" : "Unavailable"}</button></article>; })}</div></section>
+
+    <section className="surface data-surface"><div className="surface-head"><div><span>SCRAPED INVENTORY</span><h3>{total.toLocaleString()} vehicle listings</h3></div><small>{query.isFetching ? "Refreshing…" : "Persisted in Neon"}</small></div>{items.length ? <div className="scraping-result-grid">{items.map((item) => <ScrapedResultCard key={item.id} item={item} />)}</div> : <div className="empty-state"><Car /><strong>No scraped vehicles match these filters</strong><span>Run a permitted source or clear a filter.</span></div>}{query.hasNextPage && <div className="pagination-actions"><button className="filter-button" type="button" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage}>{query.isFetchingNextPage ? "Loading more…" : "Load more vehicles"}</button></div>}</section>
+  </div>;
+}
+
+function ScrapedResultCard({ item }: { item: ScrapedListing }) {
+  return <article className="scraping-result-card"><div className="scraping-result-photo">{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.title} loading="lazy" /> : <div className="scraping-result-placeholder"><Car size={34} /><span>No image available</span></div>}<span className="scraping-result-source">{item.siteName}</span></div><div className="scraping-result-info"><small>{item.year ?? "YEAR UNAVAILABLE"}</small><h3>{item.title}</h3><p>{item.city ?? "Location unavailable"}</p><strong>{item.price ?? "Price unavailable"}</strong><div className="scraping-result-meta"><span>{item.mileage ?? "Mileage unavailable"}</span><span>{new Date(item.scrapedAt).toLocaleDateString("en-CA")}</span></div><a href={item.listingUrl} target="_blank" rel="noreferrer"><ExternalLink size={13} />Open source listing</a></div></article>;
+}
 
 export function SourceControlPage() {
   const queryClient = useQueryClient();

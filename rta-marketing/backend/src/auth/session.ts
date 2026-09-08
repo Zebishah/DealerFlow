@@ -146,6 +146,24 @@ export function requireWorkspace(request: Request): string {
   return request.user.workspaceId;
 }
 
+/**
+ * Tenant-facing routes must never silently fall back to platform-wide data.
+ * Platform operators are intentionally allowed to work without a workspace;
+ * workspace roles are not.
+ */
+export function requireWorkspaceForRoles(...roles: readonly UserRole[]) {
+  return (request: Request, _response: Response, next: NextFunction): void => {
+    try {
+      if (request.user && roles.includes(request.user.role)) {
+        requireWorkspace(request);
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
 export async function requireCsrf(request: Request, _response: Response, next: NextFunction) {
   try {
     await assertCsrf(request);

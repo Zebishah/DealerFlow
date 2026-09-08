@@ -1,9 +1,9 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { requireCsrf, requireSession } from "../../auth/session.js";
+import { requireCsrf, requireSession, requireWorkspaceForRoles } from "../../auth/session.js";
 import { db } from "../../db/client.js";
-import { listings, savedVehicles, sources, vehicles } from "../../db/schema.js";
+import { listings, savedScrapedItems, savedVehicles, scrapedItems, scrapingSites, sources, vehicles } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 
@@ -11,6 +11,63 @@ const uuidSchema = z.string().uuid();
 
 export const savedRouter = Router();
 savedRouter.use(requireSession);
+savedRouter.use(requireWorkspaceForRoles("admin", "employee", "virtual_assistant", "recruiter", "viewer"));
+
+savedRouter.get(
+  "/scraped",
+  asyncHandler(async (request, response) => {
+    const rows = await db
+      .select({
+        savedId: savedScrapedItems.id,
+        savedAt: savedScrapedItems.createdAt,
+        id: scrapedItems.id,
+        siteId: scrapedItems.siteId,
+        siteName: scrapingSites.name,
+        title: scrapedItems.title,
+        price: scrapedItems.price,
+        year: scrapedItems.year,
+        mileage: scrapedItems.mileage,
+        city: scrapedItems.city,
+        listingUrl: scrapedItems.listingUrl,
+        thumbnailUrl: scrapedItems.thumbnailUrl,
+        scrapedAt: scrapedItems.scrapedAt,
+      })
+      .from(savedScrapedItems)
+      .innerJoin(scrapedItems, eq(savedScrapedItems.scrapedItemId, scrapedItems.id))
+      .innerJoin(scrapingSites, eq(scrapedItems.siteId, scrapingSites.id))
+      .where(eq(savedScrapedItems.userId, request.user!.id))
+      .orderBy(desc(savedScrapedItems.createdAt));
+
+    response.json({ data: rows });
+  }),
+);
+
+savedRouter.post(
+  "/scraped/:scrapedItemId",
+  requireCsrf,
+  asyncHandler(async (request, response) => {
+    const scrapedItemId = z.coerce.number().int().positive().parse(request.params.scrapedItemId);
+    const [item] = await db.select({ id: scrapedItems.id }).from(scrapedItems).where(eq(scrapedItems.id, scrapedItemId)).limit(1);
+    if (!item) throw new AppError(404, "SCRAPED_ITEM_NOT_FOUND", "The scraped vehicle was not found");
+
+    const [saved] = await db
+      .insert(savedScrapedItems)
+      .values({ userId: request.user!.id, scrapedItemId })
+      .onConflictDoNothing()
+      .returning({ id: savedScrapedItems.id, createdAt: savedScrapedItems.createdAt });
+    response.status(saved ? 201 : 200).json({ data: saved ?? { alreadySaved: true } });
+  }),
+);
+
+savedRouter.delete(
+  "/scraped/:scrapedItemId",
+  requireCsrf,
+  asyncHandler(async (request, response) => {
+    const scrapedItemId = z.coerce.number().int().positive().parse(request.params.scrapedItemId);
+    await db.delete(savedScrapedItems).where(and(eq(savedScrapedItems.scrapedItemId, scrapedItemId), eq(savedScrapedItems.userId, request.user!.id)));
+    response.status(204).send();
+  }),
+);
 
 savedRouter.get(
   "/",
