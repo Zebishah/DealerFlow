@@ -75,14 +75,16 @@ export function createRedisConnectionConfig(config: RedisConfigSource): RedisOpt
 
     const connection: RedisOptions = {
       host: url.hostname,
-      port: Number(url.port) || (url.protocol === "rediss:" ? 6380 : 6379),
+      port: Number(url.port) || 6379,
       username: url.username ? decodeURIComponent(url.username) : undefined,
       password: url.password ? decodeURIComponent(url.password) : undefined,
       maxRetriesPerRequest: null,
     };
 
     if (url.protocol === "rediss:") {
-      connection.tls = { rejectUnauthorized: true };
+      // Northflank's public Redis endpoint requires SNI during the TLS handshake.
+      // Keep certificate verification enabled while explicitly identifying the host.
+      connection.tls = { rejectUnauthorized: true, servername: url.hostname };
     }
 
     return connection;
