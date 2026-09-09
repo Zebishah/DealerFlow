@@ -13,7 +13,8 @@
     "dev:api": "npm run dev --workspace=@rta/api",
     "dev:worker": "npm run dev --workspace=@rta/worker",
     "dev:frontend": "npm run dev --workspace=@rta/frontend",
-    "scrape:once": "tsx apps/worker/src/enqueue-once.ts"
+    "scrape:once": "tsx apps/worker/src/enqueue-once.ts",
+    "test": "tsx --test tests/*.test.ts"
   },
   "engines": {
     "node": ">=20"

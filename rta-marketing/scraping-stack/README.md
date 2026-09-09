@@ -43,14 +43,14 @@ The default production profile is intentionally small:
 
 - manual-only scraping (`MANUAL_SCRAPING_ONLY=true`);
 - exactly one BullMQ worker and one active scrape at a time;
-- 10 vehicles by default and never more than 20 per run;
+- 5 vehicles by default and never more than 10 per run;
 - one Chromium instance, one page at a time, with images/media/fonts blocked;
 - 30-second navigation, 15-second selector, and 120-second overall job limits;
-- active-job locking and deterministic job IDs prevent repeated dashboard clicks;
+- Redis-backed rate limiting, active-job locking, and deterministic job IDs prevent repeated dashboard clicks;
 - Chromium is created per browser job and torn down before the worker becomes
   idle again.
 
-The dashboard lets a presenter request a smaller limit. The API clamps every
+The dashboard lets a presenter request a smaller limit. The API validates every
 request server-side, so a client cannot start an unbounded crawl.
 
 ## Repository map
@@ -90,8 +90,10 @@ VITE_API_URL=http://localhost:4000 npm run dev
 ```
 
 The dashboard queues a site-specific job. The worker performs the crawl and
-writes normalized listings to Neon. A 15-second per-source cooldown prevents
-accidental duplicate clicks.
+writes normalized listings to Neon. In production, the Vercel server-side
+proxy forwards the recruiter access code to Render for a short-lived
+Redis-backed HTTP-only session. The browser never receives the private trigger
+token, and neither production secret is placed in the frontend build.
 
 ## Manual scraping
 
@@ -143,13 +145,33 @@ DATABASE_URL=<Neon pooled URL>
 REDIS_URL=<exact Northflank TLS connection URL>
 API_PORT=10000
 CORS_ORIGIN=<Vercel production URL>
+SCRAPE_TRIGGER_TOKEN=<32+ character secret; Render secret, never Vercel>
+SCRAPE_ACCESS_CODE=<16+ character recruiter access code; Render secret>
+SCRAPE_SESSION_TTL_SECONDS=28800
+SCRAPE_AUTH_RATE_LIMIT_MAX=5
 SCRAPER_USER_AGENT=<truthful contact URL>
 SCRAPER_SITES_JSON=<exact JSON from .env.example>
-SCRAPE_DEFAULT_LIMIT=10
-SCRAPE_MAX_LIMIT=20
+SCRAPE_DEFAULT_LIMIT=5
+SCRAPE_MAX_LIMIT=10
 WORKER_CONCURRENCY=1
 MANUAL_SCRAPING_ONLY=true
+SCRAPE_NAVIGATION_TIMEOUT_MS=30000
+SCRAPE_SELECTOR_TIMEOUT_MS=15000
+SCRAPE_JOB_TIMEOUT_MS=120000
+SCRAPE_LOCK_TTL_SECONDS=900
+SCRAPE_RATE_LIMIT_WINDOW_MS=60000
+SCRAPE_RATE_LIMIT_MAX=3
 ```
+
+Vercel frontend:
+
+```text
+VITE_API_URL=https://<render-service>.onrender.com
+SCRAPE_API_URL=https://<render-service>.onrender.com       # server-only
+```
+
+Only `VITE_API_URL` is public. `SCRAPE_API_URL` is used only by the Vercel
+server-side proxy; never prefix it with `VITE_`.
 
 Azure worker:
 
@@ -160,10 +182,16 @@ REDIS_URL=<same Northflank TLS connection URL>
 SCRAPER_USER_AGENT=<truthful contact URL>
 CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 SCRAPER_SITES_JSON=<exact JSON from .env.example>
-SCRAPE_DEFAULT_LIMIT=10
-SCRAPE_MAX_LIMIT=20
+SCRAPE_DEFAULT_LIMIT=5
+SCRAPE_MAX_LIMIT=10
 WORKER_CONCURRENCY=1
 MANUAL_SCRAPING_ONLY=true
+SCRAPE_NAVIGATION_TIMEOUT_MS=30000
+SCRAPE_SELECTOR_TIMEOUT_MS=15000
+SCRAPE_JOB_TIMEOUT_MS=120000
+SCRAPE_LOCK_TTL_SECONDS=900
+SCRAPE_RATE_LIMIT_WINDOW_MS=60000
+SCRAPE_RATE_LIMIT_MAX=3
 ```
 
 Do not put `REDIS_HOST=localhost` in either hosted service. Do not copy Redis

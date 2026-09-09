@@ -1,8 +1,8 @@
 import { rm, writeFile } from "node:fs/promises";
-import { Queue, Worker } from "bullmq";
+import { Queue, UnrecoverableError, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { closeDatabase, persistScrapedItems, verifyDatabase } from "@rta/db";
-import { createRedisConnectionConfig, loadConfig, logger } from "@rta/shared";
+import { createRedisConnectionConfig, loadConfig, logger, parseScrapeLimit, SCRAPE_LOCK_KEY, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT } from "@rta/shared";
 import { scrapeSite } from "@rta/scrapers";
 
 const config = loadConfig();
@@ -10,20 +10,26 @@ const connection = createRedisConnectionConfig(config);
 const queue = new Queue("vehicle-scrape", { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5_000 }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } } });
 
 type ScrapeJobData = { type: "scrape-all-sites"; siteKey: string; limit?: number; lockToken?: string };
-const scrapeLockKey = "rta:scrape:active";
 const lockRedis = new Redis({ ...connection, lazyConnect: true });
 
 async function releaseScrapeLock(lockToken?: string): Promise<void> {
   if (!lockToken) return;
   if (lockRedis.status === "wait") await lockRedis.connect();
-  await lockRedis.eval("if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", 1, scrapeLockKey, lockToken);
+  await lockRedis.eval(SCRAPE_LOCK_RELEASE_SCRIPT, 1, SCRAPE_LOCK_KEY, lockToken);
+}
+
+async function refreshScrapeLock(lockToken?: string): Promise<void> {
+  if (!lockToken) return;
+  if (lockRedis.status === "wait") await lockRedis.connect();
+  const refreshed = await lockRedis.eval(SCRAPE_LOCK_REFRESH_SCRIPT, 1, SCRAPE_LOCK_KEY, lockToken, String(config.SCRAPE_LOCK_TTL_SECONDS));
+  if (Number(refreshed) !== 1) throw new Error("scrape lock is no longer owned by this worker");
 }
 
 async function scrapeAllSites(siteKey: string, requestedLimit = config.SCRAPE_DEFAULT_LIMIT): Promise<void> {
   if (!config.sites.length) { logger.warn("no sites configured; provide SCRAPER_SITES_JSON before enabling real scraping"); return; }
   const sites = config.sites.filter((site) => site.key === siteKey);
   if (!sites.length) throw new Error(`site key is not configured: ${siteKey}`);
-  const limit = Math.min(Math.max(Math.trunc(requestedLimit), 1), config.SCRAPE_MAX_LIMIT);
+  const limit = parseScrapeLimit(requestedLimit, config.SCRAPE_DEFAULT_LIMIT, config.SCRAPE_MAX_LIMIT);
   const failures: string[] = [];
   for (const site of sites) {
     const startedAt = Date.now();
@@ -50,7 +56,21 @@ async function scrapeAllSites(siteKey: string, requestedLimit = config.SCRAPE_DE
 
 for (const site of config.sites) await persistScrapedItems(site, []);
 const worker = new Worker<ScrapeJobData>("vehicle-scrape", async (job) => {
-  await scrapeAllSites(job.data.siteKey, job.data.limit ?? config.SCRAPE_DEFAULT_LIMIT);
+  const refreshInterval = job.data.lockToken ? setInterval(() => {
+    void refreshScrapeLock(job.data.lockToken).catch((error) => logger.warn({ err: error }, "could not refresh scrape lock"));
+  }, Math.max(1_000, Math.floor(config.SCRAPE_LOCK_TTL_SECONDS * 1_000 / 3))) : undefined;
+  try {
+    if (!job.data.siteKey) throw new UnrecoverableError("siteKey is required; one source must be selected");
+    parseScrapeLimit(job.data.limit, config.SCRAPE_DEFAULT_LIMIT, config.SCRAPE_MAX_LIMIT);
+    if (!config.sites.some((site) => site.key === job.data.siteKey)) throw new UnrecoverableError("site key is not configured");
+    await scrapeAllSites(job.data.siteKey, job.data.limit ?? config.SCRAPE_DEFAULT_LIMIT);
+  } catch (error) {
+    if (error instanceof UnrecoverableError) throw error;
+    if (error instanceof Error && /limit must|limit cannot exceed/.test(error.message)) throw new UnrecoverableError(error.message);
+    throw error;
+  } finally {
+    if (refreshInterval) clearInterval(refreshInterval);
+  }
 }, { connection, concurrency: config.WORKER_CONCURRENCY });
 worker.on("completed", (job) => {
   void releaseScrapeLock(job.data.lockToken).catch((error) => logger.warn({ err: error }, "could not release scrape lock"));
@@ -58,7 +78,7 @@ worker.on("completed", (job) => {
 });
 worker.on("failed", (job, error) => {
   const attempts = job?.opts.attempts ?? 1;
-  if (job && job.attemptsMade >= attempts) {
+  if (job && (job.attemptsMade >= attempts || error instanceof UnrecoverableError || error?.name === "UnrecoverableError")) {
     void releaseScrapeLock(job.data.lockToken).catch((releaseError) => logger.warn({ err: releaseError }, "could not release scrape lock"));
   }
   logger.error({ jobId: job?.id, siteKey: job?.data.siteKey, err: error }, "scrape job failed");

@@ -2,6 +2,8 @@ import "dotenv/config";
 import type { RedisOptions } from "ioredis";
 import { z } from "zod";
 import pino from "pino";
+import { assertSafeScraperUrl } from "./security.js";
+export { assertSafeScraperUrl, canReleaseScrapeLock, isScrapeTokenValid, manualScrapeJobId, rateLimitDecision, SCRAPE_LOCK_KEY, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT, secretsEqual } from "./security.js";
 
 export const logger = pino({
   base: undefined,
@@ -46,27 +48,67 @@ export const appConfigSchema = z.object({
   SCRAPER_USER_AGENT: z.string().min(10).default("RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)"),
   CHROMIUM_EXECUTABLE_PATH: z.string().optional(),
   SCRAPER_SITES_JSON: z.string().default("[]"),
-  SCRAPE_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(20).default(10),
-  SCRAPE_MAX_LIMIT: z.coerce.number().int().min(1).max(20).default(20),
+  SCRAPE_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10).default(5),
+  SCRAPE_MAX_LIMIT: z.coerce.number().int().min(1).max(10).default(10),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(1).default(1),
   MANUAL_SCRAPING_ONLY: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
   SCRAPE_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(30_000),
   SCRAPE_SELECTOR_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
   SCRAPE_JOB_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(300_000).default(120_000),
   SCRAPE_LOCK_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
+  SCRAPE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
+  SCRAPE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(20).default(3),
+  SCRAPE_AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(20).default(5),
+  SCRAPE_TRIGGER_TOKEN: z.string().min(32).optional(),
+  SCRAPE_ACCESS_CODE: z.string().min(16).optional(),
+  SCRAPE_SESSION_TTL_SECONDS: z.coerce.number().int().min(300).max(86_400).default(28_800),
 });
 
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type ScrapedItem = z.infer<typeof scrapedItemSchema>;
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
-export function loadConfig() {
+export function loadConfig(options: { requireScrapeAuth?: boolean } = {}) {
   const config = appConfigSchema.parse(process.env);
+  if (options.requireScrapeAuth && config.NODE_ENV === "production" && (!config.SCRAPE_TRIGGER_TOKEN || !config.SCRAPE_ACCESS_CODE)) {
+    throw new Error("SCRAPE_TRIGGER_TOKEN and SCRAPE_ACCESS_CODE are required in production");
+  }
+  if (options.requireScrapeAuth && config.NODE_ENV === "production" && config.CORS_ORIGIN === "*") {
+    throw new Error("CORS_ORIGIN must be a specific frontend origin in production");
+  }
   if (config.SCRAPE_DEFAULT_LIMIT > config.SCRAPE_MAX_LIMIT) {
     throw new Error("SCRAPE_DEFAULT_LIMIT cannot exceed SCRAPE_MAX_LIMIT");
   }
+  const minimumLockTtlSeconds = Math.ceil((config.SCRAPE_JOB_TIMEOUT_MS * 3 + 10_000) / 1_000);
+  if (config.SCRAPE_LOCK_TTL_SECONDS < minimumLockTtlSeconds) {
+    throw new Error(`SCRAPE_LOCK_TTL_SECONDS must be at least ${minimumLockTtlSeconds} seconds for the configured job timeout and retries`);
+  }
   const sites = z.array(siteConfigSchema).parse(JSON.parse(config.SCRAPER_SITES_JSON));
+  for (const site of sites) assertSafeScraperUrl(site.baseUrl);
   return { ...config, sites };
+}
+
+export function parseScrapeLimit(value: unknown, defaultLimit: number, maxLimit: number): number {
+  if (value === undefined) return defaultLimit;
+  if (typeof value !== "number" || !Number.isInteger(value)) throw new Error("limit must be an integer");
+  if (value < 1) throw new Error("limit must be at least 1");
+  if (value > maxLimit) throw new Error(`limit cannot exceed ${maxLimit}`);
+  return value;
+}
+
+export function assertSingleSourcePayload(value: unknown): void {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("request body must be an object");
+  const body = value as Record<string, unknown>;
+  const unsupportedKeys = Object.keys(body).filter((key) => !["siteKey", "limit"].includes(key));
+  if (unsupportedKeys.length) throw new Error("only siteKey and limit are accepted");
+  if ("siteKey" in body && typeof body.siteKey !== "string") throw new Error("siteKey must be a string");
+}
+
+export function findConfiguredSite(siteKey: string, sites: SiteConfig[]): SiteConfig {
+  const site = sites.find((configuredSite) => configuredSite.key === siteKey);
+  if (!site) throw new Error("site key is not configured");
+  return site;
 }
 
 type RedisConfigSource = Pick<AppConfig, "REDIS_URL" | "REDIS_HOST" | "REDIS_PORT" | "REDIS_PASSWORD">;

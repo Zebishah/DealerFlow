@@ -1,14 +1,10 @@
 import { Queue } from "bullmq";
-import { createRedisConnectionConfig, loadConfig } from "@rta/shared";
+import { createRedisConnectionConfig, loadConfig, manualScrapeJobId, parseScrapeLimit } from "@rta/shared";
 
 const config = loadConfig();
 const requestedSite = process.argv.slice(2).find((argument) => argument.startsWith("--site="))?.slice("--site=".length);
 const requestedLimitValue = process.argv.slice(2).find((argument) => argument.startsWith("--limit="))?.slice("--limit=".length);
-const requestedLimit = requestedLimitValue === undefined
-  ? config.SCRAPE_DEFAULT_LIMIT
-  : Math.min(Math.max(Math.trunc(Number(requestedLimitValue)), 1), config.SCRAPE_MAX_LIMIT);
-
-if (!Number.isFinite(requestedLimit)) throw new Error("--limit must be a number");
+const requestedLimit = parseScrapeLimit(requestedLimitValue === undefined ? undefined : Number(requestedLimitValue), config.SCRAPE_DEFAULT_LIMIT, config.SCRAPE_MAX_LIMIT);
 if (!requestedSite) throw new Error("--site=<site-key> is required; only one source may run per job");
 
 if (requestedSite && !config.sites.some((site) => site.key === requestedSite)) {
@@ -20,10 +16,10 @@ const queue = new Queue("vehicle-scrape", { connection });
 const activeJobs = await queue.getJobs(["waiting", "active", "delayed", "prioritized", "paused"], 0, 0);
 if (activeJobs.length) throw new Error(`A scrape is already queued or running (${activeJobs[0]?.id ?? "unknown job"}). Wait for it to finish.`);
 
-const jobId = `manual-${requestedSite}`;
+const jobId = manualScrapeJobId(requestedSite);
 const previousJob = await queue.getJob(jobId);
 if (previousJob) await previousJob.remove();
-const job = await queue.add(`manual-${requestedSite}`, {
+const job = await queue.add(manualScrapeJobId(requestedSite), {
   type: "scrape-all-sites",
   limit: requestedLimit,
   siteKey: requestedSite,

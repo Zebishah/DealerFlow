@@ -83,16 +83,22 @@ DATABASE_URL=<Neon pooled connection string>
 REDIS_URL=<exact Northflank rediss:// connection URL>
 API_PORT=10000
 CORS_ORIGIN=https://<final-vercel-domain>
+SCRAPE_TRIGGER_TOKEN=<32+ character random secret; mark as a Render secret>
+SCRAPE_ACCESS_CODE=<16+ character recruiter access code; mark as a Render secret>
+SCRAPE_SESSION_TTL_SECONDS=28800
+SCRAPE_AUTH_RATE_LIMIT_MAX=5
 SCRAPER_USER_AGENT=RTA-Portfolio-Scraper/1.0 (+https://<your-contact-domain>)
 SCRAPER_SITES_JSON=<exact JSON from .env.example>
-SCRAPE_DEFAULT_LIMIT=10
-SCRAPE_MAX_LIMIT=20
+SCRAPE_DEFAULT_LIMIT=5
+SCRAPE_MAX_LIMIT=10
 WORKER_CONCURRENCY=1
 MANUAL_SCRAPING_ONLY=true
 SCRAPE_NAVIGATION_TIMEOUT_MS=30000
 SCRAPE_SELECTOR_TIMEOUT_MS=15000
 SCRAPE_JOB_TIMEOUT_MS=120000
 SCRAPE_LOCK_TTL_SECONDS=900
+SCRAPE_RATE_LIMIT_WINDOW_MS=60000
+SCRAPE_RATE_LIMIT_MAX=3
 ```
 
 The API only validates a source and enqueues `vehicle-scrape`; it does not
@@ -102,6 +108,11 @@ launch Chromium. After deployment, test:
 curl --fail https://<render-service>.onrender.com/health
 curl --fail https://<render-service>.onrender.com/api/sites
 ```
+
+The frontend presents an access form to the same-origin Vercel server function
+and receives only an HttpOnly session cookie created by Render. The Vercel
+function forwards that cookie to Render; the raw trigger token is never
+included in browser JavaScript or API responses.
 
 The health response must report both database and Redis as healthy. If Render
 does not route to port 10000, confirm that the service variable is exactly
@@ -276,8 +287,8 @@ REDIS_URL=<exact Northflank rediss:// connection URL>
 SCRAPER_USER_AGENT=RTA-Portfolio-Scraper/1.0 (+https://<your-contact-domain>)
 CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 SCRAPER_SITES_JSON=<exact JSON from .env.example>
-SCRAPE_DEFAULT_LIMIT=10
-SCRAPE_MAX_LIMIT=20
+SCRAPE_DEFAULT_LIMIT=5
+SCRAPE_MAX_LIMIT=10
 WORKER_CONCURRENCY=1
 MANUAL_SCRAPING_ONLY=true
 SCRAPE_NAVIGATION_TIMEOUT_MS=30000
@@ -285,6 +296,9 @@ SCRAPE_SELECTOR_TIMEOUT_MS=15000
 SCRAPE_JOB_TIMEOUT_MS=120000
 SCRAPE_LOCK_TTL_SECONDS=900
 ```
+
+The Azure worker does not need `SCRAPE_TRIGGER_TOKEN`; it only consumes the
+already-authorized BullMQ jobs from Redis.
 
 The `SCRAPER_SITES_JSON` value must be one valid JSON string. Copy the complete
 value from `.env.example`; do not replace it with a JavaScript object or a
@@ -367,11 +381,18 @@ docker exec rta-worker node apps/worker/dist/enqueue-once.js --site=pakwheels
 docker logs -f rta-worker
 ```
 
-The API may also enqueue the job:
+The API may also enqueue the job after an authenticated session is created:
 
 ```bash
-curl --fail -X POST https://<render-service>.onrender.com/api/scrape/pakwheels
+curl -c /tmp/rta-scrape-cookies -X POST https://<render-service>.onrender.com/api/scrape-session \
+  -H 'Content-Type: application/json' \
+  -d '{"accessCode":"<recruiter-access-code>"}'
+curl --fail -X POST https://<render-service>.onrender.com/api/scrape/pakwheels \
+  -b /tmp/rta-scrape-cookies
 ```
+
+For a portfolio demonstration, use the Vercel dashboard access form instead
+of putting the access code in shell history.
 
 The worker should log a completed job and the result should appear in Neon and
 through `/api/sites`. Test the OLX source separately because it exercises the
@@ -381,6 +402,7 @@ For the API end-to-end path, use one request and watch the returned job:
 
 ```bash
 curl --fail -X POST https://<render-service>.onrender.com/api/scrape/olx-pakistan \
+  -b /tmp/rta-scrape-cookies \
   -H 'Content-Type: application/json' \
   -d '{"limit":10}'
 docker logs -f rta-worker
@@ -394,11 +416,12 @@ Verify the server-side hard cap with:
 
 ```bash
 curl --fail -X POST https://<render-service>.onrender.com/api/scrape/pakwheels \
+  -b /tmp/rta-scrape-cookies \
   -H 'Content-Type: application/json' \
   -d '{"limit":999}'
 ```
 
-The returned job data must show `limit: 20` or less.
+The returned job data must show `limit: 10` or less.
 
 ## 9. Vercel frontend
 
@@ -412,11 +435,100 @@ Create a Vercel project from `Zebishah/Rta-mark`:
 | Output directory | `dist` |
 | Environment variable | `VITE_API_URL=https://<render-service>.onrender.com` |
 
+Add these as Vercel **server-only** environment variables. Do not prefix them
+with `VITE_`:
+
+```text
+SCRAPE_API_URL=https://<render-service>.onrender.com
+```
+
 After Vercel gives the final production URL, set the same URL as Render’s
 `CORS_ORIGIN` and redeploy Render. Confirm the browser Network panel shows
-successful API calls with no CORS errors.
+successful credentialed API calls with no CORS errors. The dashboard’s access
+form talks to the same-origin Vercel server function, which forwards the
+private code and session cookie to Render. The raw trigger token is not stored
+in browser storage or the frontend build.
 
-## 10. Cost controls and rollback
+## 10. GitHub Actions worker CI/CD
+
+The workflow is [`.github/workflows/worker-ci.yml`](../../.github/workflows/worker-ci.yml).
+It runs validation for pull requests, and on `portfolio-hardening` pushes it
+also builds and pushes the worker image before deploying it to Azure. Manual
+redeploys are available through **Actions → Worker CI/CD → Run workflow**.
+Pull requests never deploy.
+
+The exact image names are:
+
+```text
+ghcr.io/zebishah/rta-worker:latest
+ghcr.io/zebishah/rta-worker:<commit-sha>
+```
+
+GitHub repository secrets required by the deployment job:
+
+| Secret | Purpose |
+| --- | --- |
+| `AZURE_VM_HOST` | Azure VM public hostname or IP |
+| `AZURE_VM_USER` | SSH user, normally `azureuser` |
+| `AZURE_VM_SSH_KEY` | Private Ed25519 key for the VM |
+| `AZURE_VM_KNOWN_HOSTS` | Reviewed `ssh-keyscan -H` output for the VM |
+| `GHCR_USERNAME` | GitHub username with package read access |
+| `GHCR_READ_TOKEN` | GitHub PAT with only `read:packages` for Azure pulls |
+
+The workflow uses its ephemeral `GITHUB_TOKEN` with `packages:write` to publish
+GHCR images. The Azure VM logs into GHCR using the read-only PAT before
+pulling. No runtime environment variable is passed to Docker during the image
+build.
+
+One-time setup on the VM:
+
+```bash
+mkdir -p ~/rta-worker
+chmod 600 ~/rta-worker/.env
+docker login ghcr.io
+```
+
+The workflow repeats the GHCR login non-interactively, copies
+`deploy/azure/deploy-worker.sh`, and runs it with the commit SHA image. The
+script reuses `~/rta-worker/.env`, keeps exactly one `rta-worker` container,
+waits for the health file and startup logs, checks restart count, and prunes
+only dangling images after success.
+
+The known-hosts value should be reviewed before saving it as a secret:
+
+```bash
+ssh-keyscan -H <AZURE_PUBLIC_IP>
+```
+
+Do not use `StrictHostKeyChecking=no` in the workflow.
+
+Manual deployment fallback from Fedora or another trusted machine:
+
+```bash
+scp -i ~/.ssh/azure_rta_worker deploy/azure/deploy-worker.sh azureuser@<AZURE_PUBLIC_IP>:~/rta-worker/
+ssh -i ~/.ssh/azure_rta_worker azureuser@<AZURE_PUBLIC_IP> \
+  'chmod 700 ~/rta-worker/deploy-worker.sh && ~/rta-worker/deploy-worker.sh ghcr.io/zebishah/rta-worker:<commit-sha>'
+```
+
+Manual rollback on Azure uses the image reference saved before the last
+successful replacement:
+
+```bash
+cat ~/rta-worker/previous-image
+~/rta-worker/deploy-worker.sh "$(cat ~/rta-worker/previous-image)"
+```
+
+If a deployment fails validation, the script automatically removes the
+candidate and restores the previous container. Inspect the VM with:
+
+```bash
+docker ps -a
+docker logs --tail=150 rta-worker
+docker stats --no-stream rta-worker
+docker inspect --format '{{.RestartCount}}' rta-worker
+```
+
+## 11. Cost controls and rollback
 
 Set a small Azure budget and email alert from **Cost Management → Budgets**.
 Also check **Subscriptions → Free services** at least once per day during the
@@ -431,28 +543,13 @@ For this portfolio worker, avoid adding Azure services that are not required:
 - no extra managed disks or snapshots;
 - no public inbound port except restricted SSH.
 
-Tag every image before upgrading:
+Use `deploy/azure/deploy-worker.sh` for manual upgrades and rollback as
+described above. It keeps the previous image reference until the replacement
+passes startup validation, then removes only the previous stopped container
+and dangling layers. Do not remove the previous image until rollback is no
+longer needed.
 
-```bash
-docker build -f apps/worker/Dockerfile -t rta-worker:2026-09-09 .
-docker stop rta-worker
-docker rename rta-worker rta-worker-previous
-docker run -d --name rta-worker --restart unless-stopped --init --env-file .env rta-worker:2026-09-09
-```
-
-If the new worker fails, restore the previous image:
-
-```bash
-docker rm -f rta-worker
-docker rename rta-worker-previous rta-worker
-docker start rta-worker
-```
-
-Keep only a small number of old images and remove them deliberately after the
-new deployment is verified. Do not remove the previous image until rollback is
-no longer needed.
-
-## 11. Final checklist
+## 12. Final checklist
 
 - [ ] Northflank Redis is authenticated and TLS-enabled.
 - [ ] Render `/health` reports Neon and Redis healthy.
