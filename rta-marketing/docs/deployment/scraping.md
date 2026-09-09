@@ -51,7 +51,7 @@ Set these Render environment variables:
 NODE_ENV=production
 DATABASE_URL=<Neon pooled connection string>
 REDIS_URL=<Northflank rediss:// connection URL>
-API_PORT=4000
+API_PORT=10000
 CORS_ORIGIN=https://<scraping-web-domain>
 SCRAPE_TRIGGER_TOKEN=<32+ character random secret>
 SCRAPE_ACCESS_CODE=<16+ character recruiter access code>
@@ -89,6 +89,10 @@ SCRAPE_API_URL=https://<render-scraping-api-domain>
 is used only by the Vercel server function and must not be prefixed with
 `VITE_`. The access code is entered by the presenter and exchanged for a
 short-lived HttpOnly session.
+
+The Vercel project root is `rta-marketing`; the root `api/[...path].ts` file
+is the deployment adapter for the authenticated scrape-session and scrape
+trigger routes. The application itself remains in `apps/scraping-web`.
 
 ## Azure: scraping-worker
 

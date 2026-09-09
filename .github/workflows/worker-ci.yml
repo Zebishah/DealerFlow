@@ -50,7 +50,7 @@ jobs:
         run: npm run lint --if-present
 
       - name: Typecheck Vercel server function
-        run: npx tsc --noEmit --target ES2020 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --types node 'apps/scraping-web/api/[...path].ts'
+        run: npx tsc --noEmit --target ES2020 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --types node 'api/[...path].ts'
 
       - name: Build worker image
         run: docker build -f apps/scraping-worker/Dockerfile -t rta-worker:ci .
