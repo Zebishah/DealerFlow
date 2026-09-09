@@ -4,12 +4,18 @@ This document records design choices implemented in the portfolio branch. It avo
 
 ## System boundary
 
-RTA is a modular monolith with a separately deployed ingestion worker. The API owns authentication, catalog queries, run commands, and reliable job publication. The worker owns source acquisition, validation, normalization, identity resolution, and persistence.
+RTA is a modular monolith with a separately deployed ingestion worker. The API
+owns authentication, catalog queries, and persistence-facing commands. The
+repository also retains an isolated SQS/Lambda ingestion reference path for
+portfolio showcase; it is disabled by default. The separate scraping worker
+owns source acquisition, validation, normalization, identity resolution, and
+persistence.
 
 The scraping stack is intentionally isolated from the primary RTA API. It is a
 small Docker Compose application on Oracle containing the scraping API, a
-BullMQ worker, and private Redis. The primary RTA API continues to use its
-existing AWS SQS/Lambda path.
+BullMQ worker, and private Redis. The primary RTA API retains an AWS
+SQS/Lambda reference path, but its dispatcher and Lambda event mappings are
+disabled by default for the portfolio runtime.
 
 ## Reliable job creation
 
@@ -19,7 +25,7 @@ A scrape request writes three kinds of records in one PostgreSQL transaction:
 2. One `source_runs` record per selected source.
 3. One `job_outbox` record per source job.
 
-The outbox dispatcher claims rows with `FOR UPDATE SKIP LOCKED`, publishes them to SQS, and records successful publication. Failed publications use bounded exponential backoff. An abandoned `processing` lease is reclaimed after two minutes.
+When explicitly enabled, the outbox dispatcher claims rows with `FOR UPDATE SKIP LOCKED`, publishes them to SQS, and records successful publication. Failed publications use bounded exponential backoff. An abandoned `processing` lease is reclaimed after two minutes. In the portfolio default, rows remain as an inspectable reference without an AWS network call.
 
 This closes the failure window where PostgreSQL commits but the API process exits before calling SQS. If SQS accepts a job and the outbox acknowledgement fails, the job can be published twice; ingestion is designed to tolerate that.
 
@@ -36,7 +42,11 @@ These constraints enforce correctness in PostgreSQL instead of relying only on a
 
 ## Queue semantics
 
-Amazon SQS provides durable at-least-once delivery. Lambda receives one message per batch and returns partial batch failure information. The event source mapping caps concurrency at two. Local workers use long polling and extend message visibility while a browser job is running.
+The retained Amazon SQS reference path provides durable at-least-once delivery
+when explicitly enabled. Lambda receives one message per batch and returns
+partial batch failure information. The event source mapping caps concurrency at
+two. Local workers use long polling and extend message visibility while a
+browser job is running.
 
 The DLQ isolates repeatedly failing messages. A dedicated reconciliation Lambda consumes terminal DLQ records, marks the related source run `dead_letter`, and recomputes the parent acquisition run. CloudWatch alarms remain responsible for notifying operators.
 
@@ -48,9 +58,10 @@ The DLQ isolates repeatedly failing messages. A dedicated reconciliation Lambda 
 - Live scraping has independent API and worker kill switches.
 - Zod validates requests, queue messages, and raw listing records.
 - Helmet, strict CORS, request limits, rate limiting, safe errors, request IDs, and structured redacted logging are enabled.
-- AWS Lambda uses an IAM execution role; the primary API uses narrowly scoped
-  SQS producer credentials. The scraping API uses its private Compose Redis
-  connection and does not expose Redis publicly.
+- The retained AWS Lambda/SQS implementation uses an IAM execution role and
+  narrowly scoped producer permissions when explicitly enabled. The default
+  portfolio runtime does not call AWS SQS. The scraping API uses its private
+  Compose Redis connection and does not expose Redis publicly.
 
 ## Caching and performance
 

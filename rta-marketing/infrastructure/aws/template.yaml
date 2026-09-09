@@ -18,6 +18,11 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional @sparticuz/chromium x86_64 layer ARN for live scraping
+  EnableSqsTrigger:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Enable only for an explicitly configured AWS showcase deployment
 
 Conditions:
   HasChromiumLayer: !Not [!Equals [!Ref ChromiumLayerArn, ""]]
@@ -76,7 +81,7 @@ Resources:
             FunctionResponseTypes: [ReportBatchItemFailures]
             ScalingConfig:
               MaximumConcurrency: 2
-            Enabled: true
+            Enabled: !Equals [!Ref EnableSqsTrigger, "true"]
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -121,7 +126,7 @@ Resources:
             FunctionResponseTypes: [ReportBatchItemFailures]
             ScalingConfig:
               MaximumConcurrency: 2
-            Enabled: true
+            Enabled: !Equals [!Ref EnableSqsTrigger, "true"]
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

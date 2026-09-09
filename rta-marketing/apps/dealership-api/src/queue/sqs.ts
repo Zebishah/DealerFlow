@@ -5,6 +5,9 @@ import type { ScrapeJob } from "../contracts/scrape.js";
 const client = new SQSClient({ region: env.AWS_REGION });
 
 export async function publishScrapeJob(job: ScrapeJob): Promise<string> {
+  if (!env.SQS_INTEGRATION_ENABLED || !env.SQS_SCRAPE_QUEUE_URL) {
+    throw new Error("SQS integration is disabled in showcase mode");
+  }
   const response = await client.send(
     new SendMessageCommand({
       QueueUrl: env.SQS_SCRAPE_QUEUE_URL,

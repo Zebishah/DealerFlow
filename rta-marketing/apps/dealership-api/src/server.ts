@@ -7,7 +7,9 @@ import { startOutboxDispatcher } from "./queue/outbox.js";
 import { logger } from "./lib/logger.js";
 
 const server = createServer(createApp());
-const stopOutboxDispatcher = startOutboxDispatcher();
+const stopOutboxDispatcher = env.SQS_INTEGRATION_ENABLED
+  ? startOutboxDispatcher()
+  : () => undefined;
 
 server.listen(env.PORT, env.HOST, () => {
   logger.info({ host: env.HOST, port: env.PORT }, "RTA API listening");

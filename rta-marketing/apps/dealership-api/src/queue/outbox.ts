@@ -57,6 +57,7 @@ async function publishRow(row: ClaimedRow): Promise<void> {
 }
 
 export async function dispatchOutbox(): Promise<number> {
+  if (!env.SQS_INTEGRATION_ENABLED) return 0;
   if (dispatching) return 0;
   dispatching = true;
   try {

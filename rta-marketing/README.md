@@ -2,8 +2,9 @@
 
 RTA is a portfolio-grade dealership operations platform with a separate,
 manual vehicle-scraping subsystem. The boundaries are intentional: the
-dealership platform uses AWS SQS/Lambda, while scraping runs through BullMQ,
-Redis, and a dedicated browser-capable worker.
+dealership platform retains an isolated AWS SQS/Lambda reference implementation
+for portfolio showcase, while scraping runs through BullMQ, Redis, and a
+dedicated browser-capable worker.
 
 ## Applications
 
@@ -29,7 +30,7 @@ because it has a different deployment and data responsibility.
 ```mermaid
 flowchart LR
   DW[dealership-web] --> DA[dealership-api]
-  DA --> AWS[AWS SQS + Lambda]
+  DA --> AWS[AWS SQS + Lambda reference path\n(disabled by default)]
   DA --> N[Neon PostgreSQL]
   SW[scraping-web] --> SA[scraping-api]
   SA --> R[Northflank Redis]

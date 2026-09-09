@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { jobOutbox, scrapeRuns, sourceRuns, sources } from "../../db/schema.js";
 import { scrapeFiltersSchema, type CreateScrapeRunInput, type ScrapeJob, type SourceKey } from "../../contracts/scrape.js";
+import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
 import { dispatchOutbox } from "../../queue/outbox.js";
 
@@ -94,7 +95,7 @@ export async function createScrapeRun(
     return { run: newRun, reused: false };
   });
 
-  if (!result.reused) {
+  if (!result.reused && env.SQS_INTEGRATION_ENABLED) {
     await dispatchOutbox();
   }
 

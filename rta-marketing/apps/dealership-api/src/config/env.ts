@@ -34,9 +34,10 @@ const envSchema = z
       .min(1_000)
       .default(5_000),
     QUEUE_PROVIDER: z.literal("sqs").default("sqs"),
+    SQS_INTEGRATION_ENABLED: optionalBooleanString.default(false),
     AWS_REGION: z.string().min(1),
     AWS_PROFILE: z.string().min(1).optional(),
-    SQS_SCRAPE_QUEUE_URL: z.string().url(),
+    SQS_SCRAPE_QUEUE_URL: z.string().url().optional(),
     SCRAPING_STACK_API_URL: z.string().url().default("http://localhost:4000"),
     S3_DOCUMENT_BUCKET: z.string().min(3).max(63).optional(),
     DOCUMENT_UPLOAD_MAX_BYTES: z.coerce
@@ -96,6 +97,13 @@ const envSchema = z
         code: "custom",
         path: ["SESSION_COOKIE_SECURE"],
         message: "SESSION_COOKIE_SECURE must be true when SameSite is none",
+      });
+    }
+    if (value.SQS_INTEGRATION_ENABLED && !value.SQS_SCRAPE_QUEUE_URL) {
+      context.addIssue({
+        code: "custom",
+        path: ["SQS_SCRAPE_QUEUE_URL"],
+        message: "SQS_SCRAPE_QUEUE_URL is required when SQS_INTEGRATION_ENABLED is true",
       });
     }
   });

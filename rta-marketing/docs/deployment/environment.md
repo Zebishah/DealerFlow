@@ -6,23 +6,26 @@ Copy the committed examples and replace placeholders locally or in the hosting p
 
 | File | Process | Contains secrets? |
 |---|---|---:|
-| `backend/.env` | Express API | Yes |
-| `backend/.env.worker.local` | Local SQS worker | Yes |
-| `frontend/.env` | Browser UI | No |
+| `apps/dealership-api/.env` | Express API | Yes |
+| `apps/dealership-api/.env.worker.local` | Local SQS worker | Yes |
+| `apps/dealership-web/.env` | Browser UI | No |
 
 Create them with:
 
 ```bash
-cp backend/.env.example backend/.env
-cp backend/.env.worker.example backend/.env.worker.local
-cp frontend/.env.example frontend/.env
+cp apps/dealership-api/.env.example apps/dealership-api/.env
+cp apps/dealership-api/.env.worker.example apps/dealership-api/.env.worker.local
+cp apps/dealership-web/.env.example apps/dealership-web/.env
 ```
 
-The API and worker use the same Neon database and SQS queue. Use Neon’s pooled URL for `DATABASE_URL`; use its direct/non-pooled URL only for `DATABASE_MIGRATION_URL` and migrations.
+The API and worker use the same Neon database. The SQS values below belong to
+the retained reference path and are only needed when that path is explicitly
+enabled. Use Neon’s pooled URL for `DATABASE_URL`; use its direct/non-pooled URL
+only for `DATABASE_MIGRATION_URL` and migrations.
 
 ## Required attributes
 
-### Primary RTA API (AWS/SQS deployment)
+### Primary RTA API (SQS reference path)
 
 | Variable | Production value |
 |---|---|
@@ -34,7 +37,8 @@ The API and worker use the same Neon database and SQS queue. Use Neon’s pooled
 | `CORS_ORIGINS` | Exact frontend URL, comma-separated if more than one |
 | `DATABASE_URL` | Neon pooled connection URL |
 | `AWS_REGION` | Queue region, e.g. `ap-south-1` |
-| `SQS_SCRAPE_QUEUE_URL` | Main queue URL, not the DLQ URL |
+| `SQS_INTEGRATION_ENABLED` | `false` for the portfolio runtime; set `true` only for an intentional AWS showcase run |
+| `SQS_SCRAPE_QUEUE_URL` | Main queue URL, required only when SQS integration is enabled |
 | `QUEUE_OUTBOX_POLL_MS` / `QUEUE_OUTBOX_BATCH_SIZE` | `5000` / `10` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dedicated API producer IAM user keys |
 | `SESSION_SECRET` / `CSRF_SECRET` | Two independent 48+ character secrets |
@@ -61,7 +65,7 @@ Do not add `AWS_PROFILE` to a deployed service. Remove `SEED_OPERATOR_PASSWORD` 
 | `SCRAPE_MAX_PAGES_PER_SOURCE` | `20` |
 | `SCRAPE_MAX_LISTINGS_PER_SOURCE` | `500` |
 
-Do not add permanent AWS access keys to Lambda. Its execution role supplies temporary credentials automatically. SQS queue URL is not required by the Lambda handler because the event-source mapping supplies messages.
+Do not add permanent AWS access keys to Lambda. Its execution role supplies temporary credentials automatically. The SAM event mappings default to disabled; enable them only for an intentional showcase deployment.
 
 ### Browser frontend (Vercel)
 
@@ -90,18 +94,18 @@ traffic to it. Do not add a Redis port mapping.
 
 ## Why fixture mode is the default
 
-`ALLOW_LIVE_SCRAPING=false` blocks public API requests from starting real website automation. `LIVE_SCRAPING_ENABLED=false` is an independent worker-side kill switch. Fixture mode still runs the real SQS, validation, normalization, deduplication, persistence, and dashboard flow, but uses deterministic input. This protects free quotas and third-party sites while development is ongoing.
+`ALLOW_LIVE_SCRAPING=false` blocks public API requests from starting real website automation. `LIVE_SCRAPING_ENABLED=false` is an independent worker-side kill switch. Fixture mode still runs validation, normalization, deduplication, persistence, and dashboard flow using deterministic input. With the portfolio defaults, SQS outbox rows remain inspectable and no AWS call is made. This protects free quotas and third-party sites while development is ongoing.
 
 ## Controlled local live test
 
 Live scraping is supported locally with Puppeteer's managed Chrome; Firefox and Helium are not supported by the current adapters. Install Chrome without installing a system-wide Chromium package:
 
 ```bash
-cd backend
+cd apps/dealership-api
 npx puppeteer browsers install chrome
 ```
 
-Use these API overrides in `backend/.env`:
+Use these API overrides in `apps/dealership-api/.env`:
 
 ```dotenv
 NODE_ENV=development
@@ -113,7 +117,7 @@ SESSION_COOKIE_SECURE=false
 SESSION_COOKIE_SAME_SITE=lax
 ```
 
-Use these worker overrides in `backend/.env.worker.local`:
+Use these worker overrides in `apps/dealership-api/.env.worker.local`:
 
 ```dotenv
 NODE_ENV=development
@@ -153,13 +157,13 @@ Start three terminals:
 
 ```bash
 # terminal 1
-cd backend && npm run dev
+cd apps/dealership-api && npm run dev
 
 # terminal 2
-cd backend && npm run worker:dev
+cd apps/dealership-api && npm run worker:dev
 
 # terminal 3
-  cd frontend && npm run dev
+  cd apps/dealership-web && npm run dev
 ```
 
 Open `http://localhost:5173`, choose **Live mode**, sign in as the seeded operator, and begin with one narrow make/model query. Inspect the Operations screen, worker logs, database results, and `/tmp/rta-scraper` if an adapter fails.
