@@ -20,7 +20,7 @@ export const siteConfigSchema = z.object({
   priceSelector: z.string().min(1).default("[data-vehicle-price], .price"),
   linkSelector: z.string().min(1).default("a"),
   delayMs: z.coerce.number().int().min(0).max(60000).default(2500),
-  maxConcurrency: z.coerce.number().int().min(1).max(2).default(2),
+  maxConcurrency: z.coerce.number().int().min(1).max(1).default(1),
 });
 
 export const scrapedItemSchema = z.object({
@@ -46,6 +46,14 @@ export const appConfigSchema = z.object({
   SCRAPER_USER_AGENT: z.string().min(10).default("RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)"),
   CHROMIUM_EXECUTABLE_PATH: z.string().optional(),
   SCRAPER_SITES_JSON: z.string().default("[]"),
+  SCRAPE_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(20).default(10),
+  SCRAPE_MAX_LIMIT: z.coerce.number().int().min(1).max(20).default(20),
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(1).default(1),
+  MANUAL_SCRAPING_ONLY: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  SCRAPE_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(30_000),
+  SCRAPE_SELECTOR_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
+  SCRAPE_JOB_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(300_000).default(120_000),
+  SCRAPE_LOCK_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
 });
 
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
@@ -54,6 +62,9 @@ export type AppConfig = z.infer<typeof appConfigSchema>;
 
 export function loadConfig() {
   const config = appConfigSchema.parse(process.env);
+  if (config.SCRAPE_DEFAULT_LIMIT > config.SCRAPE_MAX_LIMIT) {
+    throw new Error("SCRAPE_DEFAULT_LIMIT cannot exceed SCRAPE_MAX_LIMIT");
+  }
   const sites = z.array(siteConfigSchema).parse(JSON.parse(config.SCRAPER_SITES_JSON));
   return { ...config, sites };
 }

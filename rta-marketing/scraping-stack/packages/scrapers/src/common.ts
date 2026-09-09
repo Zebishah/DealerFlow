@@ -4,8 +4,37 @@ import { logger, scrapedItemSchema, type ScrapedItem, type SiteConfig } from "@r
 export interface ScraperOptions {
   userAgent: string;
   delayMs: number;
-  maxConcurrency: number;
+  maxConcurrency: 1;
+  limit: number;
+  navigationTimeoutMs: number;
+  selectorTimeoutMs: number;
+  jobTimeoutMs: number;
   chromiumExecutablePath?: string;
+}
+
+type TimeoutCapableCrawler = {
+  run: (requests: string[]) => Promise<unknown>;
+  teardown: () => Promise<void>;
+};
+
+/** Run one crawler with an upper bound and force teardown on timeout/failure. */
+export async function runCrawlerWithTimeout(crawler: TimeoutCapableCrawler, url: string, timeoutMs: number): Promise<void> {
+  let timedOut = false;
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      void crawler.teardown().finally(() => reject(new Error(`scrape exceeded ${timeoutMs}ms`)));
+    }, timeoutMs);
+  });
+
+  try {
+    await Promise.race([crawler.run([url]), timeout]);
+    if (timedOut) throw new Error(`scrape exceeded ${timeoutMs}ms`);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    await crawler.teardown().catch(() => undefined);
+  }
 }
 
 const robotsParser = robotsParserModule as unknown as (url: string, text: string) => {

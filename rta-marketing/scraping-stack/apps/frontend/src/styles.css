@@ -5,12 +5,21 @@ header { margin-bottom: 36px; }
 h1 { font-size: 42px; margin: 6px 0; }
 p { color: #647089; }
 .eyebrow { color: #635bdb; font-size: 12px; font-weight: 700; letter-spacing: .16em; }
+.limit-control { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; color: #647089; font-size: 14px; }
+.limit-control input { width: 64px; border: 1px solid #dfe4ef; border-radius: 8px; padding: 8px 10px; color: #182033; background: white; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 .site-card { border: 1px solid #dfe4ef; border-radius: 14px; background: white; padding: 22px; text-align: left; color: inherit; }
 .site-card:hover { border-color: #635bdb; box-shadow: 0 8px 24px #18203314; }
 .site-link { display: block; width: 100%; border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; color: inherit; }
 .site-link h2 { margin-top: 0; }
 .site-card span, .site-card small { display: block; margin-top: 12px; color: #647089; }
+.status-row { display: flex; align-items: center; justify-content: space-between; min-height: 26px; margin-top: 14px; }
+.status-row small { margin-top: 0; }
+.job-status { display: inline-flex; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 700; text-transform: capitalize; background: #edf0f5; color: #647089; }
+.job-status.queued { background: #fff4d6; color: #8a5b00; }
+.job-status.scraping { background: #e6e3ff; color: #4f47c5; }
+.job-status.completed { background: #dcfae6; color: #176b45; }
+.job-status.failed { background: #fee4e2; color: #b42318; }
 button { font: inherit; }
 .scrape-button { margin-top: 20px; width: 100%; border: 0; border-radius: 8px; background: #635bdb; color: white; padding: 10px 14px; cursor: pointer; }
 .scrape-button:hover { background: #4f47c5; }

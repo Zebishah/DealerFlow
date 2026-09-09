@@ -1,9 +1,10 @@
-node_modules
-dist
 .env
 .env.*
-!.env.example
-coverage
-*.log
+node_modules
+**/node_modules
+dist
+**/dist
 .git
 .gitignore
+*.log
+coverage

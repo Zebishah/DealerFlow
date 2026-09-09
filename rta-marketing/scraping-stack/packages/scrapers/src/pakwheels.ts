@@ -1,5 +1,5 @@
 import { CheerioCrawler, RequestQueue } from "crawlee";
-import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, validateItem, wait, type ScraperOptions } from "./common.js";
+import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, runCrawlerWithTimeout, validateItem, wait, type ScraperOptions } from "./common.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
 
 export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
@@ -8,7 +8,7 @@ export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions)
   const items: ScrapedItem[] = [];
   const requestQueue = await RequestQueue.open(`rta-${site.key}-${Date.now()}`);
   const crawler = new CheerioCrawler({
-    maxConcurrency: Math.min(options.maxConcurrency, 2),
+    maxConcurrency: 1,
     requestQueue,
     maxRequestRetries: 2,
     requestHandlerTimeoutSecs: 45,
@@ -18,6 +18,7 @@ export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions)
     }],
     requestHandler: async ({ $, request }) => {
       $("li.classified-listing").each((_index, element) => {
+        if (items.length >= options.limit) return false;
         const card = $(element);
         const titleNode = card.find("a.car-name.ad-detail-path").first();
         const listingUrl = absoluteUrl(titleNode.attr("href"), site.baseUrl);
@@ -52,7 +53,7 @@ export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions)
     },
   });
   try {
-    await crawler.run([site.baseUrl]);
+    await runCrawlerWithTimeout(crawler, site.baseUrl, options.jobTimeoutMs);
   } finally {
     await requestQueue.drop();
   }

@@ -1,56 +1,85 @@
-# RTA manual scraping stack
+# RTA scraping stack
 
-This is a separate portfolio implementation of the vehicle-scraping pipeline. It preserves the original RTA AWS/SQS/Lambda code under the parent application while providing a Docker-only alternative using BullMQ and self-hosted Redis.
+This is the portfolio scraping implementation for RTA. It keeps the existing
+AWS SQS/Lambda implementation in the parent application untouched and adds a
+manual BullMQ pipeline for the vehicle-intelligence workspace.
 
-## Architecture
+## Production architecture
 
 ```text
-React/Vite on Vercel ── HTTPS ──► Nginx on Oracle VM
-                                      │
-                                      ▼
-                              Scraping API container
-                                      │
-                              private Docker network
-                                      ▼
-                              Redis ◄── BullMQ ── Worker
-                                      │              │
-                                      └──── Neon ◄────┘
-                                                     │
-                                             Crawlee scrapers
-                                             Cheerio / Playwright
+Vercel frontend ──HTTPS──> Render scraping API ──BullMQ──> Northflank Redis (TLS)
+       │                            │                              │
+       │                            │                              ▼
+       └──── reads listings ◄──── Neon PostgreSQL       Azure Linux VM worker
+                                                               │
+                                             Cheerio + Playwright + Chromium
 ```
 
-The API is separate from scraping. API requests remain fast while the worker executes manually queued jobs, applies retries/backoff, respects robots.txt, and persists each site’s results. The API never waits for a third-party page to load.
+- Vercel hosts `apps/frontend` only.
+- Render hosts `apps/api`, which validates requests and queues BullMQ jobs.
+- Northflank hosts the authenticated TLS Redis addon. Redis is not exposed by
+  this repository or by the worker VM.
+- Azure hosts one always-on worker container. The worker includes Chromium, so
+  Cheerio and Playwright run on the same VM. There is no Cloud Run browser
+  service and no second Northflank worker in the final design.
+- The target Azure VM is Standard_B1s on Ubuntu Server 24.04 LTS x64 Gen2,
+  with one vCPU, 1 GiB RAM, and approximately 2 GiB Linux swap for temporary
+  Chromium memory spikes.
+- Neon PostgreSQL is the durable source of truth for sites and listings.
+- The worker has no public HTTP port. It consumes `vehicle-scrape` jobs only.
 
-BullMQ with self-hosted Redis makes queue behavior visible and portable on the Oracle VM, with a named Redis volume for persistence. The scraping API and worker share a private Docker network with Redis; Redis has no host-published port. The existing RTA project also demonstrates AWS SQS/Lambda as a separate cloud-worker design; this stack does not delete or replace that implementation.
+The current repository has a Playwright adapter, not a Puppeteer adapter. The
+Azure image installs the system Chromium binary used by Playwright. Puppeteer
+should only be added if a future scraper actually needs it.
 
-Neon PostgreSQL and Drizzle provide foreign-key integrity, JSONB fallback data, and committed migrations. Docker runs Redis, the scraping API, and the worker on Oracle. The API and worker both use the same Neon `DATABASE_URL`.
+BullMQ remains the execution boundary: three attempts, exponential backoff,
+bounded completed/failed-job cleanup, concurrency one, and graceful shutdown.
+The worker does not schedule automatic crawls. A scrape starts only when an
+operator clicks `Scrape now` or runs the manual CLI command.
+
+### Portfolio-safe limits
+
+The default production profile is intentionally small:
+
+- manual-only scraping (`MANUAL_SCRAPING_ONLY=true`);
+- exactly one BullMQ worker and one active scrape at a time;
+- 10 vehicles by default and never more than 20 per run;
+- one Chromium instance, one page at a time, with images/media/fonts blocked;
+- 30-second navigation, 15-second selector, and 120-second overall job limits;
+- active-job locking and deterministic job IDs prevent repeated dashboard clicks;
+- Chromium is created per browser job and torn down before the worker becomes
+  idle again.
+
+The dashboard lets a presenter request a smaller limit. The API clamps every
+request server-side, so a client cannot start an unbounded crawl.
 
 ## Repository map
 
 ```text
-apps/api/       Express API reference and dependency health endpoint
-apps/worker/    BullMQ worker process
-apps/frontend/  Vite demonstration UI, deployed separately
-packages/db/    Drizzle schema and migrations
-packages/shared Config, site definitions, and Zod contracts
+apps/api/       Express API and BullMQ producer
+apps/worker/    BullMQ consumer, Cheerio/Playwright execution, Neon writes
+apps/frontend/  Vite dashboard
+packages/db/    Drizzle schema, migrations, and listing persistence
+packages/shared Config, Redis TLS factory, and Zod contracts
 packages/scrapers Crawlee Cheerio/Playwright adapters
-deploy/         Oracle VM deployment guide
+deploy/         Render, Northflank, Azure, and Vercel deployment guide
 ```
 
 ## Local setup
 
-Requirements: Docker Compose and Node.js 20+ for frontend development.
+Requirements: Docker Compose and Node.js 20+.
 
 ```bash
 cp .env.example .env
-# Edit credentials and SCRAPER_SITES_JSON when URLs are available.
+# Edit DATABASE_URL, REDIS_PASSWORD, CORS_ORIGIN, and SCRAPER_SITES_JSON.
 docker compose up -d --build
 docker compose ps
 docker compose logs --no-color --tail=100 worker
 ```
 
-The Compose stack has Redis, the scraping API, and the worker. Set the Neon connection string, a strong `REDIS_PASSWORD`, and the Vercel `CORS_ORIGIN` in `.env`; the API and worker connect to Redis as `redis:6379` on the private Docker network.
+Local Compose starts Redis, the API, and the Chromium-capable worker on a
+private Docker network. The API is bound to `127.0.0.1:4000`; it is not
+published publicly by Compose.
 
 Run the frontend separately:
 
@@ -60,20 +89,22 @@ npm install
 VITE_API_URL=http://localhost:4000 npm run dev
 ```
 
-The dashboard shows a `Scrape now` button on every configured source. Clicking it sends a `POST` request to the API, which queues a site-specific BullMQ job; the worker then performs the real crawl and writes the results to Neon. Open the frontend at the Vite URL, click a PakWheels or OLX card's button, wait for the success message, then open the card to view the saved listings. The API applies a 15-second per-source cooldown to prevent accidental duplicate clicks.
+The dashboard queues a site-specific job. The worker performs the crawl and
+writes normalized listings to Neon. A 15-second per-source cooldown prevents
+accidental duplicate clicks.
 
-The worker does not register an automatic scheduler. It waits for a manually queued BullMQ job from the API or `npm run scrape:once`. Jobs use three attempts with exponential backoff and bounded Redis cleanup. All configured sources run with `Promise.allSettled`, so one failure is logged without preventing the other sources from being attempted. API startup runs the Drizzle migration before opening port 4000, and both API and worker emit structured Pino logs.
+## Manual scraping
 
-### Run one real source immediately
-
-The CLI enqueues a normal BullMQ job and the existing worker performs the scrape and Neon upserts. Pass a specific source key to avoid running the synthetic source:
+The worker stays idle until a job is queued. Use a specific source key when
+testing so the synthetic source is not run accidentally:
 
 ```bash
 npm run scrape:once -- --site=pakwheels
 npm run scrape:once -- --site=olx-pakistan
+npm run scrape:once -- --site=pakwheels --limit=5
 ```
 
-When the stack is running only in Docker, use the same CLI inside the worker container:
+With Docker Compose:
 
 ```bash
 docker compose exec worker node apps/worker/dist/enqueue-once.js --site=pakwheels
@@ -81,52 +112,87 @@ docker compose exec worker node apps/worker/dist/enqueue-once.js --site=olx-paki
 docker compose logs -f worker
 ```
 
-The command does not generate demo data when a site is specified. After the worker reports `site scrape completed`, inspect Neon-backed results through `curl http://localhost:4000/api/sites` and the site detail endpoint returned by that response.
+After `site scrape completed`, inspect the API-backed results:
 
-## Site configuration
-
-The current configuration contains two permitted live sources and one clearly labeled synthetic source. Gari.pk is excluded because its terms prohibit automated page scraping. Hamariweb’s classifieds subdomain could not be resolved from the verification environment, so it remains unconfigured rather than being treated as authorized. The exact JSON is in `.env.example`:
-
-| Source | Engine | Crawl target | Delay | Concurrency |
-| --- | --- | --- | ---: | ---: |
-| PakWheels | CheerioCrawler | `/used-cars/search/-/` | 2.5s | 2 |
-| OLX Pakistan | PlaywrightCrawler | canonical `/cars_c84` | 4.5s | 1 |
-| Demo Source (synthetic data) | deterministic generator | local generator | 0s | 1 |
-
-The PakWheels adapter uses the verified `li.classified-listing`, `.search-title a.car-name.ad-detail-path`, `.price-details`, `.ad-specs`, `.search-vehicle-info`, and `.img-box img` structure. The OLX adapter waits for `article` cards and reads the verified `aria-label="Title"`, `Price`, `Year`, `Mileage`, `Location`, `Cover Photo`, and `/item/` link structure. It performs two bounded scroll passes and never constructs filtered/query URLs.
-
-To add another permitted source later, put one JSON object in `SCRAPER_SITES_JSON`:
-
-```json
-[
-  {
-    "key": "site-one",
-    "name": "Site One",
-    "baseUrl": "https://example.com/inventory",
-    "engine": "playwright",
-    "itemSelector": "article",
-    "titleSelector": "h2",
-    "priceSelector": ".price",
-    "linkSelector": "a"
-  }
-]
+```bash
+curl http://localhost:4000/api/sites
 ```
 
-Use `cheerio` for server-rendered HTML and `playwright` for JavaScript-rendered inventory. The scraper sends a configured user agent, checks robots.txt, applies the per-site delay/concurrency settings, and does not use stealth or rotating proxies. The synthetic demo source is deliberately labeled and uses deterministic seeded generation so the architecture can be demonstrated without treating an unverified website as an authorized source.
+## Source configuration
+
+The checked-in example contains two configured sources and one clearly labeled
+synthetic source:
+
+| Source | Engine | Concurrency |
+| --- | --- | ---: |
+| PakWheels | CheerioCrawler | 1 |
+| OLX Pakistan | PlaywrightCrawler | 1 |
+| Demo Source (synthetic data) | deterministic generator | 1 |
+
+The exact JSON belongs in `SCRAPER_SITES_JSON` and is available in
+`.env.example`. Keep the configured user agent truthful, respect each source's
+robots and terms, and do not add stealth tooling or rotating proxies.
+
+## Environment ownership
+
+Render API:
+
+```text
+NODE_ENV=production
+DATABASE_URL=<Neon pooled URL>
+REDIS_URL=<exact Northflank TLS connection URL>
+API_PORT=10000
+CORS_ORIGIN=<Vercel production URL>
+SCRAPER_USER_AGENT=<truthful contact URL>
+SCRAPER_SITES_JSON=<exact JSON from .env.example>
+SCRAPE_DEFAULT_LIMIT=10
+SCRAPE_MAX_LIMIT=20
+WORKER_CONCURRENCY=1
+MANUAL_SCRAPING_ONLY=true
+```
+
+Azure worker:
+
+```text
+NODE_ENV=production
+DATABASE_URL=<same Neon pooled URL>
+REDIS_URL=<same Northflank TLS connection URL>
+SCRAPER_USER_AGENT=<truthful contact URL>
+CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+SCRAPER_SITES_JSON=<exact JSON from .env.example>
+SCRAPE_DEFAULT_LIMIT=10
+SCRAPE_MAX_LIMIT=20
+WORKER_CONCURRENCY=1
+MANUAL_SCRAPING_ONLY=true
+```
+
+Do not put `REDIS_HOST=localhost` in either hosted service. Do not copy Redis
+credentials into the frontend. Do not commit `.env` files.
 
 ## Verification
 
 ```bash
 npm install
 npm run build
-docker compose config
+docker compose config --quiet
 docker compose up -d --build
 docker compose ps
-curl http://localhost:4000/api/sites
+curl http://localhost:4000/health
 ```
 
-The worker image installs Debian's ARM64-compatible `chromium` package and points Playwright at `/usr/bin/chromium`. The Docker base image is `node:20-bookworm-slim`, which publishes ARM64 variants. Neon supplies PostgreSQL, so no database container or local database volume is required.
+The worker should log `scraping worker started` with `database: connected` and
+`redis: connected`. The Azure worker guide includes Redis, Neon, Chromium, and
+end-to-end checks.
 
-## Oracle Cloud note
+## Deployment
 
-The target is the Oracle Cloud Always Free Ampere A1 VM. This project assumes a 2 OCPU/12 GB allocation. It is suitable for a portfolio demonstration but has no production capacity guarantee. A production deployment should use a paid VPS or managed services with backups, monitoring, and predictable resources. See [deploy/DEPLOY.md](deploy/DEPLOY.md).
+See [deploy/DEPLOY.md](deploy/DEPLOY.md) for the final staged deployment:
+
+1. Create/check the Northflank Redis addon.
+2. Deploy the API to Render.
+3. Create the Azure VM only with a free-service-eligible size and disk.
+4. Build and run the Chromium-capable worker with Docker.
+5. Deploy the frontend to Vercel and set its API URL.
+6. Configure budgets, alerts, rollback tags, and manual smoke tests.
+
+The parent RTA AWS/SQS/Lambda deployment is deliberately outside this guide.

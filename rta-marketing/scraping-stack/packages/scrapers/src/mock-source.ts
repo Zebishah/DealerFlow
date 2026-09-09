@@ -11,8 +11,8 @@ function seededNumber(index: number, min: number, max: number): number {
   return Math.floor(min + value * (max - min + 1));
 }
 
-export async function scrapeSyntheticSource(site: SiteConfig, _options: ScraperOptions): Promise<ScrapedItem[]> {
-  return Array.from({ length: 20 }, (_unused, index) => {
+export async function scrapeSyntheticSource(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
+  return Array.from({ length: options.limit }, (_unused, index) => {
     const make = makes[seededNumber(index, 0, makes.length - 1)] ?? makes[0];
     const model = models[seededNumber(index + 1, 0, models.length - 1)] ?? models[0];
     const year = String(seededNumber(index + 2, 2015, 2025));

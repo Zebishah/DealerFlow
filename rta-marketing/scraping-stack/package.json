@@ -2,7 +2,10 @@
   "name": "rta-scraping-stack",
   "private": true,
   "version": "1.0.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build --workspace=@rta/shared && npm run build --workspace=@rta/db && npm run build --workspace=@rta/scrapers && npm run build --workspace=@rta/api && npm run build --workspace=@rta/worker && npm run build --workspace=@rta/frontend",
     "db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
@@ -12,7 +15,9 @@
     "dev:frontend": "npm run dev --workspace=@rta/frontend",
     "scrape:once": "tsx apps/worker/src/enqueue-once.ts"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "bullmq": "^5.58.5",
     "crawlee": "^3.15.0",
