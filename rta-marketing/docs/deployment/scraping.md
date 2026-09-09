@@ -41,7 +41,7 @@ Configure a Render web service with:
 
 ```text
 Root Directory: rta-marketing
-Build Command: npm ci && npm run build:scraping-api
+Build Command: npm ci --include=dev && npm run build:scraping-api
 Start Command: node apps/scraping-api/dist/index.js
 ```
 
