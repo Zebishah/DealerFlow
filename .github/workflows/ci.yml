@@ -27,51 +27,51 @@ jobs:
           --health-retries 10
     defaults:
       run:
-        working-directory: rta-marketing/backend
+        working-directory: rta-marketing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: rta-marketing/backend/package-lock.json
+          cache-dependency-path: rta-marketing/package-lock.json
       - run: npm ci
         env:
           PUPPETEER_SKIP_DOWNLOAD: "true"
-      - run: npm audit --omit=dev --audit-level=high
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: cp .env.test.example .env.test
-      - run: node --env-file=.env.test --import tsx src/db/migrate.ts
-      - run: npm test
+      - run: npm audit --workspace=@rta/dealership-api --omit=dev --audit-level=high
+      - run: npm run typecheck --workspace=@rta/dealership-api
+      - run: npm run lint --workspace=@rta/dealership-api
+      - run: cp apps/dealership-api/.env.test.example apps/dealership-api/.env.test
+      - run: node --env-file=apps/dealership-api/.env.test --import tsx apps/dealership-api/src/db/migrate.ts
+      - run: npm test --workspace=@rta/dealership-api
         env:
           RUN_DATABASE_TESTS: "true"
-      - run: npm run build
+      - run: npm run build --workspace=@rta/dealership-api
       - uses: aws-actions/setup-sam@v2
-      - run: sam validate --lint --template-file ../infrastructure/aws/template.yaml
+      - run: sam validate --lint --template-file infrastructure/aws/template.yaml
       - name: Build SAM application
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
-          sam build --template-file ../infrastructure/aws/template.yaml
+          sam build --template-file infrastructure/aws/template.yaml
 
   frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: rta-marketing/frontend
+        working-directory: rta-marketing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: rta-marketing/frontend/package-lock.json
+          cache-dependency-path: rta-marketing/package-lock.json
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
+      - run: npm audit --workspace=@rta/dealership-web --omit=dev --audit-level=high
+      - run: npm run lint --workspace=@rta/dealership-web
+      - run: npm run typecheck --workspace=@rta/dealership-web
+      - run: npm test --workspace=@rta/dealership-web
       - run: npx playwright install --with-deps firefox
-      - run: npm run test:e2e
+      - run: npm run test:e2e --workspace=@rta/dealership-web
         env:
           VITE_API_URL: http://localhost:5000/api/v1

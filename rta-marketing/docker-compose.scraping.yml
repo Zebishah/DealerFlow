@@ -1,0 +1,97 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}"]
+    restart: always
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
+    networks: [scraping]
+    volumes:
+      - rta_scraping_redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/scraping-api/Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to a Neon connection string}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
+      API_PORT: 4000
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set the Vercel production URL in .env}
+      SCRAPE_TRIGGER_TOKEN: ${SCRAPE_TRIGGER_TOKEN:?Set a 32+ character scrape access token in .env}
+      SCRAPE_ACCESS_CODE: ${SCRAPE_ACCESS_CODE:?Set a 16+ character recruiter access code in .env}
+      SCRAPE_SESSION_TTL_SECONDS: ${SCRAPE_SESSION_TTL_SECONDS:-28800}
+      SCRAPE_AUTH_RATE_LIMIT_MAX: ${SCRAPE_AUTH_RATE_LIMIT_MAX:-5}
+      SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}
+      SCRAPE_DEFAULT_LIMIT: ${SCRAPE_DEFAULT_LIMIT:-5}
+      SCRAPE_MAX_LIMIT: ${SCRAPE_MAX_LIMIT:-10}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      MANUAL_SCRAPING_ONLY: ${MANUAL_SCRAPING_ONLY:-true}
+      SCRAPE_NAVIGATION_TIMEOUT_MS: ${SCRAPE_NAVIGATION_TIMEOUT_MS:-30000}
+      SCRAPE_SELECTOR_TIMEOUT_MS: ${SCRAPE_SELECTOR_TIMEOUT_MS:-15000}
+      SCRAPE_JOB_TIMEOUT_MS: ${SCRAPE_JOB_TIMEOUT_MS:-120000}
+      SCRAPE_LOCK_TTL_SECONDS: ${SCRAPE_LOCK_TTL_SECONDS:-900}
+      SCRAPE_RATE_LIMIT_WINDOW_MS: ${SCRAPE_RATE_LIMIT_WINDOW_MS:-60000}
+      SCRAPE_RATE_LIMIT_MAX: ${SCRAPE_RATE_LIMIT_MAX:-3}
+    ports:
+      - "127.0.0.1:4000:4000"
+    networks: [scraping]
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/scraping-worker/Dockerfile
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to a Neon connection string}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a strong REDIS_PASSWORD in .env}
+      SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)}
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+      SCRAPER_SITES_JSON: ${SCRAPER_SITES_JSON:-[]}
+      SCRAPE_DEFAULT_LIMIT: ${SCRAPE_DEFAULT_LIMIT:-5}
+      SCRAPE_MAX_LIMIT: ${SCRAPE_MAX_LIMIT:-10}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      MANUAL_SCRAPING_ONLY: ${MANUAL_SCRAPING_ONLY:-true}
+      SCRAPE_NAVIGATION_TIMEOUT_MS: ${SCRAPE_NAVIGATION_TIMEOUT_MS:-30000}
+      SCRAPE_SELECTOR_TIMEOUT_MS: ${SCRAPE_SELECTOR_TIMEOUT_MS:-15000}
+      SCRAPE_JOB_TIMEOUT_MS: ${SCRAPE_JOB_TIMEOUT_MS:-120000}
+      SCRAPE_LOCK_TTL_SECONDS: ${SCRAPE_LOCK_TTL_SECONDS:-900}
+      SCRAPE_RATE_LIMIT_WINDOW_MS: ${SCRAPE_RATE_LIMIT_WINDOW_MS:-60000}
+      SCRAPE_RATE_LIMIT_MAX: ${SCRAPE_RATE_LIMIT_MAX:-3}
+    networks: [scraping]
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/rta-worker-ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  rta_scraping_redis:
+
+networks:
+  scraping:
+    driver: bridge

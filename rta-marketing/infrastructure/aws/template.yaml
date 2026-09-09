@@ -27,7 +27,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: rta-scrape-worker
-      CodeUri: ../../backend
+      CodeUri: ../../apps/dealership-api
       Handler: src/worker/lambda.handler
       Runtime: nodejs22.x
       Architectures: [x86_64]
@@ -90,7 +90,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: rta-scrape-dlq-reconciler
-      CodeUri: ../../backend
+      CodeUri: ../../apps/dealership-api
       Handler: src/worker/dead-letter.handler
       Runtime: nodejs22.x
       Architectures: [x86_64]

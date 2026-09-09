@@ -1,0 +1,15 @@
+node_modules/
+dist/
+**/dist/
+coverage/
+test-results/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+!.env.worker.example
+!.env.test.example
+*.log
+.aws-sam/
+ERROR-*.png
+scrape-artifacts/

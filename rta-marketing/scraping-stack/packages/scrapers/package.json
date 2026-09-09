@@ -1,9 +1,0 @@
-{
-  "name": "@rta/scrapers",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "exports": { ".": "./dist/index.js" },
-  "scripts": { "build": "tsc -p tsconfig.json" },
-  "dependencies": { "@rta/shared": "1.0.0" }
-}

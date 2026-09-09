@@ -1,136 +1,81 @@
-# RTA Automotive Operations & Vehicle Intelligence
+# RTA Automotive Operations Platform
 
-RTA is a portfolio-grade, multi-role dealership workspace connected to a durable vehicle-intelligence pipeline. It preserves the original business story—lead follow-up, funded sales, commission visibility, employee targets, team administration, and automotive inventory—while replacing Firebase-era global state and request-bound scraping with PostgreSQL, explicit authorization, Amazon SQS, and independently scalable workers.
+RTA is a portfolio-grade dealership operations platform with a separate,
+manual vehicle-scraping subsystem. The boundaries are intentional: the
+dealership platform uses AWS SQS/Lambda, while scraping runs through BullMQ,
+Redis, and a dedicated browser-capable worker.
 
-## Product capabilities
+## Applications
 
-| Workspace | Implemented behavior |
-|---|---|
-| Command centre | Live monthly KPIs, target progress, recent opportunities and funded sales |
-| Lead pipeline | Search, status filters, assignment, creation and concurrency-safe editing |
-| Sales ledger | Create and edit deals, recompute commission, funding states and safe CSV export |
-| Team & configuration | Users, roles, account activation, password resets, lead sources and finance providers |
-| Compensation | Workspace/user monthly targets and effective-dated commission rules |
-| Governance | Secure profile/password changes, private S3 compliance documents and workspace-scoped audit history |
-| Analytics | Role-aware performance summaries and a 30-second auto-refreshing presentation board |
-| Vehicle intelligence | Search/sort/filter, canonical vehicle details, source offers, private saved vehicles and four-way comparison |
-| Acquisition | Fixture or controlled live mode, per-source selection, SQS jobs, cancellation, telemetry and failed-source replay |
+| Application | Responsibility | Production hosting |
+|---|---|---|
+| `apps/dealership-web` | Main dealership dashboard for leads, sales, documents, targets, commissions, team, audit, and vehicle intelligence | Vercel or static hosting |
+| `apps/dealership-api` | Main authenticated RTA API, PostgreSQL domain, S3 documents, and SQS/Lambda ingestion | AWS |
+| `apps/scraping-web` | Manual scraping dashboard and persisted vehicle search | Vercel |
+| `apps/scraping-api` | Authenticated BullMQ job producer and scraping API | Render |
+| `apps/scraping-worker` | Cheerio/Playwright worker with Chromium | Azure VM |
 
-## Engineering evidence
+## Shared packages
 
-- TypeScript strict mode across the API and primary frontend
-- PostgreSQL migrations, foreign keys, workspace scoping, targeted indexes, integer money values and basis-point rates
-- Idempotency records for write retries and unique source/external listing constraints
-- Optimistic concurrency versions on leads and sales to prevent silent overwrites
-- Transactional outbox publication to Amazon SQS with a dead-letter queue
-- At-least-once-safe ingestion, VIN/fingerprint identity resolution and price observations
-- Zod validation at environment, request, queue and source-record boundaries
-- Session cookies, CSRF protection, RBAC, rate limiting, Helmet, strict CORS and safe errors
-- Structured request/job telemetry, health probes, source-level progress and audit events
-- Deterministic demo fixtures, PostgreSQL/API integration tests, frontend behavior tests and GitHub Actions CI
-- AWS SAM worker templates with validated Lambda bundles, explicit DLQ wiring, and a safe fixture-first live-browser boundary
+- `packages/db` — scraping listing schema, Neon persistence, and migrations.
+- `packages/shared` — scraping configuration, contracts, Redis connection, and security helpers.
+- `packages/scrapers` — bounded Cheerio/Playwright source adapters.
 
-## Runtime architecture
+The dealership API keeps its own domain schema and AWS ingestion implementation
+because it has a different deployment and data responsibility.
+
+## Production architecture
 
 ```mermaid
-flowchart TD
-  WEB["React operations app"] -->|HTTPS + session| API["Express TypeScript API"]
-  API -->|transactions| DB["Neon PostgreSQL"]
-  API -->|outbox publish| SQS["Amazon SQS + DLQ"]
-  SQS --> WORKER["Lambda or local worker"]
-  WORKER --> ADAPTERS["Typed source adapters"]
-  WORKER --> DB
+flowchart LR
+  DW[dealership-web] --> DA[dealership-api]
+  DA --> AWS[AWS SQS + Lambda]
+  DA --> N[Neon PostgreSQL]
+  SW[scraping-web] --> SA[scraping-api]
+  SA --> R[Northflank Redis]
+  R --> WK[scraping-worker on Azure]
+  WK --> N
+  SA --> N
 ```
-
-The API commits a scrape run, its source runs, and outbox messages together. A dispatcher publishes the messages and returns control independently of browser work. SQS can deliver a message more than once, so worker claims plus database uniqueness make ingestion idempotent.
-
-## Repository map
-
-| Path | Purpose |
-|---|---|
-| `frontend/` | Primary React/TypeScript dealership and intelligence application |
-| `backend/src/modules/dealership/` | Leads, sales, targets, commissions, team and audit APIs |
-| `backend/src/modules/catalog/` | Normalized inventory search and vehicle provenance |
-| `backend/src/modules/runs/` | Acquisition lifecycle, cancellation and replay |
-| `backend/src/worker/` | Shared local and Lambda SQS consumers |
-| `backend/src/queue/` | SQS client, contracts and transactional outbox dispatcher |
-| `backend/src/db/` | Drizzle schema, migration runner and idempotent demo seed |
-| `backend/drizzle/` | Reviewed SQL migrations |
-| `infrastructure/aws/` | AWS SAM Lambda and SQS event-source infrastructure |
-| `docs/` | Architecture, environment, operations and deployment guides |
 
 ## Local development
 
-Requirements: Node.js 22+, PostgreSQL (Neon supported), an SQS queue/DLQ, and AWS credentials with least-privilege access to that queue.
+Requirements: Node.js 22 for the dealership apps, Node.js 20+ for the
+scraping apps, and npm.
 
 ```bash
-cp backend/.env.example backend/.env
-cp backend/.env.worker.example backend/.env.worker.local
-cp frontend/.env.example frontend/.env
-
-cd backend
+cd rta-marketing
 npm ci
-npm run db:migrate
-npm run db:seed
-npm run dev
-```
-
-Run the worker and frontend in separate terminals:
-
-```bash
-cd backend && npm run worker:dev
-cd frontend && npm ci && npm run dev
-```
-
-If Node times out while an IPv4 database connection succeeds on Linux, run migration and seed with:
-
-```bash
-NODE_OPTIONS="--no-network-family-autoselection --dns-result-order=ipv4first" npm run db:migrate
-NODE_OPTIONS="--no-network-family-autoselection --dns-result-order=ipv4first" npm run db:seed
-```
-
-The local SQS worker long-polls silently while idle; an empty terminal after its startup command is normal.
-
-## Demo users
-
-When `SEED_DEMO_DATA=true`, `SEED_DEMO_PASSWORD` is used for:
-
-- `admin@rta.demo`
-- `sales@rta.demo`
-- `assistant@rta.demo`
-- `recruiter@rta.demo`
-
-Use demo-only credentials locally. Never publish a production password in documentation or source control.
-
-## Verification
-
-```bash
-cd backend
 npm run typecheck
-npm run lint
-npm test
 npm run build
-
-cd ../frontend
-npm run lint
-npm run typecheck
 npm test
-npm run build
-npm run test:e2e
 ```
 
-CI creates the backend test environment from `backend/.env.test.example`, runs the PostgreSQL integration suite against its service database, and installs a pinned Firefox runtime for the production-preview smoke tests.
-
-Validate the worker packaging locally after `npm ci` in `backend`:
+Run an application with the named root scripts:
 
 ```bash
-cd infrastructure/aws
-PATH="$(pwd)/../../backend/node_modules/.bin:$PATH" sam validate --template-file template.yaml --lint
-PATH="$(pwd)/../../backend/node_modules/.bin:$PATH" sam build --template-file template.yaml
+npm run dev:dealership-web
+npm run dev:dealership-api
+npm run dev:scraping-web
+npm run dev:scraping-api
+npm run dev:scraping-worker
 ```
 
-## Operating modes
+The main local database Compose file is `docker-compose.yml`. The scraping
+stack uses `docker-compose.scraping.yml`; its Redis service is private and the
+worker includes Chromium.
 
-Fixture mode runs the complete queue, validation, normalization, persistence and UI lifecycle with deterministic source records. It is safe for public demos. Live mode invokes third-party websites and is deliberately protected by `ALLOW_LIVE_SCRAPING`, per-source database switches, operator/admin authorization, conservative concurrency and delays. Local and Lambda workers execute the same processing code.
+## Deployment documentation
 
-See [environment setup](docs/ENVIRONMENT_SETUP.md), [API reference](docs/API_REFERENCE.md), [deployment](docs/DEPLOYMENT.md), and [architecture](docs/ARCHITECTURE.md). Never commit environment files, AWS keys, database URLs, session secrets, cookies or service-account files.
+- [Architecture](docs/architecture/overview.md)
+- [Scraping architecture](docs/architecture/scraping.md)
+- [Deployment](docs/deployment/platform.md)
+- [Scraping deployment](docs/deployment/scraping.md)
+- [Environment setup](docs/deployment/environment.md)
+- [Operations](docs/operations/)
+- [Azure worker CI/CD](../.github/workflows/worker-ci.yml)
+
+Never commit `.env` files, cloud credentials, database URLs, Redis passwords,
+or access tokens. The root workspace `.gitignore` and repository-level ignore
+rules cover application secrets, build output, dependency folders, and local
+scraper artifacts.

@@ -1,0 +1,15 @@
+{
+  "name": "@rta/scraping-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "build": "tsc -p tsconfig.json", "dev": "tsx watch src/index.ts", "typecheck": "tsc -p tsconfig.json --noEmit", "scrape:once": "tsx --env-file=../../.env src/enqueue-once.ts" },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@rta/db": "1.0.0",
+    "@rta/scrapers": "1.0.0",
+    "@rta/shared": "1.0.0",
+    "bullmq": "^5.58.5",
+    "ioredis": "^5.6.0"
+  }
+}

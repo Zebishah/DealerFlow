@@ -1,8 +1,0 @@
-{
-  "name": "@rta/worker",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": { "build": "tsc -p tsconfig.json", "dev": "tsx watch src/index.ts", "scrape:once": "tsx --env-file=../../.env src/enqueue-once.ts" },
-  "dependencies": { "@rta/db": "1.0.0", "@rta/scrapers": "1.0.0", "@rta/shared": "1.0.0" }
-}
