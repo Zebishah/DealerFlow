@@ -10,7 +10,7 @@ COPY apps/scraping-worker/package.json apps/scraping-worker/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/scrapers/package.json packages/scrapers/package.json
 COPY packages/shared/package.json packages/shared/package.json
-RUN npm ci
+RUN npm ci --include=dev
 COPY apps/dealership-api/tsconfig.json apps/dealership-api/tsconfig.json
 COPY apps/dealership-api/src apps/dealership-api/src
 COPY apps/dealership-api/services apps/dealership-api/services

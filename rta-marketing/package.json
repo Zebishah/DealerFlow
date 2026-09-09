@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=22" },
   "scripts": {
     "dev:dealership-web": "npm run dev --workspace=@rta/dealership-web",
     "dev:dealership-api": "npm run dev --workspace=@rta/dealership-api",

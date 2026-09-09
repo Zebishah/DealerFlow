@@ -1,5 +1,8 @@
 .env
 .env.*
+**/.env
+**/.env.*
+.env.*
 node_modules
 **/node_modules
 dist
@@ -8,8 +11,6 @@ dist
 .gitignore
 *.log
 coverage
-apps/scraping-web/*
-!apps/scraping-web/package.json
 docs
 infrastructure
 deploy

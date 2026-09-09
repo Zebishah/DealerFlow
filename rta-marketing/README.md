@@ -41,8 +41,8 @@ flowchart LR
 
 ## Local development
 
-Requirements: Node.js 22 for the dealership apps, Node.js 20+ for the
-scraping apps, and npm.
+Requirement: Node.js 22+ and npm for the complete workspace. The scraping
+packages remain compatible with Node.js 20+ when developed independently.
 
 ```bash
 cd rta-marketing
@@ -66,12 +66,17 @@ The main local database Compose file is `docker-compose.yml`. The scraping
 stack uses `docker-compose.scraping.yml`; its Redis service is private and the
 worker includes Chromium.
 
+For a complete local run of all services, use
+[`docker-compose.portfolio.yml`](docker-compose.portfolio.yml). See the
+[Docker deployment guide](docs/deployment/docker.md) for setup details.
+
 ## Deployment documentation
 
 - [Architecture](docs/architecture/overview.md)
 - [Scraping architecture](docs/architecture/scraping.md)
 - [Deployment](docs/deployment/platform.md)
 - [Scraping deployment](docs/deployment/scraping.md)
+- [Docker deployment](docs/deployment/docker.md)
 - [Environment setup](docs/deployment/environment.md)
 - [Operations](docs/operations/)
 - [Azure worker CI/CD](../.github/workflows/worker-ci.yml)

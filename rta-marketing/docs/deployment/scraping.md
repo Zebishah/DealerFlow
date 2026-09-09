@@ -113,7 +113,7 @@ ghcr.io/zebishah/rta-worker:latest
 ghcr.io/zebishah/rta-worker:<commit-sha>
 ```
 
-The Dockerfile is `apps/scraping-worker/Dockerfile`. The image uses Node 20,
+The Dockerfile is `apps/scraping-worker/Dockerfile`. The image uses Node 22,
 installs Chromium, and runs `node apps/scraping-worker/dist/index.js` with one
 worker slot. The worker has no public HTTP port.
 

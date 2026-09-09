@@ -1,0 +1,107 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in rta-marketing/.env}"]
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in rta-marketing/.env}
+    volumes:
+      - rta_portfolio_redis:/data
+    networks: [portfolio]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  dealership-api:
+    build:
+      context: .
+      dockerfile: apps/dealership-api/Dockerfile
+    env_file: ./apps/dealership-api/.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 5000
+      PUBLIC_APP_URL: http://localhost:8080
+      CORS_ORIGINS: http://localhost:8080
+      SQS_INTEGRATION_ENABLED: "false"
+      ALLOW_LIVE_SCRAPING: "false"
+      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SAME_SITE: lax
+    ports:
+      - "127.0.0.1:5000:5000"
+    networks: [portfolio]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  dealership-web:
+    build:
+      context: .
+      dockerfile: apps/dealership-web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5000/api/v1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    networks: [portfolio]
+    depends_on:
+      dealership-api: { condition: service_healthy }
+
+  scraping-api:
+    build:
+      context: .
+      dockerfile: apps/scraping-api/Dockerfile
+    env_file: ./.env
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in rta-marketing/.env}@redis:6379
+      CORS_ORIGIN: http://localhost:8081
+    ports:
+      - "127.0.0.1:4000:4000"
+    networks: [portfolio]
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  scraping-web:
+    build:
+      context: .
+      dockerfile: apps/scraping-web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:4000
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    networks: [portfolio]
+    depends_on:
+      scraping-api: { condition: service_healthy }
+
+  scraping-worker:
+    build:
+      context: .
+      dockerfile: apps/scraping-worker/Dockerfile
+    env_file: ./.env
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in rta-marketing/.env}@redis:6379
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+    restart: unless-stopped
+    networks: [portfolio]
+    depends_on:
+      redis: { condition: service_healthy }
+
+volumes:
+  rta_portfolio_redis:
+
+networks:
+  portfolio:
+    driver: bridge
