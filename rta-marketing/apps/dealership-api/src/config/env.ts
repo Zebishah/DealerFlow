@@ -39,6 +39,9 @@ const envSchema = z
     AWS_PROFILE: z.string().min(1).optional(),
     SQS_SCRAPE_QUEUE_URL: z.string().url().optional(),
     SCRAPING_STACK_API_URL: z.string().url().default("http://localhost:4000"),
+    // Server-to-server credential for the separate scraping API. This is
+    // intentionally never exposed to the browser.
+    SCRAPING_STACK_API_TOKEN: z.string().min(32).optional(),
     S3_DOCUMENT_BUCKET: z.string().min(3).max(63).optional(),
     DOCUMENT_UPLOAD_MAX_BYTES: z.coerce
       .number()

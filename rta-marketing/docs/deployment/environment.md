@@ -39,6 +39,8 @@ only for `DATABASE_MIGRATION_URL` and migrations.
 | `AWS_REGION` | Queue region, e.g. `ap-south-1` |
 | `SQS_INTEGRATION_ENABLED` | `false` for the portfolio runtime; set `true` only for an intentional AWS showcase run |
 | `SQS_SCRAPE_QUEUE_URL` | Main queue URL, required only when SQS integration is enabled |
+| `SCRAPING_STACK_API_URL` | HTTPS URL of the deployed scraping API |
+| `SCRAPING_STACK_API_TOKEN` | Same secret as the scraping API's `SCRAPE_TRIGGER_TOKEN`; server-only |
 | `QUEUE_OUTBOX_POLL_MS` / `QUEUE_OUTBOX_BATCH_SIZE` | `5000` / `10` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dedicated API producer IAM user keys |
 | `SESSION_SECRET` / `CSRF_SECRET` | Two independent 48+ character secrets |

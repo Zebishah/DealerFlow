@@ -163,10 +163,17 @@ acquisitionRouter.post(
 
     const siteKey = site.baseUrl.includes("pakwheels.com") ? "pakwheels" : site.baseUrl.includes("olx.com.pk") ? "olx-pakistan" : null;
     if (!siteKey) return response.status(422).json({ error: { code: "SCRAPER_SITE_NOT_TRIGGERABLE", message: `${site.name} has no live scraper trigger configured` } });
+    if (!env.SCRAPING_STACK_API_TOKEN) {
+      throw new AppError(503, "SCRAPER_CREDENTIAL_NOT_CONFIGURED", "The scraping service credential is not configured");
+    }
 
     let upstream: Response;
     try {
-      upstream = await fetch(`${env.SCRAPING_STACK_API_URL.replace(/\/$/, "")}/api/scrape/${siteKey}`, { method: "POST", signal: AbortSignal.timeout(5_000) });
+      upstream = await fetch(`${env.SCRAPING_STACK_API_URL.replace(/\/$/, "")}/api/scrape/${siteKey}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.SCRAPING_STACK_API_TOKEN}` },
+        signal: AbortSignal.timeout(5_000),
+      });
     } catch {
       throw new AppError(502, "SCRAPING_STACK_UNAVAILABLE", "The Docker scraper API is not reachable");
     }
