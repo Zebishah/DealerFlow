@@ -163,6 +163,24 @@ export interface ScrapingResultsResponse {
   };
 }
 
+export type ScrapeJobStatus = "queued" | "scraping" | "completed" | "failed";
+
+export interface ScrapingJob {
+  jobId: string;
+  siteKey: string;
+  limit: number;
+  status: ScrapeJobStatus;
+  failedReason: string | null;
+}
+
+export interface ScrapingStatusResponse {
+  data: {
+    activeJob: ScrapingJob | null;
+    defaultLimit: number;
+    maxLimit: number;
+  };
+}
+
 
 export interface AdminUser extends SessionUser {
   isActive: boolean;

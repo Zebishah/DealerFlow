@@ -152,6 +152,56 @@ function loadScrapingResults(where: SQL | undefined, limit: number, offset: numb
   ]);
 }
 
+type ScrapeJobStatus = {
+  jobId: string;
+  siteKey: string;
+  limit: number;
+  status: "queued" | "scraping" | "completed" | "failed";
+  failedReason: string | null;
+};
+
+type ScraperApiPayload = {
+  data?: {
+    jobId?: string | null;
+    activeJob?: ScrapeJobStatus | null;
+    defaultLimit?: number;
+    maxLimit?: number;
+    retryAfterSeconds?: number;
+  };
+  error?: string;
+};
+
+async function callScrapingApi(path: string, init: RequestInit = {}): Promise<{ response: Response; payload: ScraperApiPayload | null }> {
+  if (!env.SCRAPING_STACK_API_TOKEN) {
+    throw new AppError(503, "SCRAPER_CREDENTIAL_NOT_CONFIGURED", "The scraping service credential is not configured");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${env.SCRAPING_STACK_API_URL.replace(/\/$/, "")}${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${env.SCRAPING_STACK_API_TOKEN}` },
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    throw new AppError(502, "SCRAPING_STACK_UNAVAILABLE", "The scraping service is not reachable. Please try again shortly.");
+  }
+
+  const payload = await response.json().catch(() => null) as ScraperApiPayload | null;
+  return { response, payload };
+}
+
+acquisitionRouter.get(
+  "/status",
+  asyncHandler(async (_request, response) => {
+    const { response: upstream, payload } = await callScrapingApi("/api/scrape/status");
+    if (!upstream.ok || !payload?.data) {
+      throw new AppError(502, "SCRAPER_STATUS_UNAVAILABLE", "The scraping service status is temporarily unavailable");
+    }
+    response.json({ data: payload.data });
+  }),
+);
+
 acquisitionRouter.post(
   "/:siteId/trigger",
   requireOperator,
@@ -163,22 +213,23 @@ acquisitionRouter.post(
 
     const siteKey = site.baseUrl.includes("pakwheels.com") ? "pakwheels" : site.baseUrl.includes("olx.com.pk") ? "olx-pakistan" : null;
     if (!siteKey) return response.status(422).json({ error: { code: "SCRAPER_SITE_NOT_TRIGGERABLE", message: `${site.name} has no live scraper trigger configured` } });
-    if (!env.SCRAPING_STACK_API_TOKEN) {
-      throw new AppError(503, "SCRAPER_CREDENTIAL_NOT_CONFIGURED", "The scraping service credential is not configured");
+    const { response: upstream, payload } = await callScrapingApi(`/api/scrape/${siteKey}`, { method: "POST" });
+    if (!upstream.ok) {
+      if (upstream.status === 409) {
+        throw new AppError(409, "SCRAPER_ALREADY_RUNNING", "A scrape is already queued or processing. Please wait until it finishes.", payload?.data?.activeJob ?? null);
+      }
+      if (upstream.status === 429) {
+        const retryAfter = payload?.data?.retryAfterSeconds;
+        throw new AppError(429, "SCRAPER_RATE_LIMITED", retryAfter ? `Scraping was recently started. Try again in about ${retryAfter} seconds.` : "Scraping was recently started. Please wait before trying again.", { retryAfterSeconds: retryAfter ?? null });
+      }
+      if (upstream.status === 401) {
+        throw new AppError(502, "SCRAPER_CREDENTIAL_REJECTED", "The scraping service rejected its server credential. Check the Render token configuration.");
+      }
+      if (upstream.status === 404) {
+        throw new AppError(502, "SCRAPER_SITE_NOT_CONFIGURED", `${site.name} is not configured in the scraping service.`);
+      }
+      throw new AppError(502, "SCRAPER_TRIGGER_FAILED", payload?.error ?? "The scraping service could not start this scrape");
     }
-
-    let upstream: Response;
-    try {
-      upstream = await fetch(`${env.SCRAPING_STACK_API_URL.replace(/\/$/, "")}/api/scrape/${siteKey}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${env.SCRAPING_STACK_API_TOKEN}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-    } catch {
-      throw new AppError(502, "SCRAPING_STACK_UNAVAILABLE", "The Docker scraper API is not reachable");
-    }
-    const payload = await upstream.json().catch(() => null) as { data?: { jobId?: string }; error?: string } | null;
-    if (!upstream.ok) throw new AppError(502, "SCRAPER_TRIGGER_FAILED", payload?.error ?? "The scraper rejected the trigger");
     response.status(202).json({ data: { siteId: site.id, siteName: site.name, siteKey, jobId: payload?.data?.jobId ?? null, status: "queued" } });
   }),
 );

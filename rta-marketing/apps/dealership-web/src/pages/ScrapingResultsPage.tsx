@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Car, RefreshCw } from "lucide-react";
+import { AlertTriangle, Car, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { ScrapedVehicleCard, ScrapedVehicleDetailsModal } from "../components/ScrapedVehicleCard";
 import { api } from "../lib/api";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
-import type { ScrapedListing, ScrapingResultsResponse, ScrapingSite } from "../types/domain";
+import type { ScrapedListing, ScrapingResultsResponse, ScrapingSite, ScrapingStatusResponse } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
 function displaySiteName(name: string): string {
@@ -15,6 +15,16 @@ function displaySiteName(name: string): string {
 
 function isLiveTriggerable(site: ScrapingSite): boolean {
   return /pakwheels\.com|olx\.com\.pk/i.test(site.baseUrl);
+}
+
+function sourceKey(site: ScrapingSite): string | null {
+  if (/pakwheels\.com/i.test(site.baseUrl)) return "pakwheels";
+  if (/olx\.com\.pk/i.test(site.baseUrl)) return "olx-pakistan";
+  return null;
+}
+
+function activeStatusLabel(status: NonNullable<ScrapingStatusResponse["data"]["activeJob"]>["status"]): string {
+  return status === "scraping" ? "Processing" : "Queued";
 }
 
 export function ScrapingResultsPage() {
@@ -37,13 +47,24 @@ export function ScrapingResultsPage() {
     },
     refetchInterval: 15_000,
   });
+  const scrapeStatus = useQuery({
+    queryKey: ["scraping-status"],
+    queryFn: () => api<ScrapingStatusResponse>("/scraping-results/status"),
+    refetchInterval: 5_000,
+  });
+  const activeJob = scrapeStatus.data?.data.activeJob ?? null;
+  const scraperBusy = Boolean(activeJob && ["queued", "scraping"].includes(activeJob.status));
   const trigger = useMutation({
     mutationFn: (siteId: number) => api<{ data: { jobId: string | null; siteName: string } }>(`/scraping-results/${siteId}/trigger`, { method: "POST" }),
     onSuccess: async (value) => {
       toast.success(`${displaySiteName(value.data.siteName)} queued (job ${value.data.jobId ?? "accepted"})`);
+      await scrapeStatus.refetch();
       await results.refetch();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: async (error: Error) => {
+      await scrapeStatus.refetch();
+      toast.error(error.message);
+    },
   });
 
   if (results.isLoading) return <PageSkeleton />;
@@ -59,6 +80,8 @@ export function ScrapingResultsPage() {
       <div className="run-control scraping-hero-stats"><span>SAVED LISTINGS</span><strong>{total}</strong><small>{sites.length} scraper sites connected</small><button className="hero-secondary-action" onClick={() => results.refetch()}><RefreshCw size={14} />Refresh results</button></div>
     </section>
 
+    {activeJob && <div className="warning-banner" role="status"><AlertTriangle size={18} /><span><strong>{activeStatusLabel(activeJob.status)}: one scrape is already in progress.</strong>{activeJob.siteKey} is {activeJob.status === "scraping" ? "being processed" : "waiting in the queue"} for up to {activeJob.limit} vehicles. Scrape buttons are disabled until it finishes.</span></div>}
+
     <section className="surface scraping-filter-panel">
       <div className="surface-head"><div><span>SEARCH SCOPE</span><h3>Vehicle and site filters</h3></div><button className="filter-button" type="button" onClick={clearFilters}>Clear filters</button></div>
       <div className="scraping-filter-grid">
@@ -72,7 +95,7 @@ export function ScrapingResultsPage() {
     </section>
 
     <section className="operations-grid scraping-log-grid">
-      <article className="surface"><div className="surface-head"><div><span>SOURCE HEALTH</span><h3>Scraping sites</h3></div><RefreshCw size={16} className={results.isFetching ? "spin" : ""} /></div><div className="source-list">{sites.map((site) => { const triggerable = isLiveTriggerable(site); const isThisTriggering = trigger.isPending && trigger.variables === site.id; const anotherIsTriggering = trigger.isPending && !isThisTriggering; return <div className="source-item" key={site.id}><span className="source-monogram">{displaySiteName(site.name).slice(0, 2).toUpperCase()}</span><div><strong>{displaySiteName(site.name)}</strong><small>{site.lastScrapedAt ? `Last scrape ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : "No scrape recorded"} · {site.itemCount} records</small></div><span className="status-chip completed">{triggerable ? "connected" : "reference"}</span><button className="scrape-now-button" type="button" disabled={!canTrigger || !triggerable || trigger.isPending} onClick={() => trigger.mutate(site.id)}>{isThisTriggering ? "Queueing…" : anotherIsTriggering && triggerable ? "Wait…" : triggerable ? "Scrape now" : "Reference only"}</button></div>; })}</div></article>
+      <article className="surface"><div className="surface-head"><div><span>SOURCE HEALTH</span><h3>Scraping sites</h3></div><RefreshCw size={16} className={results.isFetching ? "spin" : ""} /></div><div className="source-list">{sites.map((site) => { const triggerable = isLiveTriggerable(site); const isThisTriggering = trigger.isPending && trigger.variables === site.id; const anotherIsTriggering = trigger.isPending && !isThisTriggering; const siteIsActive = activeJob?.siteKey === sourceKey(site); return <div className="source-item" key={site.id}><span className="source-monogram">{displaySiteName(site.name).slice(0, 2).toUpperCase()}</span><div><strong>{displaySiteName(site.name)}</strong><small>{site.lastScrapedAt ? `Last scrape ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : "No scrape recorded"} · {site.itemCount} records</small></div><span className={`status-chip ${siteIsActive ? "queued" : triggerable ? "completed" : ""}`}>{siteIsActive ? activeStatusLabel(activeJob.status) : triggerable ? "connected" : "reference"}</span><button className="scrape-now-button" type="button" disabled={!canTrigger || !triggerable || trigger.isPending || scraperBusy} onClick={() => trigger.mutate(site.id)}>{isThisTriggering ? "Queueing…" : scraperBusy ? siteIsActive ? activeStatusLabel(activeJob.status) : "Busy…" : anotherIsTriggering && triggerable ? "Wait…" : triggerable ? "Scrape now" : "Reference only"}</button></div>; })}</div></article>
       <article className="surface"><div className="surface-head"><div><span>PIPELINE STATUS</span><h3>Recent scraper activity</h3></div><button className="filter-button" type="button" onClick={() => results.refetch()}>Refresh</button></div><div className="scraping-activity-list">{sites.map((site) => <div className="scraping-activity-row" key={site.id}><div><strong>{site.name}</strong><small>{site.lastScrapedAt ? new Date(site.lastScrapedAt).toLocaleString("en-CA") : "Waiting for first run"}</small></div><b>{site.itemCount}</b><span>records</span></div>)}</div></article>
     </section>
 
