@@ -45,12 +45,18 @@ export function ScrapingResultsPage() {
       if (appliedFilters.maxMileage) params.set("maxMileage", appliedFilters.maxMileage);
       return api<ScrapingResultsResponse>(`/scraping-results?${params.toString()}`);
     },
-    refetchInterval: 15_000,
+    // Keep the current page visible while the debounced filter request loads.
+    // Without this, React Query has no data for the new key and the page
+    // switches to PageSkeleton after every filter change.
+    placeholderData: (previousData) => previousData,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
   const scrapeStatus = useQuery({
     queryKey: ["scraping-status"],
     queryFn: () => api<ScrapingStatusResponse>("/scraping-results/status"),
-    refetchInterval: 5_000,
+    refetchInterval: (query) => query.state.data?.data.activeJob ? 5_000 : 30_000,
+    refetchIntervalInBackground: false,
   });
   const activeJob = scrapeStatus.data?.data.activeJob ?? null;
   const scraperBusy = Boolean(activeJob && ["queued", "scraping"].includes(activeJob.status));

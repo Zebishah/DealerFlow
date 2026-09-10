@@ -16,22 +16,21 @@ function displaySiteName(name: string): string {
 }
 
 function ListingImage({ item }: { item: ScrapedListing }) {
-  const fallbackUrl = representativeVehicleImages[Math.abs(item.id) % representativeVehicleImages.length] ?? representativeVehicleImages[0];
-  const [sourceFailed, setSourceFailed] = useState(!item.thumbnailUrl);
+  const thumbnailUrl = item.thumbnailUrl?.trim() || null;
+  const fallbackUrl = thumbnailUrl
+    ? null
+    : representativeVehicleImages[Math.abs(item.id) % representativeVehicleImages.length] ?? representativeVehicleImages[0];
+  const [sourceFailed, setSourceFailed] = useState(!thumbnailUrl);
   const [fallbackFailed, setFallbackFailed] = useState(false);
-  const [loading, setLoading] = useState(Boolean(item.thumbnailUrl));
+  const [sourceRetryCount, setSourceRetryCount] = useState(0);
+  const [loading, setLoading] = useState(Boolean(thumbnailUrl));
 
   useEffect(() => {
-    setSourceFailed(!item.thumbnailUrl);
+    setSourceFailed(!thumbnailUrl);
     setFallbackFailed(false);
-    setLoading(Boolean(item.thumbnailUrl));
-    if (!item.thumbnailUrl) return;
-    const timeout = window.setTimeout(() => {
-      setLoading(false);
-      setSourceFailed(true);
-    }, 15_000);
-    return () => window.clearTimeout(timeout);
-  }, [item.thumbnailUrl]);
+    setSourceRetryCount(0);
+    setLoading(Boolean(thumbnailUrl));
+  }, [item.id, thumbnailUrl]);
 
   if (fallbackFailed) {
     return <div className="vehicle-photo-placeholder" aria-label="Image unavailable">
@@ -40,13 +39,21 @@ function ListingImage({ item }: { item: ScrapedListing }) {
     </div>;
   }
 
+  if (sourceFailed && !fallbackUrl) {
+    return <div className="vehicle-photo-placeholder" aria-label="Image unavailable">
+      <ImageOff size={38} aria-hidden="true" />
+      <span>Image unavailable</span>
+    </div>;
+  }
+
   const imageSrc = sourceFailed
-    ? fallbackUrl
-    : item.thumbnailUrl
-      ? `${API_URL}/scraping-results/image?url=${encodeURIComponent(item.thumbnailUrl)}`
-      : fallbackUrl;
+    ? fallbackUrl!
+    : thumbnailUrl
+      ? `${API_URL}/scraping-results/image?url=${encodeURIComponent(thumbnailUrl)}&retry=${sourceRetryCount}`
+      : fallbackUrl ?? "";
   return <>
     <img
+      key={imageSrc}
       src={imageSrc}
       alt={item.title}
       loading="lazy"
@@ -54,6 +61,13 @@ function ListingImage({ item }: { item: ScrapedListing }) {
       referrerPolicy="no-referrer"
       onLoad={() => setLoading(false)}
       onError={() => {
+        if (!sourceFailed && sourceRetryCount < 2) {
+          // A cold API instance or a transient source response should not
+          // immediately replace every real thumbnail with a dummy image.
+          setSourceRetryCount((count) => count + 1);
+          setLoading(true);
+          return;
+        }
         setLoading(false);
         if (sourceFailed) setFallbackFailed(true);
         else setSourceFailed(true);
