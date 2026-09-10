@@ -7,12 +7,18 @@ import {
 import { Suspense } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
+import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { Redirect, useNavigation } from "./router/Navigation";
 
 export function App() {
-  const { user, loading } = useAuth();
   const { path } = useNavigation();
+  const { user, loading } = useAuth();
+
+  // Keep the public product story independent from the authenticated API.
+  // The session check can continue in the background while the landing page
+  // renders immediately, even when the hosted API is asleep.
+  if (path === "/") return <LandingPage />;
 
   if (loading) {
     return (
