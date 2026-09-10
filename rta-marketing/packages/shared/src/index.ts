@@ -46,7 +46,9 @@ export const appConfigSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   CORS_ORIGIN: z.string().min(1).default("http://localhost:5173"),
   SCRAPER_USER_AGENT: z.string().min(10).default("RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)"),
-  CHROMIUM_EXECUTABLE_PATH: z.string().optional(),
+  // Keep Crawlee below the B1s VM's usable memory so Node, Chromium, the OS,
+  // and database/Redis clients retain headroom.
+  CRAWLEE_MEMORY_MBYTES: z.coerce.number().int().min(128).max(450).default(450),
   SCRAPER_SITES_JSON: z.string().default("[]"),
   SCRAPE_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10).default(5),
   SCRAPE_MAX_LIMIT: z.coerce.number().int().min(1).max(10).default(10),

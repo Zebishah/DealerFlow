@@ -39,10 +39,10 @@ async function scrapeAllSites(siteKey: string, requestedLimit = config.SCRAPE_DE
         delayMs: site.delayMs,
         maxConcurrency: 1,
         limit,
+        crawleeMemoryMbytes: config.CRAWLEE_MEMORY_MBYTES,
         navigationTimeoutMs: config.SCRAPE_NAVIGATION_TIMEOUT_MS,
         selectorTimeoutMs: config.SCRAPE_SELECTOR_TIMEOUT_MS,
         jobTimeoutMs: config.SCRAPE_JOB_TIMEOUT_MS,
-        chromiumExecutablePath: config.CHROMIUM_EXECUTABLE_PATH,
       });
       await persistScrapedItems(site, items);
       logger.info({ site: site.name, engine: site.engine, items: items.length, limit, durationMs: Date.now() - startedAt }, "site scrape completed");
@@ -88,7 +88,7 @@ await verifyDatabase();
 await queue.waitUntilReady();
 await worker.waitUntilReady();
 await writeFile("/tmp/rta-worker-ready", "ready\n");
-logger.info({ mode: config.MANUAL_SCRAPING_ONLY ? "manual-only" : "manual", sites: config.sites.length, concurrency: config.WORKER_CONCURRENCY, defaultLimit: config.SCRAPE_DEFAULT_LIMIT, maxLimit: config.SCRAPE_MAX_LIMIT, database: "connected", redis: "connected" }, "scraping worker started");
+logger.info({ mode: config.MANUAL_SCRAPING_ONLY ? "manual-only" : "manual", sites: config.sites.length, concurrency: config.WORKER_CONCURRENCY, crawleeMemoryMbytes: config.CRAWLEE_MEMORY_MBYTES, defaultLimit: config.SCRAPE_DEFAULT_LIMIT, maxLimit: config.SCRAPE_MAX_LIMIT, database: "connected", redis: "connected" }, "scraping worker started");
 
 async function shutdown(): Promise<void> { await rm("/tmp/rta-worker-ready", { force: true }); await worker.close(); await queue.close(); await lockRedis.quit().catch(() => undefined); await closeDatabase(); process.exit(0); }
 process.on("SIGTERM", () => void shutdown());

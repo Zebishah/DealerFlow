@@ -8,7 +8,7 @@ The repository includes reproducible images for every active service:
 | Dealership web | Node 22 build + Nginx | `apps/dealership-web/Dockerfile` |
 | Scraping API | Node 22 | `apps/scraping-api/Dockerfile` |
 | Scraping web | Node 22 build + Nginx | `apps/scraping-web/Dockerfile` |
-| Scraping worker | Node 22 + Chromium | `apps/scraping-worker/Dockerfile` |
+| Scraping worker | Node 22 + Playwright-managed Chromium | `apps/scraping-worker/Dockerfile` |
 
 All builds use the root `package-lock.json`. The dealership web and scraping
 web use the same Vite major version, preventing duplicate Vite type errors on

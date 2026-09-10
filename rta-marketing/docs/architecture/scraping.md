@@ -38,5 +38,10 @@ cd rta-marketing
 npm run scrape:once -- --site=pakwheels --limit=5
 ```
 
+The Playwright path is bounded to one task and one open page/browser at a time.
+On the Azure B1s VM, set `CRAWLEE_MEMORY_MBYTES=450`; this leaves headroom for
+Node, Chromium, the OS, and database/Redis connections. The setting is
+configurable but capped at 450 MB by the shared worker configuration.
+
 The production limits and security behavior are documented in the scraping
 deployment guide and covered by `tests/portfolio-policy.test.ts`.

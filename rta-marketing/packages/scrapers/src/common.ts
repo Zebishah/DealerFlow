@@ -6,10 +6,10 @@ export interface ScraperOptions {
   delayMs: number;
   maxConcurrency: 1;
   limit: number;
+  crawleeMemoryMbytes: number;
   navigationTimeoutMs: number;
   selectorTimeoutMs: number;
   jobTimeoutMs: number;
-  chromiumExecutablePath?: string;
 }
 
 type TimeoutCapableCrawler = {

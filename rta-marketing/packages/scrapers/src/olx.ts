@@ -1,22 +1,40 @@
-import { PlaywrightCrawler, RequestQueue } from "crawlee";
+import { Configuration, PlaywrightCrawler, RequestQueue } from "crawlee";
+import { logger } from "@rta/shared";
 import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, runCrawlerWithTimeout, validateItem, wait, type ScraperOptions } from "./common.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
+
+export const PLAYWRIGHT_MIN_CONCURRENCY = 1;
+export const PLAYWRIGHT_MAX_CONCURRENCY = 1;
+export const PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER = 1;
 
 export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
   await assertRobotsAllowed(site, options.userAgent);
   await wait(options.delayMs);
   const items: ScrapedItem[] = [];
   const requestQueue = await RequestQueue.open(`rta-${site.key}-${Date.now()}`);
+  const crawleeConfiguration = new Configuration({ memoryMbytes: options.crawleeMemoryMbytes });
+  logger.info({
+    site: site.name,
+    minConcurrency: PLAYWRIGHT_MIN_CONCURRENCY,
+    maxConcurrency: PLAYWRIGHT_MAX_CONCURRENCY,
+    maxOpenPagesPerBrowser: PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER,
+    memoryMbytes: options.crawleeMemoryMbytes,
+  }, "starting Playwright crawler");
   const crawler = new PlaywrightCrawler({
-    maxConcurrency: 1,
+    minConcurrency: PLAYWRIGHT_MIN_CONCURRENCY,
+    maxConcurrency: PLAYWRIGHT_MAX_CONCURRENCY,
     requestQueue,
     maxRequestRetries: 3,
     requestHandlerTimeoutSecs: Math.ceil(options.jobTimeoutMs / 1000),
     maxRequestsPerCrawl: 1,
-    browserPoolOptions: { maxOpenPagesPerBrowser: 1 },
+    browserPoolOptions: { maxOpenPagesPerBrowser: PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER },
     launchContext: {
       userAgent: options.userAgent,
-      launchOptions: { executablePath: options.chromiumExecutablePath, headless: true, timeout: options.navigationTimeoutMs },
+      launchOptions: {
+        headless: true,
+        timeout: options.navigationTimeoutMs,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      },
     },
     preNavigationHooks: [async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -92,7 +110,7 @@ export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOption
         await collectVisible();
       }
     },
-  });
+  }, crawleeConfiguration);
   try {
     await runCrawlerWithTimeout(crawler, site.baseUrl, options.jobTimeoutMs);
   } finally {

@@ -90,6 +90,7 @@ internet.
 | `REDIS_PASSWORD` | Long random value shared only by the Compose services |
 | `CORS_ORIGIN` | Exact Vercel production URL |
 | `API_PORT` | `4000` |
+| `CRAWLEE_MEMORY_MBYTES` | `450` on the Azure B1s worker; explicit Crawlee autoscaling memory budget |
 
 The API is bound to `127.0.0.1:4000` on the VM so host Nginx can proxy HTTPS
 traffic to it. Do not add a Redis port mapping.

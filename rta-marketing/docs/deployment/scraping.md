@@ -56,6 +56,7 @@ CORS_ORIGIN=https://<scraping-web-domain>
 SCRAPE_TRIGGER_TOKEN=<32+ character random secret>
 SCRAPE_ACCESS_CODE=<16+ character recruiter access code>
 SCRAPER_SITES_JSON=<valid configured source JSON>
+CRAWLEE_MEMORY_MBYTES=450
 SCRAPE_DEFAULT_LIMIT=5
 SCRAPE_MAX_LIMIT=10
 WORKER_CONCURRENCY=1
@@ -103,8 +104,8 @@ The Azure VM keeps its runtime environment at:
 ```
 
 That file must contain the Neon URL, Northflank `REDIS_URL`, scraper user
-agent, Chromium path, source JSON, and the existing limits. Do not commit,
-replace, or copy it into the image.
+agent, source JSON, existing limits, and `CRAWLEE_MEMORY_MBYTES=450`. Do not
+commit, replace, or copy it into the image.
 
 The worker image is:
 
@@ -113,9 +114,11 @@ ghcr.io/zebishah/rta-worker:latest
 ghcr.io/zebishah/rta-worker:<commit-sha>
 ```
 
-The Dockerfile is `apps/scraping-worker/Dockerfile`. The image uses Node 22,
-installs Chromium, and runs `node apps/scraping-worker/dist/index.js` with one
-worker slot. The worker has no public HTTP port.
+The Dockerfile is `apps/scraping-worker/Dockerfile`. The image uses Node 22 and
+installs the Chromium revision managed by the installed Playwright package with
+its required Debian dependencies. The worker always uses that managed
+executable and runs `node apps/scraping-worker/dist/index.js` with one worker
+slot; it has no public HTTP port.
 
 CI/CD is defined in [`worker-ci.yml`](../../../.github/workflows/worker-ci.yml).
 Pull requests validate only. Pushes and manual runs on

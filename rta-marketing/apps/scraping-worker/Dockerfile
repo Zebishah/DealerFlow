@@ -22,9 +22,15 @@ COPY packages/scrapers/src packages/scrapers/src
 RUN npm run build:scraping-worker
 
 FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
-ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 COPY --from=build /app ./
+# Install the browser revision selected by the installed Playwright package and
+# its Debian runtime dependencies. The worker always uses this managed browser.
+RUN npx playwright install --with-deps chromium
+# Crawlee's memory snapshotter uses `ps`; keep monitoring functional in the
+# slim runtime image without adding a full process-management stack.
+RUN apt-get update && apt-get install -y --no-install-recommends procps \
+  && rm -rf /var/lib/apt/lists/*
 CMD ["node", "apps/scraping-worker/dist/index.js"]

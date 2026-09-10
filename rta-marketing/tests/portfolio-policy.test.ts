@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { assertSafeScraperUrl, assertSingleSourcePayload, appConfigSchema, canReleaseScrapeLock, findConfiguredSite, isScrapeTokenValid, manualScrapeJobId, parseScrapeLimit, rateLimitDecision, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT } from "../packages/shared/src/index.ts";
 import { runCrawlerWithTimeout } from "../packages/scrapers/src/common.ts";
+import { PLAYWRIGHT_MAX_CONCURRENCY, PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER, PLAYWRIGHT_MIN_CONCURRENCY } from "../packages/scrapers/src/olx.ts";
 import { scrapeSyntheticSource } from "../packages/scrapers/src/mock-source.ts";
 
 const defaultLimit = 5;
@@ -88,13 +89,23 @@ test("manual-only and one-worker defaults are enforced by configuration", () => 
   const config = appConfigSchema.parse({ DATABASE_URL: "https://example.com/neon" });
   assert.equal(config.MANUAL_SCRAPING_ONLY, true);
   assert.equal(config.WORKER_CONCURRENCY, 1);
+  assert.equal(config.CRAWLEE_MEMORY_MBYTES, 450);
   assert.equal(config.SCRAPE_DEFAULT_LIMIT, 5);
   assert.equal(config.SCRAPE_MAX_LIMIT, 10);
 });
 
+test("Playwright crawler stays at one task, one page, with a constrained Crawlee budget", () => {
+  const config = appConfigSchema.parse({ DATABASE_URL: "https://example.com/neon", CRAWLEE_MEMORY_MBYTES: "400" });
+  assert.equal(config.CRAWLEE_MEMORY_MBYTES, 400);
+  assert.equal(PLAYWRIGHT_MIN_CONCURRENCY, 1);
+  assert.equal(PLAYWRIGHT_MAX_CONCURRENCY, 1);
+  assert.equal(PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER, 1);
+  assert.throws(() => appConfigSchema.parse({ DATABASE_URL: "https://example.com/neon", CRAWLEE_MEMORY_MBYTES: "451" }));
+});
+
 test("synthetic scraper returns no more than the requested maximum", async () => {
   const site = { key: "demo-synthetic", name: "Demo", baseUrl: "https://demo.synthetic.invalid", engine: "cheerio", itemSelector: "article", titleSelector: "h2", priceSelector: ".price", linkSelector: "a", delayMs: 0, maxConcurrency: 1 } as const;
-  const items = await scrapeSyntheticSource(site, { userAgent: "RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)", delayMs: 0, maxConcurrency: 1, limit: 10, navigationTimeoutMs: 30_000, selectorTimeoutMs: 15_000, jobTimeoutMs: 120_000 });
+  const items = await scrapeSyntheticSource(site, { userAgent: "RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)", delayMs: 0, maxConcurrency: 1, limit: 10, crawleeMemoryMbytes: 450, navigationTimeoutMs: 30_000, selectorTimeoutMs: 15_000, jobTimeoutMs: 120_000 });
   assert.equal(items.length, 10);
 });
 
