@@ -1,8 +1,11 @@
+import dns from "node:dns";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 
 import { databaseEnv } from "../config/database.js";
+
+dns.setDefaultResultOrder("ipv4first");
 
 const migrationPool = new Pool({
   connectionString:

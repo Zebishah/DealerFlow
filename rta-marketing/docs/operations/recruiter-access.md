@@ -28,7 +28,7 @@ DEMO_RECRUITER_PASSWORD=the_same_password_as_the_seeded_recruiter
 
 `BREVO_API_KEY` is server-only. The implementation calls Brevo's HTTPS endpoint `https://api.brevo.com/v3/smtp/email`; it does not use SMTP, Nodemailer or Resend.
 
-For a fresh demo database, also provide the seed values while running the seed command:
+For a fresh demo database, provide the seed values while explicitly running the seed command. Render does not run `db:seed` automatically when these variables are saved:
 
 ```ini
 SEED_DEMO_DATA=true
@@ -61,6 +61,11 @@ Run from a trusted environment using the dealership database URL:
 npm run db:migrate --workspace=@rta/dealership-api
 npm run db:seed --workspace=@rta/dealership-api
 ```
+
+Run the migration with `DATABASE_MIGRATION_URL` set to Neon’s direct/non-pooled
+URL. Run the seed with `DATABASE_URL` set to Neon’s pooled URL. Do not set
+`DATABASE_URL` to the direct URL for the seed; direct connections can time out
+even when the pooled endpoint is reachable.
 
 Migration `0008_auth_email_flows.sql` adds hashed verification, reset and invitation-token fields. Existing accounts are marked verified during migration so the old login flow is not broken; new signups start unverified.
 

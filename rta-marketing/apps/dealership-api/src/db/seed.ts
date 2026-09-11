@@ -1,7 +1,8 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { hashPassword } from "../auth/password.js";
-import { db, pool } from "./client.js";
+import { db, pool, verifyDatabaseConnection } from "./client.js";
+import { databaseEnv } from "../config/database.js";
 import {
   financeProviders,
   leadSources,
@@ -99,7 +100,45 @@ async function ensureUser(input: {
     .where(sql`lower(${users.email}) = ${email}`)
     .limit(1);
 
-  if (existing[0]) return existing[0].id;
+  async function updateSeedOwnedUser(id: string): Promise<string> {
+    const [updated] = await db
+      .update(users)
+      .set({
+        workspaceId: input.workspaceId,
+        email,
+        passwordHash: await hashPassword(input.password),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        role: input.role,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+
+    if (!updated) throw new Error(`Failed to update seeded user ${email}`);
+    return updated.id;
+  }
+
+  if (existing[0]) {
+    // Demo accounts have fixed IDs so their seeded relationships remain
+    // stable. Refresh those accounts on reruns, while leaving an unrelated
+    // existing account with the same email untouched.
+    if (input.id && existing[0].id === input.id) {
+      return updateSeedOwnedUser(input.id);
+    }
+    return existing[0].id;
+  }
+
+  if (input.id) {
+    const existingById = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, input.id))
+      .limit(1);
+
+    if (existingById[0]) return updateSeedOwnedUser(input.id);
+  }
 
   const [created] = await db
     .insert(users)
@@ -231,18 +270,90 @@ async function seedDemoWorkspace(): Promise<void> {
   });
 }
 
+async function verifySeedDatabaseConnection(): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await verifyDatabaseConnection();
+      return;
+    } catch (error: unknown) {
+      lastError = error;
+      if (!isConnectivityError(error) || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * attempt));
+    }
+  }
+
+  throw lastError;
+}
+
 async function main(): Promise<void> {
+  // Fail before the first write with a useful message when the database
+  // endpoint cannot be reached. The first Drizzle query otherwise wraps the
+  // connection error and makes a network problem look like a seed SQL error.
+  await verifySeedDatabaseConnection();
   await seedScrapeSources();
   await seedOperator();
   await seedDemoWorkspace();
   console.log("Database seed completed");
 }
 
+function databaseHost(): string {
+  try {
+    return new URL(databaseEnv.DATABASE_URL).hostname;
+  } catch {
+    return "the configured PostgreSQL endpoint";
+  }
+}
+
+function isConnectivityError(error: unknown): boolean {
+  const connectivityCodes = [
+    "ETIMEDOUT",
+    "EAI_AGAIN",
+    "ENOTFOUND",
+    "ECONNREFUSED",
+  ];
+  const seen = new Set<object>();
+
+  function visit(candidate: unknown): boolean {
+    if (!candidate || typeof candidate !== "object") return false;
+    if (seen.has(candidate)) return false;
+    seen.add(candidate);
+
+    const value = candidate as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+      errors?: unknown;
+    };
+    const text = [value.code, value.message, String(candidate)]
+      .filter((part): part is string => typeof part === "string")
+      .join(" ");
+
+    return (
+      connectivityCodes.some((code) => text.includes(code)) ||
+      visit(value.cause) ||
+      (Array.isArray(value.errors) && value.errors.some(visit))
+    );
+  }
+
+  return visit(error);
+}
+
 async function run(): Promise<void> {
   try {
     await main();
   } catch (error: unknown) {
-    console.error("Database seed failed", error);
+    if (isConnectivityError(error)) {
+      console.error(
+        `Database seed failed: PostgreSQL at ${databaseHost()} could not be reached.`,
+      );
+      console.error(
+        "For normal API traffic, use Neon’s pooled URL (the hostname contains -pooler). For this one-time seed, any reachable Neon URL is valid; if the pooled endpoint times out, retry with the direct URL. Also confirm the Neon project is active and outbound TCP/5432 is allowed.",
+      );
+    } else {
+      console.error("Database seed failed", error);
+    }
     process.exitCode = 1;
   } finally {
     await pool.end();
