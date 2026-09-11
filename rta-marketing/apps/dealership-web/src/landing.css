@@ -24,6 +24,11 @@
 .landing-vehicle-card:focus-visible{box-shadow:0 0 0 3px var(--landing-orange),0 20px 30px rgba(14,34,31,.13);outline:none;transform:translateY(-5px)}
 .landing-vehicle-card-link{align-items:center;border-top:1px solid #e7e9e3;color:var(--landing-orange-dark);display:flex;font-size:10px;font-weight:800;gap:5px;margin-top:15px;padding-top:12px}
 .landing-vehicle-card-link svg{transition:transform .2s}.landing-vehicle-card:hover .landing-vehicle-card-link svg,.landing-vehicle-card:focus-visible .landing-vehicle-card-link svg{transform:translateX(3px)}
+
+/* Keep every listing image on one predictable 3:2 canvas. The source assets
+   are normalized to this ratio so cars stay complete without letterbox shifts. */
+.landing-vehicle-card-image{aspect-ratio:3 / 2;height:auto;min-height:0}
+.landing-vehicle-card-image img{display:block;height:100%;object-fit:cover;width:100%}
 .landing-vehicle-detail-backdrop{align-items:center;background:rgba(9,23,25,.7);display:flex;inset:0;justify-content:center;padding:24px;position:fixed;z-index:30}
 .landing-vehicle-detail-panel{background:#fff;border-radius:7px;box-shadow:0 30px 90px rgba(9,23,25,.3);display:grid;grid-template-columns:minmax(280px,.9fr) 1.1fr;max-height:min(720px,calc(100vh - 48px));max-width:900px;overflow:auto;width:100%}
 .landing-vehicle-detail-visual{min-height:100%;overflow:hidden;position:relative}.landing-vehicle-detail-visual img{height:100%;min-height:430px;object-fit:contain;width:100%}.landing-vehicle-detail-status{align-items:center;background:rgba(9,23,25,.78);border-radius:3px;bottom:18px;color:#fff;display:flex;font-size:9px;font-weight:800;gap:6px;left:18px;padding:8px 10px;position:absolute}.landing-vehicle-detail-status svg{color:#74d79c}
