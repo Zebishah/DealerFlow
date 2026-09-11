@@ -226,31 +226,55 @@ function formatCents(value: unknown): string {
   return `$${(Number(value ?? 0) / 100).toLocaleString()}`;
 }
 
-async function deterministicAnswer(request: AssistantRequest, context: AssistantContext | undefined, toolContext: AssistantToolContext, authenticated: boolean): Promise<AssistantAnswer> {
+function withProvider(answer: AssistantAnswer, provider: AssistantAnswer["provider"]): AssistantAnswer {
+  return assistantAnswerSchema.parse({ ...answer, provider });
+}
+
+async function deterministicAnswer(request: AssistantRequest, context: AssistantContext | undefined, toolContext: AssistantToolContext, authenticated: boolean, requestId?: string): Promise<AssistantAnswer> {
+  logger.info({ event: "assistant_deterministic_fallback", requestId, provider: "deterministic" }, "Assistant used deterministic fallback");
   try {
     const fallback = await fallbackTool(request.message, toolContext);
-    return formatFallback(fallback.name, fallback.data, request.message, context, authenticated);
+    return withProvider(formatFallback(fallback.name, fallback.data, request.message, context, authenticated), "deterministic");
   } catch (error) {
     logger.warn({ error: error instanceof Error ? error.message : "unknown", tool: "assistant_fallback" }, "Assistant deterministic fallback failed");
-    return assistantAnswerSchema.parse({
+    return withProvider(assistantAnswerSchema.parse({
       answer: authenticated ? "I could not reach the authorized workspace data right now. Please try again shortly." : "I can answer product, architecture, security, and demo questions. Ask me about one of those topics.",
       sources: sourceForContext(context),
       suggestions: authenticated ? ["Summarize my dashboard", "Find vehicles in inventory"] : ["What does RTA do?"],
       navigation: navigationForMessage(request.message, authenticated),
-    });
+    }), "deterministic");
   }
 }
 
-function parseProviderText(text: string, sources: AssistantAnswer["sources"], context: AssistantContext | undefined, message: string, authenticated: boolean): AssistantAnswer {
+function providerEnvelope(text: string): { answer: string; suggestions: string[] } | undefined {
+  const candidate = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  let parsed: unknown;
   try {
-    const parsed = assistantAnswerSchema.parse(JSON.parse(text));
-    return assistantAnswerSchema.parse({ ...parsed, sources: [...sources, ...sourceForContext(context)].slice(0, 8), navigation: navigationForMessage(message, authenticated) });
+    parsed = JSON.parse(candidate);
+    if (typeof parsed === "string") parsed = JSON.parse(parsed);
   } catch {
-    return assistantAnswerSchema.parse({ answer: text.trim() || "I could not produce an answer from the available data.", sources: [...sources, ...sourceForContext(context)].slice(0, 8), suggestions: authenticated ? ["Summarize my dashboard", "Find vehicles in inventory"] : ["What does this platform do?"], navigation: navigationForMessage(message, authenticated) });
+    return undefined;
   }
+  if (!parsed || typeof parsed !== "object" || typeof (parsed as { answer?: unknown }).answer !== "string") return undefined;
+  const answer = (parsed as { answer: string }).answer.trim();
+  const suggestions = Array.isArray((parsed as { suggestions?: unknown }).suggestions)
+    ? ((parsed as { suggestions: unknown[] }).suggestions).filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 4)
+    : [];
+  return answer ? { answer, suggestions } : undefined;
 }
 
-export async function answerAssistantRequest(input: unknown, user?: AuthenticatedUser): Promise<AssistantAnswer> {
+function parseProviderText(text: string, sources: AssistantAnswer["sources"], context: AssistantContext | undefined, message: string, authenticated: boolean, provider: AssistantAnswer["provider"]): AssistantAnswer {
+  const envelope = providerEnvelope(text);
+  const answer = envelope?.answer ?? (text.trim() || "I could not produce an answer from the available data.");
+  return withProvider(assistantAnswerSchema.parse({
+    answer: answer.slice(0, 8_000),
+    sources: [...sources, ...sourceForContext(context)].slice(0, 8),
+    suggestions: envelope?.suggestions.length ? envelope.suggestions : authenticated ? ["Summarize my dashboard", "Find vehicles in inventory"] : ["What does this platform do?"],
+    navigation: navigationForMessage(message, authenticated),
+  }), provider);
+}
+
+export async function answerAssistantRequest(input: unknown, user?: AuthenticatedUser, requestId?: string): Promise<AssistantAnswer> {
   const request = assistantRequestSchema.parse(input);
   if (request.message.length > env.AI_MAX_INPUT_CHARS) throw new AppError(400, "AI_INPUT_TOO_LARGE", `Assistant messages are limited to ${env.AI_MAX_INPUT_CHARS} characters`);
   const context = safeContext(request.context);
@@ -262,7 +286,7 @@ export async function answerAssistantRequest(input: unknown, user?: Authenticate
   const provider = getAiProvider();
 
   if (!provider) {
-    return deterministicAnswer(request, context, toolContext, Boolean(user));
+    return deterministicAnswer(request, context, toolContext, Boolean(user), requestId);
   }
 
   const tools = availableAssistantTools(Boolean(user));
@@ -277,12 +301,15 @@ export async function answerAssistantRequest(input: unknown, user?: Authenticate
     let completion: Awaited<ReturnType<typeof provider.complete>>;
     try {
       const finalTurn = turn >= 2;
-      completion = await provider.complete({ messages, tools: finalTurn ? [] : tools.map((tool) => tool.definition), structuredOutput: finalTurn });
-    } catch (error) {
-      logger.warn({ error: error instanceof Error ? error.message : "unknown", provider: env.AI_PROVIDER }, "Assistant provider failed; using deterministic fallback");
-      return deterministicAnswer(request, context, toolContext, Boolean(user));
+      completion = await provider.complete({ messages, tools: finalTurn ? [] : tools.map((tool) => tool.definition), structuredOutput: finalTurn, ...(requestId ? { requestId } : {}) });
+    } catch {
+      logger.warn({ event: "assistant_provider_chain_failed", requestId, configuredProvider: env.AI_PROVIDER, provider: "deterministic" }, "Assistant provider chain failed; using deterministic fallback");
+      return deterministicAnswer(request, context, toolContext, Boolean(user), requestId);
     }
-    if (!completion.toolCalls.length) return parseProviderText(completion.text ?? "", sourceLabels, context, request.message, Boolean(user));
+    if (!completion.toolCalls.length) {
+      logger.info({ event: "assistant_provider_success", requestId, provider: completion.provider, turn, toolCalls: 0 }, "Assistant provider completed a response");
+      return parseProviderText(completion.text ?? "", sourceLabels, context, request.message, Boolean(user), completion.provider);
+    }
 
     messages.push({
       role: "assistant",
@@ -293,13 +320,24 @@ export async function answerAssistantRequest(input: unknown, user?: Authenticate
       const selected = getAssistantTool(call.name);
       let result: unknown;
       if (!selected || !isAssistantToolAllowed(call.name, user?.role)) {
+        logger.warn({ event: "assistant_tool_denied", requestId, tool: call.name, role: user?.role ?? "public" }, "Assistant tool authorization denied");
         result = { error: "This tool is not available for the current user" };
       } else {
         try {
-          const parsedArgs = selected.schema.parse(JSON.parse(call.arguments));
+          let parsedArgs: unknown;
+          try {
+            parsedArgs = selected.schema.parse(JSON.parse(call.arguments));
+          } catch {
+            logger.warn({ event: "assistant_tool_validation_failed", requestId, tool: call.name }, "Assistant tool arguments failed validation");
+            result = { error: "Tool arguments failed validation" };
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result).slice(0, 12_000) });
+            continue;
+          }
           result = await selected.execute(parsedArgs, toolContext);
+          logger.info({ event: "assistant_tool_success", requestId, tool: call.name }, "Assistant tool completed");
           sourceLabels.push({ label: selected.definition.function.name, kind: selected.definition.function.name === "getPlatformHelp" ? "product" : "tool" });
         } catch (error) {
+          logger.warn({ event: "assistant_tool_failure", requestId, tool: call.name }, "Assistant tool failed");
           result = { error: error instanceof Error ? error.message : "Tool request could not be completed" };
         }
       }
@@ -307,5 +345,5 @@ export async function answerAssistantRequest(input: unknown, user?: Authenticate
     }
   }
 
-  return assistantAnswerSchema.parse({ answer: "I could not safely complete that request in the available tool steps. Please narrow the question and try again.", sources: sourceLabels, suggestions: ["Ask for a dashboard summary", "Search authorized inventory"], navigation: navigationForMessage(request.message, Boolean(user)) });
+  return withProvider(assistantAnswerSchema.parse({ answer: "I could not safely complete that request in the available tool steps. Please narrow the question and try again.", sources: sourceLabels, suggestions: ["Ask for a dashboard summary", "Search authorized inventory"], navigation: navigationForMessage(request.message, Boolean(user)) }), env.AI_PROVIDER === "none" ? "deterministic" : env.AI_PROVIDER);
 }

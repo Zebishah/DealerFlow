@@ -49,7 +49,7 @@ export function createAssistantRouter(options?: { rateLimitMax?: number; dailyQu
     asyncHandler(async (request, response) => {
       if (!env.AI_PUBLIC_CHAT_ENABLED && !request.user) throw new AppError(403, "AI_PUBLIC_CHAT_DISABLED", "The public assistant is currently unavailable");
       const input = z.unknown().parse(request.body);
-      const answer = await answerAssistantRequest(input, request.user);
+      const answer = await answerAssistantRequest(input, request.user, String(request.id));
       response.json({ data: answer });
     }),
   );

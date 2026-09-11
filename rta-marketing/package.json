@@ -25,6 +25,7 @@
     "test:dealership-api": "npm run test --workspace=@rta/dealership-api",
     "test:dealership-web": "npm run test --workspace=@rta/dealership-web",
     "test:scraping": "tsx --test tests/*.test.ts",
+    "benchmark:ai": "node scripts/ai-live-benchmark.mjs",
     "lint": "npm run lint --workspace=@rta/dealership-api && npm run lint --workspace=@rta/dealership-web",
     "db:migrate:scraping": "drizzle-kit migrate --config packages/db/drizzle.config.ts",
     "db:generate:scraping": "drizzle-kit generate --config packages/db/drizzle.config.ts",

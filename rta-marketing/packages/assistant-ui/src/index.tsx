@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import "./styles.css";
 
 export type AssistantHistoryMessage = { role: "user" | "assistant"; content: string };
@@ -9,10 +9,15 @@ export type AssistantRequest = {
 };
 export type AssistantAnswer = {
   answer: string;
+  provider?: "gemini" | "groq" | "openrouter" | "openai-compatible" | "deterministic";
   sources: Array<{ label: string; kind: string }>;
   suggestions: string[];
   navigation: Array<{ label: string; path: string }>;
 };
+
+export function openRtaAssistant(prompt?: string): void {
+  window.dispatchEvent(new CustomEvent("rta-assistant:open", { detail: { prompt } }));
+}
 
 export interface RtaAssistantProps {
   authenticated: boolean;
@@ -23,6 +28,15 @@ export interface RtaAssistantProps {
 }
 
 const maxHistory = 8;
+
+function readableAnswer(value: string): string {
+  try {
+    const parsed = JSON.parse(value) as { answer?: unknown };
+    return typeof parsed.answer === "string" && parsed.answer.trim() ? parsed.answer : value;
+  } catch {
+    return value;
+  }
+}
 
 function entityType(path: string): AssistantRequest["context"]["entityType"] {
   if (path.includes("leads")) return "lead";
@@ -47,6 +61,16 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
   const [error, setError] = useState("");
   const suggestions = useMemo(() => initialSuggestions(authenticated), [authenticated]);
 
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const prompt = (event as CustomEvent<{ prompt?: string }>).detail?.prompt;
+      setOpen(true);
+      if (prompt) setInput(prompt);
+    };
+    window.addEventListener("rta-assistant:open", handleOpen);
+    return () => window.removeEventListener("rta-assistant:open", handleOpen);
+  }, []);
+
   async function submit(message: string): Promise<void> {
     const trimmed = message.trim();
     if (!trimmed || loading) return;
@@ -58,7 +82,7 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
     try {
       const next = await request({ message: trimmed, history, context: { route: path, entityType: entityType(path) } });
       setAnswer(next);
-      setMessages((current) => [...current, { role: "assistant" as const, content: next.answer }].slice(-maxHistory));
+      setMessages((current) => [...current, { role: "assistant" as const, content: readableAnswer(next.answer) }].slice(-maxHistory));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The assistant is temporarily unavailable.");
     } finally {

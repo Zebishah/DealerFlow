@@ -87,6 +87,29 @@ void test("provider HTTP failure falls back to deterministic knowledge", async (
   assert.match(await deterministicAfterProviderFailure(503), /RTA|platform|dealership/i);
 });
 
+void test("provider envelopes render their answer even when provider metadata is malformed", async () => {
+  const saved = { enabled: env.AI_ENABLED, provider: env.AI_PROVIDER, fallback: env.AI_FALLBACK_PROVIDERS, model: env.AI_MODEL, key: env.GEMINI_API_KEY };
+  const originalFetch = globalThis.fetch;
+  try {
+    env.AI_ENABLED = true;
+    env.AI_PROVIDER = "gemini";
+    env.AI_FALLBACK_PROVIDERS = "";
+    env.AI_MODEL = "test-model";
+    env.GEMINI_API_KEY = "test-key";
+    globalThis.fetch = async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ answer: "Clean provider answer", sources: [{ title: "Unexpected provider shape" }], suggestions: [], navigation: {} }) }] } }] }), { status: 200 });
+    const answer = await answerAssistantRequest({ message: "What does RTA do?", context: { route: "/" } });
+    assert.equal(answer.answer, "Clean provider answer");
+    assert.doesNotMatch(answer.answer, /^\s*\{/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    env.AI_ENABLED = saved.enabled;
+    env.AI_PROVIDER = saved.provider;
+    env.AI_FALLBACK_PROVIDERS = saved.fallback;
+    env.AI_MODEL = saved.model;
+    env.GEMINI_API_KEY = saved.key;
+  }
+});
+
 void test("workspace-required tools fail closed before any database access", async () => {
   const tool = getAssistantTool("getAnalyticsSummary");
   assert.ok(tool);

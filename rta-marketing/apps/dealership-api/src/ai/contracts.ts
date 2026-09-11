@@ -52,6 +52,7 @@ export const assistantNavigationSchema = z.object({
 
 export const assistantAnswerSchema = z.object({
   answer: z.string().trim().min(1).max(8_000),
+  provider: z.enum(["gemini", "groq", "openrouter", "openai-compatible", "deterministic"]).optional(),
   sources: z.array(assistantSourceSchema).max(8).default([]),
   suggestions: z.array(z.string().trim().min(1).max(160)).max(4).default([]),
   navigation: z.array(assistantNavigationSchema).max(2).default([]),

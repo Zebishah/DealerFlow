@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { logger } from "../lib/logger.js";
 
 export type AiChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -19,13 +20,15 @@ export interface AiToolDefinition {
 export interface AiCompletion {
   text: string | null;
   toolCalls: Array<{ id: string; name: string; arguments: string }>;
+  provider: ProviderName;
 }
 
 export interface AiProvider {
-  complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean }): Promise<AiCompletion>;
+  readonly provider: ProviderName;
+  complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean; requestId?: string }): Promise<AiCompletion>;
 }
 
-type ProviderName = "gemini" | "groq" | "openrouter" | "openai-compatible";
+export type ProviderName = "gemini" | "groq" | "openrouter" | "openai-compatible";
 
 const assistantAnswerJsonSchema: Record<string, unknown> = {
   type: "OBJECT",
@@ -82,9 +85,10 @@ function geminiContents(messages: AiChatMessage[]): Array<Record<string, unknown
 }
 
 class GeminiProvider implements AiProvider {
+  readonly provider = "gemini" as const;
   constructor(private readonly apiKey: string, private readonly model: string) {}
 
-  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean }): Promise<AiCompletion> {
+  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean; requestId?: string }): Promise<AiCompletion> {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent`;
     const systemMessage = input.messages.find((message) => message.role === "system");
     const generationConfig: Record<string, unknown> = { temperature: 0.1, maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS };
@@ -105,14 +109,14 @@ class GeminiProvider implements AiProvider {
     const parts = payload.candidates?.[0]?.content?.parts ?? [];
     const toolCalls = parts.filter((part) => typeof part.functionCall?.name === "string").map((part, index) => ({ id: typeof part.functionCall?.id === "string" ? part.functionCall.id : `gemini-call-${index}`, name: part.functionCall!.name as string, arguments: JSON.stringify(part.functionCall?.args ?? {}) }));
     const text = parts.filter((part) => typeof part.text === "string").map((part) => part.text as string).join("\n");
-    return { text: text || null, toolCalls };
+    return { text: text || null, toolCalls, provider: this.provider };
   }
 }
 
 class OpenAiCompatibleProvider implements AiProvider {
-  constructor(private readonly apiKey: string, private readonly baseUrl: string, private readonly model: string, private readonly headers: Record<string, string> = {}) {}
+  constructor(readonly provider: ProviderName, private readonly apiKey: string, private readonly baseUrl: string, private readonly model: string, private readonly headers: Record<string, string> = {}) {}
 
-  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean }): Promise<AiCompletion> {
+  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean; requestId?: string }): Promise<AiCompletion> {
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json", ...this.headers },
@@ -123,17 +127,21 @@ class OpenAiCompatibleProvider implements AiProvider {
     const payload = await response.json() as { choices?: Array<{ message?: { content?: unknown; tool_calls?: Array<{ id?: unknown; function?: { name?: unknown; arguments?: unknown } }> } }> };
     const message = payload.choices?.[0]?.message;
     const toolCalls = (message?.tool_calls ?? []).filter((call) => typeof call.id === "string" && typeof call.function?.name === "string" && typeof call.function.arguments === "string").map((call) => ({ id: call.id as string, name: call.function!.name as string, arguments: call.function!.arguments as string }));
-    return { text: typeof message?.content === "string" ? message.content : null, toolCalls };
+    return { text: typeof message?.content === "string" ? message.content : null, toolCalls, provider: this.provider };
   }
 }
 
 class FallbackProvider implements AiProvider {
   constructor(private readonly providers: AiProvider[]) {}
+  readonly provider = "openai-compatible" as const;
 
-  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean }): Promise<AiCompletion> {
+  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean; requestId?: string }): Promise<AiCompletion> {
     let lastError: unknown;
     for (const provider of this.providers) {
-      try { return await provider.complete(input); } catch (error) { lastError = error; }
+      try { return await provider.complete(input); } catch (error) {
+        lastError = error;
+        logger.warn({ event: "assistant_provider_failure", requestId: input.requestId, provider: provider.provider }, "Assistant provider failed; trying the next configured provider");
+      }
     }
     throw lastError instanceof Error ? lastError : new Error("No configured AI provider is available");
   }
@@ -150,14 +158,14 @@ function modelFor(provider: ProviderName, primary: boolean): string {
 function createProvider(provider: ProviderName, primary: boolean): AiProvider | null {
   const model = modelFor(provider, primary);
   if (provider === "gemini" && env.GEMINI_API_KEY) return new GeminiProvider(env.GEMINI_API_KEY, model);
-  if (provider === "groq" && env.GROQ_API_KEY) return new OpenAiCompatibleProvider(env.GROQ_API_KEY, "https://api.groq.com/openai/v1", model);
+  if (provider === "groq" && env.GROQ_API_KEY) return new OpenAiCompatibleProvider("groq", env.GROQ_API_KEY, "https://api.groq.com/openai/v1", model);
   if (provider === "openrouter" && env.OPENROUTER_API_KEY) {
     const headers: Record<string, string> = {};
     if (env.OPENROUTER_HTTP_REFERER) headers["HTTP-Referer"] = env.OPENROUTER_HTTP_REFERER;
     if (env.OPENROUTER_APP_TITLE) headers["X-Title"] = env.OPENROUTER_APP_TITLE;
-    return new OpenAiCompatibleProvider(env.OPENROUTER_API_KEY, "https://openrouter.ai/api/v1", model, headers);
+    return new OpenAiCompatibleProvider("openrouter", env.OPENROUTER_API_KEY, "https://openrouter.ai/api/v1", model, headers);
   }
-  if (provider === "openai-compatible" && env.AI_API_KEY) return new OpenAiCompatibleProvider(env.AI_API_KEY, env.AI_BASE_URL, model);
+  if (provider === "openai-compatible" && env.AI_API_KEY) return new OpenAiCompatibleProvider("openai-compatible", env.AI_API_KEY, env.AI_BASE_URL, model);
   return null;
 }
 

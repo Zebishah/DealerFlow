@@ -1,10 +1,18 @@
-# RTA Automotive Operations Platform
+# RTA — AI-Powered Automotive Dealership Operations & Vehicle Intelligence
 
 RTA is a portfolio-grade dealership operations platform with a separate,
 manual vehicle-scraping subsystem. The boundaries are intentional: the
 dealership platform retains an isolated AWS SQS/Lambda reference implementation
 for portfolio showcase, while scraping runs through BullMQ, Redis, and a
 dedicated browser-capable worker.
+
+The product includes a site-wide, read-only RTA Assistant. It combines curated
+product knowledge with role- and workspace-authorized tools for natural-language
+analytics, lead next actions, vehicle recommendations, listing comparisons,
+market-price explanations, sales-performance insights, and scraping
+troubleshooting. Deterministic calculations remain server-side; the assistant
+cannot execute SQL, browse arbitrary URLs, run commands, mutate business data,
+or start scraping jobs. Public/demo conversations use sanitized context.
 
 ## Applications
 
@@ -79,9 +87,20 @@ For a complete local run of all services, use
 - [Docker deployment](docs/deployment/docker.md)
 - [Environment setup](docs/deployment/environment.md)
 - [Operations](docs/operations/)
+- [AI assistant architecture](docs/architecture/ai-assistant.md)
+- [AI live verification plan](docs/operations/ai-live-verification.md)
 - [Azure worker CI/CD](../.github/workflows/worker-ci.yml)
 
 Never commit `.env` files, cloud credentials, database URLs, Redis passwords,
 or access tokens. The root workspace `.gitignore` and repository-level ignore
 rules cover application secrets, build output, dependency folders, and local
 scraper artifacts.
+
+## Product presentation
+
+The landing page presents RTA as an AI-powered operating system for dealership
+teams rather than as a generic chatbot. The public assistant is intentionally
+product-focused; authenticated users receive only the read-only tools permitted
+by their role and workspace. Provider configuration, free-tier setup, and
+server-only key handling are documented in
+[`docs/deployment/environment.md`](docs/deployment/environment.md).

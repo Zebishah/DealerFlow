@@ -9,6 +9,7 @@ import {
   Heart,
   LogOut,
   Menu,
+  MessageSquare,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
@@ -27,6 +28,7 @@ import { api } from "../lib/api";
 import type { BootstrapData, UserRole } from "../types/domain";
 import { NavLink, useNavigation } from "../router/Navigation";
 import { PasswordChangeModal } from "./PasswordChangeModal";
+import { openRtaAssistant } from "@rta/assistant-ui";
 
 const nav = [
   { to: "/app/overview", label: "Overview", icon: Gauge, roles: ["admin", "employee", "virtual_assistant", "recruiter", "viewer"] },
@@ -90,6 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [title, subtitle] = pageTitles[key] ?? pageTitles.overview!;
   const items = nav.filter((item) => (item.roles as readonly UserRole[]).includes(user.role));
   const workspace = bootstrap.data?.workspace;
+  const askPrompt = `Explain the most useful intelligence available on the ${title.toLowerCase()} page.`;
 
   async function signOut() {
     try {
@@ -118,6 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="top-nav">
         <div><span>RTA AUTOMOTIVE GROUP</span><h1>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
+          <button className="ai-header-control" type="button" onClick={() => openRtaAssistant(askPrompt)}><MessageSquare size={15} /><span>Ask RTA AI</span></button>
           <div className="profile-wrap">
             <button className="profile-control" onClick={() => setProfileOpen((value) => !value)}><b>{initials(user.firstName, user.lastName, user.email)}</b><span><strong>{[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email}</strong><small>{user.role.replace("_", " ")}</small></span><ChevronDown size={15} /></button>
             {profileOpen && <div className="profile-menu"><button onClick={() => { setProfileOpen(false); navigate("/app/settings"); }}><Settings2 size={16} />Account settings</button><button onClick={() => void signOut()}><LogOut size={16} />Sign out</button></div>}

@@ -49,6 +49,10 @@ of a paid provider.
   active persisted listings; market-price explanations are explicitly limited
   to same-make/model/year inventory comparables; scraping troubleshooting is
   diagnostic and manual-only.
+- Benchmark responses expose only the selected provider name. Structured logs
+  correlate provider attempts, fallback events, tool success, validation
+  failure, and authorization denial with the request ID without logging
+  prompts, arguments, tool results, or secrets.
 
 ## Extending the assistant
 
