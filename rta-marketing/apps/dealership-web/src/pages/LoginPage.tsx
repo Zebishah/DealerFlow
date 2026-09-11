@@ -2,7 +2,6 @@ import { ArrowRight, BarChart3, Car as CarFront, CheckCircle2, Eye, EyeOff, Shie
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
-import { AccessRequestModal } from "../components/AccessRequestModal";
 import { ApiError } from "../lib/api";
 import { Link, Redirect, useNavigation } from "../router/Navigation";
 
@@ -14,7 +13,6 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
-  const [requestOpen, setRequestOpen] = useState(() => new URLSearchParams(window.location.search).get("request") === "1");
   if (user) return <Redirect to="/app/overview" />;
 
   async function submit(event: FormEvent) {
@@ -58,8 +56,7 @@ export function LoginPage() {
     </form>
     {verificationEmail && <div className="verification-required"><strong>Email verification required</strong><span>Verify your email address before opening the workspace.</span><Link to={`/resend-verification?email=${encodeURIComponent(verificationEmail)}`}>Resend verification email</Link></div>}
     <div className="auth-form-links"><Link to="/forgot-password">Forgot password?</Link><span>New to RTA? <Link to="/signup">Create account</Link></span></div>
-    <section className="recruiter-demo-card"><div><ShieldCheck size={18} /><span><strong>Recruiter demo</strong><small>Explore every dashboard with safe, read-only access.</small></span></div><button type="button" onClick={() => void enterDemo()} disabled={submitting}>Enter recruiter demo <ArrowRight size={14} /></button><button type="button" className="request-access-link" onClick={() => setRequestOpen(true)}>Request full access</button></section>
+    <section className="recruiter-demo-card"><div><ShieldCheck size={18} /><span><strong>Recruiter demo</strong><small>Explore every dashboard with safe, read-only access.</small></span></div><button type="button" onClick={() => void enterDemo()} disabled={submitting}>Enter recruiter demo <ArrowRight size={14} /></button><Link className="request-access-link" to="/request-access"><span>Need broader access?</span> Request full access <ArrowRight size={13} /></Link></section>
     </div></section>
-    <AccessRequestModal open={requestOpen} onClose={() => setRequestOpen(false)} />
   </main>;
 }

@@ -26,7 +26,6 @@ import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
 import type { BootstrapData, UserRole } from "../types/domain";
 import { NavLink, useNavigation } from "../router/Navigation";
-import { AccessRequestModal } from "./AccessRequestModal";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 
 const nav = [
@@ -80,7 +79,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { navigate, path } = useNavigation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [requestOpen, setRequestOpen] = useState(false);
   const bootstrap = useQuery({
     queryKey: ["dealership", "bootstrap"],
     queryFn: () => api<{ data: BootstrapData }>("/dealership/bootstrap").then((value) => value.data),
@@ -110,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{user.workspaceId ? "Workspace operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
         <p>WORKSPACE</p>
-        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/scraping-results", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/scraping-results", "/app/source-control", "/app/access-requests"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
         <p>INTELLIGENCE</p>
         {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control", "/app/access-requests"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
       </nav>
@@ -126,10 +124,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      {user.isDemoRecruiter && <div className="demo-access-banner"><ShieldAlert size={16} /><div><strong>Recruiter Demo Mode</strong><span>You can explore all product areas. Sensitive and destructive actions require approved access.</span></div><button type="button" onClick={() => setRequestOpen(true)}>Request full access</button></div>}
+      {user.isDemoRecruiter && <div className="demo-access-banner"><ShieldAlert size={16} /><div><strong>Recruiter Demo Mode</strong><span>You can explore all product areas. Sensitive and destructive actions require approved access.</span></div><button type="button" onClick={() => navigate("/request-access")}>Request full access</button></div>}
       <div className="page-content">{children}</div>
     </main>
-    <AccessRequestModal open={requestOpen} onClose={() => setRequestOpen(false)} />
     <PasswordChangeModal />
   </div>;
 }
