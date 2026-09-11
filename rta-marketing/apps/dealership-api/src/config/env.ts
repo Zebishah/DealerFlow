@@ -7,6 +7,11 @@ const booleanString = z
 
 const optionalBooleanString = booleanString.optional();
 
+const optionalSecret = z.preprocess(
+  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().min(1).optional(),
+);
+
 const envSchema = z
   .object({
     NODE_ENV: z
@@ -98,6 +103,28 @@ const envSchema = z
     DEALERSHIP_WEB_URL: z.string().url().optional(),
     SCRAPING_WEB_URL: z.string().url().optional(),
     ADMIN_NOTIFICATION_EMAIL: z.string().trim().email().optional(),
+    AI_ENABLED: optionalBooleanString.default(false),
+    AI_PROVIDER: z.enum(["none", "gemini", "groq", "openrouter", "openai-compatible"]).default("none"),
+    AI_FALLBACK_PROVIDERS: z.string().default("groq,openrouter"),
+    AI_API_KEY: optionalSecret,
+    GEMINI_API_KEY: optionalSecret,
+    GROQ_API_KEY: optionalSecret,
+    OPENROUTER_API_KEY: optionalSecret,
+    GEMINI_MODEL: z.string().trim().min(1).max(100).default("gemini-2.5-flash-lite"),
+    GROQ_MODEL: z.string().trim().min(1).max(100).default("openai/gpt-oss-20b"),
+    OPENROUTER_MODEL: z.string().trim().min(1).max(200).default("openrouter/free"),
+    OPENROUTER_HTTP_REFERER: z.string().url().optional(),
+    OPENROUTER_APP_TITLE: z.string().trim().min(1).max(120).optional(),
+    AI_MODEL: z.string().trim().min(1).max(200).optional(),
+    AI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+    AI_PUBLIC_CHAT_ENABLED: optionalBooleanString.default(true),
+    AI_MAX_INPUT_CHARS: z.coerce.number().int().min(200).max(8_000).default(2_000),
+    AI_MAX_MESSAGES: z.coerce.number().int().min(1).max(12).default(8),
+    AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(100).max(2_000).default(700),
+    AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(2_000).max(30_000).default(12_000),
+    AI_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
+    AI_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(60).default(12),
+    AI_DAILY_QUOTA: z.coerce.number().int().min(1).max(2_000).default(200),
   })
   .superRefine((value, context) => {
     if (
@@ -115,6 +142,19 @@ const envSchema = z
         code: "custom",
         path: ["SQS_SCRAPE_QUEUE_URL"],
         message: "SQS_SCRAPE_QUEUE_URL is required when SQS_INTEGRATION_ENABLED is true",
+      });
+    }
+    const providerKeys = {
+      gemini: value.GEMINI_API_KEY,
+      groq: value.GROQ_API_KEY,
+      openrouter: value.OPENROUTER_API_KEY,
+      "openai-compatible": value.AI_API_KEY,
+    } as const;
+    if (value.AI_ENABLED && value.AI_PROVIDER !== "none" && !providerKeys[value.AI_PROVIDER]) {
+      context.addIssue({
+        code: "custom",
+        path: [value.AI_PROVIDER === "gemini" ? "GEMINI_API_KEY" : value.AI_PROVIDER === "groq" ? "GROQ_API_KEY" : value.AI_PROVIDER === "openrouter" ? "OPENROUTER_API_KEY" : "AI_API_KEY"],
+        message: `The key for the ${value.AI_PROVIDER} provider is required when AI_ENABLED is true`,
       });
     }
   });

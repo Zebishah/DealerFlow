@@ -20,6 +20,7 @@ import { savedRouter } from "./modules/saved/routes.js";
 import { sourcesRouter } from "./modules/sources/routes.js";
 import { acquisitionRouter } from "./modules/acquisition/routes.js";
 import { publicAccessRequestRouter } from "./modules/access-requests/routes.js";
+import { assistantRouter } from "./modules/assistant/routes.js";
 
 export function createApp() {
   const app = express();
@@ -108,6 +109,7 @@ export function createApp() {
   app.use("/api/v1/saved-vehicles", savedRouter);
   app.use("/api/v1/sources", sourcesRouter);
   app.use("/api/v1/scraping-results", acquisitionRouter);
+  app.use("/api/v1/assistant", assistantRouter);
 
   app.use(notFound);
   app.use(errorHandler);

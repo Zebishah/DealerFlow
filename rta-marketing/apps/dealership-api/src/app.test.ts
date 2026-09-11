@@ -119,6 +119,20 @@ void test("access requests reject malformed public submissions before persistenc
   });
 });
 
+void test("public assistant answers from curated knowledge without authentication", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const response = await fetch(`${baseUrl}/api/v1/assistant/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: "How is the platform secured?", context: { route: "/login" } }),
+    });
+    assert.equal(response.status, 200);
+    const payload = (await response.json()) as { data: { answer: string; sources: Array<{ kind: string }> } };
+    assert.match(payload.data.answer, /security|access|session/i);
+    assert.ok(payload.data.sources.some((source) => source.kind === "product"));
+  });
+});
+
 void test("intelligence and acquisition endpoints reject unauthenticated access", async () => {
   await withServer(async ({ baseUrl }) => {
     const endpoints = [

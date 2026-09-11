@@ -77,6 +77,97 @@ Do not add permanent AWS access keys to Lambda. Its execution role supplies temp
 
 Only public browser configuration may use the `VITE_` prefix. Never expose database, AWS, cookie, or session values through Vite.
 
+The separate scraping monitor additionally uses `VITE_DEALERSHIP_API_URL` for
+its public-only assistant connection. Configure the dealership API
+`CORS_ORIGINS` to include both deployed browser origins.
+
+### Site-wide assistant
+
+The assistant is disabled safely by default. It can answer curated product
+questions without a provider key; authenticated operational answers use the
+allowlisted, read-only database tools. The key and provider URL belong only to
+the dealership API environment, never to either browser app.
+
+| Variable | Production guidance |
+|---|---|
+| `AI_ENABLED` | `true` only after the provider and quotas are configured |
+| `AI_PROVIDER` | `gemini` (recommended), `groq`, `openrouter`, or `none` |
+| `AI_FALLBACK_PROVIDERS` | Optional comma-separated failover order, for example `groq,openrouter` |
+| `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | Server-only provider keys; no OpenAI billing is required |
+| `AI_MODEL` | Optional model override for the selected primary provider |
+| `GEMINI_MODEL` | Defaults to the currently documented free-tier `gemini-2.5-flash-lite` |
+| `GROQ_MODEL` | Defaults to the current Groq replacement `openai/gpt-oss-20b` |
+| `OPENROUTER_MODEL` | Defaults to `openrouter/free`; availability and limits vary |
+| `AI_BASE_URL` / `AI_API_KEY` | Only for an explicitly selected custom OpenAI-compatible provider |
+| `AI_PUBLIC_CHAT_ENABLED` | `true` for the public product assistant; `false` to require sign-in |
+| `AI_MAX_INPUT_CHARS` / `AI_MAX_MESSAGES` | Keep the request context bounded, for example `2000` / `8` |
+| `AI_MAX_OUTPUT_TOKENS` | Keep responses concise, for example `700` |
+| `AI_REQUEST_TIMEOUT_MS` | Keep provider calls bounded, for example `12000` |
+| `AI_RATE_LIMIT_WINDOW_MS` / `AI_RATE_LIMIT_MAX` | Per-user/IP protection, for example `60000` / `12` |
+| `AI_DAILY_QUOTA` | Per-user/IP daily cap, for example `200` |
+
+The API always validates tool arguments and response envelopes. Provider
+failure falls back to deterministic product knowledge or an authorized tool;
+it does not grant broader data access. Public users receive product knowledge
+only. Free providers are opt-in, and Gemini is the default recommended
+provider; OpenRouter remains optional because its free models have lower daily
+limits. Migrations continue to use `DATABASE_MIGRATION_URL`; assistant traffic
+uses the pooled `DATABASE_URL`.
+
+For a no-billing Gemini setup, sign in to [Google AI Studio](https://aistudio.google.com/), open the API keys page, choose **Create API key**, and copy the key into Render as `GEMINI_API_KEY`. Do not click **Set up billing**. Google documents that new AI Studio keys are created as authorization keys and recommends restricting keys to the Gemini API. The Gemini free tier may use requests to improve Google products, so the assistant intentionally keeps public chat product-only and removes lead notes/contact fields before authorized tool results reach a model.
+
+Recommended Render variables:
+
+```dotenv
+AI_ENABLED=true
+AI_PROVIDER=gemini
+AI_FALLBACK_PROVIDERS=groq,openrouter
+GEMINI_API_KEY=your_google_ai_studio_key
+AI_MODEL=gemini-2.5-flash-lite
+AI_PUBLIC_CHAT_ENABLED=true
+AI_MAX_INPUT_CHARS=2000
+AI_MAX_MESSAGES=8
+AI_MAX_OUTPUT_TOKENS=700
+AI_REQUEST_TIMEOUT_MS=12000
+AI_RATE_LIMIT_WINDOW_MS=60000
+AI_RATE_LIMIT_MAX=12
+AI_DAILY_QUOTA=200
+```
+
+`GROQ_API_KEY` and `OPENROUTER_API_KEY` are optional. If supplied, they are
+used only as failover providers; set `GROQ_MODEL` to an active Groq model and
+leave `OPENROUTER_MODEL=openrouter/free` for OpenRouter's free router.
+
+For Groq as the primary free provider, create a Groq API key in the Groq
+console and add these exact Render environment variables to the dealership API
+service:
+
+```dotenv
+AI_ENABLED=true
+AI_PROVIDER=groq
+AI_FALLBACK_PROVIDERS=openrouter
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=openai/gpt-oss-20b
+OPENROUTER_API_KEY=optional_openrouter_key
+OPENROUTER_MODEL=openrouter/free
+AI_PUBLIC_CHAT_ENABLED=true
+AI_MAX_INPUT_CHARS=2000
+AI_MAX_MESSAGES=8
+AI_MAX_OUTPUT_TOKENS=700
+AI_REQUEST_TIMEOUT_MS=12000
+AI_RATE_LIMIT_WINDOW_MS=60000
+AI_RATE_LIMIT_MAX=12
+AI_DAILY_QUOTA=200
+```
+
+Use `AI_PROVIDER=groq`, not `openai-compatible`: `openai-compatible` is
+reserved for a custom endpoint configured with `AI_BASE_URL` and `AI_API_KEY`.
+No `OPENAI_API_KEY`, OpenAI billing, or frontend `VITE_*` provider key is
+required. If you want the full priority chain, use
+`AI_PROVIDER=gemini`, `AI_FALLBACK_PROVIDERS=groq,openrouter`, and supply the
+corresponding server-side keys; each fallback is skipped when its key is not
+configured.
+
 ### Scraping stack (Oracle Docker Compose)
 
 The scraping API and BullMQ worker run on the same Oracle VM as Redis. Redis is

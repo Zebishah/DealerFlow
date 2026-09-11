@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { RtaAssistant, type AssistantAnswer, type AssistantRequest } from "@rta/assistant-ui";
 
 type Site = { id: number; name: string; baseUrl: string; itemCount: number; lastScrapedAt: string | null };
 type Item = { id: number; title: string; price: string | null; year: string | null; mileage: string | null; city: string | null; listingUrl: string; thumbnailUrl: string | null; scrapedAt: string };
@@ -7,6 +8,7 @@ type ActiveJob = { jobId: string; siteKey: string; limit: number; status: JobSta
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 const dealershipWebUrl = import.meta.env.VITE_DEALERSHIP_WEB_URL ?? "http://localhost:5173";
 const scrapeControlBase = import.meta.env.PROD ? "" : apiUrl;
+const dealershipApiUrl = (import.meta.env.VITE_DEALERSHIP_API_URL ?? "http://localhost:5000/api/v1").replace(/\/$/, "");
 
 function scrapeControlPath(path: string): string {
   return `${scrapeControlBase}${path}`;
@@ -142,8 +144,20 @@ export function App() {
 
   const workerBusy = Boolean(activeJob && (activeJob.status === "queued" || activeJob.status === "scraping"));
 
+  async function askAssistant(input: AssistantRequest): Promise<AssistantAnswer> {
+    const response = await fetch(`${dealershipApiUrl}/assistant/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = await response.json() as { data?: AssistantAnswer; error?: { message?: string } };
+    if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "The assistant is temporarily unavailable.");
+    return payload.data;
+  }
+
   return (
     <main>
+      <RtaAssistant authenticated={false} path="/scraping-monitor" request={askAssistant} productLabel="RTA Scraping Assistant" />
       <header>
         <p className="eyebrow">RTA AUTOMOTIVE GROUP</p>
         <h1>Scraping monitor</h1>
