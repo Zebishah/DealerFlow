@@ -187,3 +187,6 @@
   .landing-ai-architecture-head{align-items:flex-start}
   .landing-ai-architecture-head strong{font-size:15px}
 }
+
+.landing-performance-cta{align-items:center;background:var(--landing-orange);border:0;border-radius:3px;color:#fff;cursor:pointer;display:inline-flex;font-size:10px;font-weight:800;gap:8px;margin-top:25px;padding:12px 14px}.landing-performance-cta:hover{background:var(--landing-orange-dark);transform:translateY(-1px)}
+.landing-vehicle-detail-note a{color:var(--landing-orange-dark);font-weight:800;text-decoration:underline;text-underline-offset:2px}
