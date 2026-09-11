@@ -7,6 +7,7 @@ interface AuthValue {
   user: SessionUser | null;
   loading: boolean;
   login(email: string, password: string): Promise<SessionUser>;
+  demoLogin(): Promise<SessionUser>;
   logout(): Promise<void>;
   refresh(): Promise<SessionUser>;
 }
@@ -44,6 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      queryClient.clear();
+      setCsrfToken(result.data.csrfToken);
+      setUser(result.data.user);
+      return result.data.user;
+    },
+    async demoLogin() {
+      const result = await api<{ data: { user: SessionUser; csrfToken: string } }>("/auth/demo-login", { method: "POST" });
       queryClient.clear();
       setCsrfToken(result.data.csrfToken);
       setUser(result.data.user);

@@ -9,6 +9,11 @@ import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage, SetupAccessPage } from "./pages/PasswordTokenPage";
+import { ResendVerificationPage } from "./pages/ResendVerificationPage";
+import { SignupPage } from "./pages/SignupPage";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { Redirect, useNavigation } from "./router/Navigation";
 
 export function App() {
@@ -31,6 +36,12 @@ export function App() {
   }
 
   if (path === "/login") return <LoginPage />;
+  if (path === "/signup") return <SignupPage />;
+  if (path === "/verify-email") return <VerifyEmailPage />;
+  if (path === "/resend-verification") return <ResendVerificationPage />;
+  if (path === "/forgot-password") return <ForgotPasswordPage />;
+  if (path === "/reset-password") return <ResetPasswordPage />;
+  if (path === "/setup-access") return <SetupAccessPage />;
   if (!user) return <Redirect to="/login" />;
 
   const normalizedPath = resolveLegacyPath(path);

@@ -2,15 +2,19 @@ import { ArrowRight, BarChart3, Car as CarFront, CheckCircle2, Eye, EyeOff, Shie
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
-import { Redirect, useNavigation } from "../router/Navigation";
+import { AccessRequestModal } from "../components/AccessRequestModal";
+import { ApiError } from "../lib/api";
+import { Link, Redirect, useNavigation } from "../router/Navigation";
 
 export function LoginPage() {
-  const { user, login } = useAuth();
+  const { user, login, demoLogin } = useAuth();
   const { navigate } = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [requestOpen, setRequestOpen] = useState(() => new URLSearchParams(window.location.search).get("request") === "1");
   if (user) return <Redirect to="/app/overview" />;
 
   async function submit(event: FormEvent) {
@@ -21,7 +25,21 @@ export function LoginPage() {
       navigate("/app/overview", { replace: true });
       toast.success("Welcome back");
     } catch (error) {
+      if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") setVerificationEmail(email.trim());
       toast.error(error instanceof Error ? error.message : "Sign in failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function enterDemo() {
+    setSubmitting(true);
+    try {
+      await demoLogin();
+      navigate("/app/overview", { replace: true });
+      toast.success("Recruiter demo opened");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Demo access is unavailable");
     } finally {
       setSubmitting(false);
     }
@@ -37,6 +55,11 @@ export function LoginPage() {
       <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
       <label>Password<div className="password-field"><input type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff /> : <Eye />}</button></div></label>
       <button className="submit-button" disabled={submitting}>{submitting ? "Signing in…" : <>Sign in securely <ArrowRight size={18} /></>}</button>
-    </form></div></section>
+    </form>
+    {verificationEmail && <div className="verification-required"><strong>Email verification required</strong><span>Verify your email address before opening the workspace.</span><Link to={`/resend-verification?email=${encodeURIComponent(verificationEmail)}`}>Resend verification email</Link></div>}
+    <div className="auth-form-links"><Link to="/forgot-password">Forgot password?</Link><span>New to RTA? <Link to="/signup">Create account</Link></span></div>
+    <section className="recruiter-demo-card"><div><ShieldCheck size={18} /><span><strong>Recruiter demo</strong><small>Explore every dashboard with safe, read-only access.</small></span></div><button type="button" onClick={() => void enterDemo()} disabled={submitting}>Enter recruiter demo <ArrowRight size={14} /></button><button type="button" className="request-access-link" onClick={() => setRequestOpen(true)}>Request full access</button></section>
+    </div></section>
+    <AccessRequestModal open={requestOpen} onClose={() => setRequestOpen(false)} />
   </main>;
 }

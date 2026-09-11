@@ -20,6 +20,7 @@ const TeamPage = lazy(async () => ({ default: (await import("../pages/TeamPage")
 const CompareVehiclesPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).CompareVehiclesPage }));
 const InventoryPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).InventoryPage }));
 const SavedVehiclesPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).SavedVehiclesPage }));
+const AccessRequestsPage = lazy(async () => ({ default: (await import("../pages/AccessRequestsPage")).AccessRequestsPage }));
 
 export interface AppRoute {
   component: RouteComponent;
@@ -59,12 +60,12 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
   },
   "/app/configuration": {
     component: ConfigurationPage,
-    roles: ["admin"],
+    roles: ["admin", "recruiter"],
     workspace: "required",
   },
   "/app/audit": {
     component: AuditPage,
-    roles: ["admin"],
+    roles: ["admin", "recruiter"],
     workspace: "required",
   },
   "/app/settings": {
@@ -74,12 +75,12 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
   },
   "/app/commissions": {
     component: CommissionsPage,
-    roles: ["admin", "employee"],
+    roles: ["admin", "employee", "recruiter"],
     workspace: "required",
   },
   "/app/targets": {
     component: TargetsPage,
-    roles: ["admin", "employee"],
+    roles: ["admin", "employee", "recruiter"],
     workspace: "required",
   },
   "/app/analytics": {
@@ -94,7 +95,7 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
   },
   "/app/documents": {
     component: DocumentsPage,
-    roles: ["admin", "employee"],
+    roles: ["admin", "employee", "recruiter"],
     workspace: "required",
   },
   "/app/inventory": {
@@ -126,6 +127,11 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
     component: SourceControlPage,
     roles: ["admin", "operator"],
     workspace: "optional",
+  },
+  "/app/access-requests": {
+    component: AccessRequestsPage,
+    roles: ["admin"],
+    workspace: "required",
   },
 };
 

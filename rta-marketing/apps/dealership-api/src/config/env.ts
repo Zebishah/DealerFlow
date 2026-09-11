@@ -90,6 +90,14 @@ const envSchema = z
     DEMO_MODE: optionalBooleanString.default(true),
     DEFAULT_SCRAPE_MODE: z.enum(["fixture", "live"]).default("fixture"),
     ALLOW_LIVE_SCRAPING: optionalBooleanString.default(true),
+    DEMO_RECRUITER_EMAIL: z.string().trim().email().default("recruiter.demo@rta.local"),
+    DEMO_RECRUITER_PASSWORD: z.string().min(14).optional(),
+    BREVO_API_KEY: z.string().min(1).optional(),
+    EMAIL_FROM: z.string().email().optional(),
+    EMAIL_FROM_NAME: z.string().trim().min(1).max(120).default("RTA Automotive Group"),
+    DEALERSHIP_WEB_URL: z.string().url().optional(),
+    SCRAPING_WEB_URL: z.string().url().optional(),
+    ADMIN_NOTIFICATION_EMAIL: z.string().trim().email().optional(),
   })
   .superRefine((value, context) => {
     if (

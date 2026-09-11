@@ -3,7 +3,7 @@ import { and, eq, gt, lt } from "drizzle-orm";
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
 import { db } from "../db/client.js";
-import { sessions, users } from "../db/schema.js";
+import { accessRequests, sessions, users } from "../db/schema.js";
 import type { UserRole } from "../db/schema.js";
 import { AppError } from "../lib/errors.js";
 
@@ -14,7 +14,18 @@ export interface AuthenticatedUser {
   firstName: string | null;
   lastName: string | null;
   role: UserRole;
+  mustChangePassword: boolean;
+  temporaryPasswordExpiresAt: Date | null;
+  isDemoRecruiter: boolean;
 }
+
+export type RecruiterPermission =
+  | "dealership.leads.write"
+  | "dealership.sales.write"
+  | "dealership.documents.read"
+  | "dealership.documents.upload"
+  | "scraping.jobs.trigger"
+  | "scraping.jobs.live";
 
 declare global {
   namespace Express {
@@ -73,6 +84,8 @@ export async function optionalSession(request: Request, _response: Response, nex
         firstName: users.firstName,
         lastName: users.lastName,
         role: users.role,
+        mustChangePassword: users.mustChangePassword,
+        temporaryPasswordExpiresAt: users.temporaryPasswordExpiresAt,
       })
       .from(sessions)
       .innerJoin(users, eq(sessions.userId, users.id))
@@ -95,6 +108,9 @@ export async function optionalSession(request: Request, _response: Response, nex
         firstName: session.firstName,
         lastName: session.lastName,
         role: session.role,
+        mustChangePassword: session.mustChangePassword,
+        temporaryPasswordExpiresAt: session.temporaryPasswordExpiresAt,
+        isDemoRecruiter: session.role === "recruiter" && session.email.toLowerCase() === env.DEMO_RECRUITER_EMAIL.toLowerCase(),
       };
     }
     next();
@@ -105,6 +121,21 @@ export async function optionalSession(request: Request, _response: Response, nex
 
 export function requireSession(request: Request, _response: Response, next: NextFunction): void {
   if (!request.user) return next(new AppError(401, "AUTH_REQUIRED", "Authentication is required"));
+  next();
+}
+
+const passwordChangeRoutes = new Set([
+  "GET /auth/session",
+  "GET /auth/capabilities",
+  "POST /auth/csrf",
+  "POST /auth/change-password",
+  "POST /auth/logout",
+]);
+
+export function requirePasswordChange(request: Request, _response: Response, next: NextFunction): void {
+  if (request.user?.mustChangePassword && !passwordChangeRoutes.has(`${request.method} ${request.path}`)) {
+    return next(new AppError(403, "PASSWORD_CHANGE_REQUIRED", "Change your temporary password before using the workspace"));
+  }
   next();
 }
 
@@ -134,6 +165,45 @@ export function assertRoles(request: Request, roles: readonly UserRole[]): void 
   if (!roles.includes(request.user.role)) {
     throw new AppError(403, "ROLE_REQUIRED", "Your role cannot perform this action");
   }
+}
+
+export async function hasRecruiterPermission(userId: string, permission: RecruiterPermission): Promise<boolean> {
+  const rows = await db.select({ grantedPermissions: accessRequests.grantedPermissions })
+    .from(accessRequests)
+    .where(and(
+      eq(accessRequests.provisionedUserId, userId),
+      eq(accessRequests.status, "approved"),
+      gt(accessRequests.approvedUntil, new Date()),
+    ));
+  return rows.some((row) => row.grantedPermissions.includes(permission));
+}
+
+async function recruiterAccessHasExpired(userId: string): Promise<boolean> {
+  const rows = await db.select({ approvedUntil: accessRequests.approvedUntil })
+    .from(accessRequests)
+    .where(and(eq(accessRequests.provisionedUserId, userId), eq(accessRequests.status, "approved")));
+  return rows.some((row) => row.approvedUntil !== null && row.approvedUntil <= new Date());
+}
+
+export function requirePermission(permission: RecruiterPermission) {
+  return async (request: Request, _response: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!request.user) throw new AppError(401, "AUTH_REQUIRED", "Authentication is required");
+      if (request.user.role !== "recruiter") return next();
+      if (request.user.temporaryPasswordExpiresAt && request.user.temporaryPasswordExpiresAt <= new Date()) {
+        throw new AppError(403, "TEMPORARY_ACCESS_EXPIRED", "Your temporary access has expired. Request access again.");
+      }
+      if (!await hasRecruiterPermission(request.user.id, permission)) {
+        if (await recruiterAccessHasExpired(request.user.id)) {
+          throw new AppError(403, "EVALUATION_ACCESS_EXPIRED", "Your evaluation access has expired. Request an extension.");
+        }
+        throw new AppError(403, "APPROVED_ACCESS_REQUIRED", "This action requires approved evaluation access.");
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export function requireWorkspace(request: Request): string {

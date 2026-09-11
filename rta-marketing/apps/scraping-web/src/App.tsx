@@ -5,6 +5,7 @@ type Item = { id: number; title: string; price: string | null; year: string | nu
 type JobStatus = "queued" | "scraping" | "completed" | "failed";
 type ActiveJob = { jobId: string; siteKey: string; limit: number; status: JobStatus; failedReason?: string | null };
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const dealershipWebUrl = import.meta.env.VITE_DEALERSHIP_WEB_URL ?? "http://localhost:5173";
 const scrapeControlBase = import.meta.env.PROD ? "" : apiUrl;
 
 function scrapeControlPath(path: string): string {
@@ -161,7 +162,7 @@ export function App() {
               <button type="submit" disabled={!accessCode}>Unlock scraping</button>
             </form>
           )}
-          <small>The code is exchanged for an HTTP-only session and is never stored in the frontend bundle.</small>
+          <small>The code is exchanged for an HTTP-only session and is never stored in the frontend bundle. Recruiters can explore this surface through the <a href={`${dealershipWebUrl}/login?request=1`}>dealership demo</a> or <a href={`${dealershipWebUrl}/login?request=1`}>request full access</a>.</small>
         </section>
       </header>
       {notice && <p className="notice">{notice}</p>}

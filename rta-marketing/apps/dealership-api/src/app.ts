@@ -5,7 +5,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
-import { optionalSession } from "./auth/session.js";
+import { optionalSession, requirePasswordChange } from "./auth/session.js";
 import { authRouter } from "./auth/routes.js";
 import { env } from "./config/env.js";
 import { verifyDatabaseConnection } from "./db/client.js";
@@ -19,6 +19,7 @@ import { runsRouter } from "./modules/runs/routes.js";
 import { savedRouter } from "./modules/saved/routes.js";
 import { sourcesRouter } from "./modules/sources/routes.js";
 import { acquisitionRouter } from "./modules/acquisition/routes.js";
+import { publicAccessRequestRouter } from "./modules/access-requests/routes.js";
 
 export function createApp() {
   const app = express();
@@ -67,6 +68,7 @@ export function createApp() {
     }),
   );
   app.use(optionalSession);
+  app.use("/api/v1", requirePasswordChange);
 
   app.get("/health/live", (_request, response) => response.json({ status: "ok" }));
   app.get("/health/ready", async (_request, response, next) => {
@@ -98,6 +100,7 @@ export function createApp() {
     }),
   );
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1/access-requests", publicAccessRequestRouter);
   app.use("/api/v1/dashboard", dashboardRouter);
   app.use("/api/v1/dealership", dealershipRouter);
   app.use("/api/v1/vehicles", catalogRouter);

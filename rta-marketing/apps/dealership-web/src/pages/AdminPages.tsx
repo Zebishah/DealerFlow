@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Landmark, Link2, Plus, ScrollText, ToggleLeft, ToggleRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
+import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
-import type { AuditEvent, NamedResource } from "../types/domain";
+import type { AuditEvent, BootstrapData, NamedResource } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 import { WorkflowModal } from "../components/WorkflowModal";
 
@@ -59,6 +60,9 @@ function ResourcePanel({ kind, title, description, icon: Icon }: {
 }
 
 export function ConfigurationPage() {
+  const { user } = useAuth();
+  const bootstrap = useQuery({ queryKey: ["dealership", "bootstrap"], queryFn: () => api<{ data: BootstrapData }>("/dealership/bootstrap").then((result) => result.data), enabled: user?.role === "recruiter" });
+  if (user?.role === "recruiter") return <div className="page-stack"><section className="page-intro"><div><span>WORKSPACE CONFIGURATION</span><h2>Reference data visibility.</h2><p>Recruiter demo access can inspect the values used by operational workflows. Changes require approved access.</p></div></section><section className="configuration-grid"><article className="surface resource-panel"><div className="resource-heading"><span><Link2 /></span><div><h3>Lead sources</h3><p>Channels used to attribute incoming opportunities.</p></div></div><div className="resource-list">{bootstrap.data?.leadSources.map((item) => <div key={item.id}><div><strong>{item.name}</strong><small>Available in operational forms</small></div><span className="status-chip completed">Active</span></div>)}</div></article><article className="surface resource-panel"><div className="resource-heading"><span><Landmark /></span><div><h3>Finance providers</h3><p>Reference partners available on deal entry.</p></div></div><div className="resource-list">{bootstrap.data?.financeProviders.map((item) => <div key={item.id}><div><strong>{item.name}</strong><small>Available in operational forms</small></div><span className="status-chip completed">Active</span></div>)}</div></article></section></div>;
   return <div className="page-stack">
     <section className="page-intro"><div><span>WORKSPACE CONFIGURATION</span><h2>Controlled reference data.</h2><p>Deactivate values instead of deleting historical references, preserving reporting integrity across existing leads and sales.</p></div></section>
     <section className="configuration-grid"><ResourcePanel kind="lead-sources" title="Lead sources" description="Channels used to attribute incoming opportunities." icon={Link2} /><ResourcePanel kind="finance-providers" title="Finance providers" description="Approved funding partners available on deal entry." icon={Landmark} /></section>
@@ -66,10 +70,11 @@ export function ConfigurationPage() {
 }
 
 export function AuditPage() {
+  const { user } = useAuth();
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
   const events = useQuery({
     queryKey: ["dealership", "admin", "audit-events"],
-    queryFn: () => api<{ data: AuditEvent[] }>("/dealership/admin/audit-events?limit=100").then((result) => result.data),
+    queryFn: () => api<{ data: AuditEvent[] }>(`${user?.role === "recruiter" ? "/dealership/audit-events" : "/dealership/admin/audit-events"}?limit=100`).then((result) => result.data),
     refetchInterval: 30_000,
   });
   if (events.isLoading) return <PageSkeleton />;

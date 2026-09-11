@@ -15,6 +15,7 @@ import {
 } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
+import { adminAccessRequestRouter } from "../access-requests/routes.js";
 
 const uuidSchema = z.string().uuid();
 const workspaceRoleSchema = z.enum(["viewer", "admin", "employee", "virtual_assistant", "recruiter"]);
@@ -68,6 +69,7 @@ const commissionUpdateSchema = z.object({
 
 export const dealershipAdminRouter = Router();
 dealershipAdminRouter.use(requireRoles("admin"));
+dealershipAdminRouter.use("/access-requests", adminAccessRequestRouter);
 
 dealershipAdminRouter.get(
   "/users",

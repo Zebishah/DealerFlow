@@ -4,7 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { createScrapeRunSchema } from "../../contracts/scrape.js";
-import { assertOperator, requireCsrf, requireOperator, requireRoles, requireSession } from "../../auth/session.js";
+import { assertOperator, requireCsrf, requireOperator, requirePermission, requireRoles, requireSession } from "../../auth/session.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { cancelScrapeRun, createScrapeRun, getScrapeRun, listScrapeRuns, replaySourceRun } from "./run.service.js";
@@ -41,7 +41,8 @@ runsRouter.get(
 runsRouter.post(
   "/",
   scrapeLimiter,
-  requireRoles("admin", "operator"),
+  requireRoles("admin", "operator", "recruiter"),
+  requirePermission("scraping.jobs.trigger"),
   requireCsrf,
   asyncHandler(async (request, response) => {
     const input = createScrapeRunSchema.parse(request.body);

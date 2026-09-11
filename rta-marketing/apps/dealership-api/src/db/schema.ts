@@ -20,6 +20,13 @@ export const userRole = pgEnum("user_role", [
   "virtual_assistant",
   "recruiter",
 ]);
+export const accessRequestStatus = pgEnum("access_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "expired",
+  "revoked",
+]);
 export const workspaceMode = pgEnum("workspace_mode", ["demo", "live"]);
 export const leadStatus = pgEnum("lead_status", [
   "new",
@@ -89,6 +96,16 @@ export const users = pgTable(
     lastName: text("last_name"),
     role: userRole("role").notNull().default("viewer"),
     isActive: boolean("is_active").notNull().default(true),
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    temporaryPasswordExpiresAt: timestamp("temporary_password_expires_at", { withTimezone: true }),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    emailVerificationTokenHash: text("email_verification_token_hash"),
+    emailVerificationExpiresAt: timestamp("email_verification_expires_at", { withTimezone: true }),
+    emailVerificationSentAt: timestamp("email_verification_sent_at", { withTimezone: true }),
+    passwordResetTokenHash: text("password_reset_token_hash"),
+    passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
+    accessInviteTokenHash: text("access_invite_token_hash"),
+    accessInviteExpiresAt: timestamp("access_invite_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -152,6 +169,37 @@ export const sessions = pgTable(
     uniqueIndex("sessions_token_hash_uq").on(table.tokenHash),
     index("sessions_user_id_idx").on(table.userId),
     index("sessions_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const accessRequests = pgTable(
+  "access_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fullName: text("full_name").notNull(),
+    company: text("company").notNull(),
+    jobTitle: text("job_title").notNull(),
+    email: text("email").notNull(),
+    linkedInUrl: text("linkedin_url"),
+    reason: text("reason").notNull(),
+    platformScope: jsonb("platform_scope").$type<string[]>().notNull(),
+    requestedPermissions: jsonb("requested_permissions").$type<string[]>().notNull(),
+    requestedDuration: text("requested_duration").notNull(),
+    message: text("message"),
+    status: accessRequestStatus("status").notNull().default("pending"),
+    grantedPermissions: jsonb("granted_permissions").$type<string[]>().notNull().default([]),
+    notes: text("notes"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    provisionedUserId: uuid("provisioned_user_id").references(() => users.id, { onDelete: "set null" }),
+    approvedUntil: timestamp("approved_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("access_requests_status_created_idx").on(table.status, table.createdAt),
+    index("access_requests_email_created_idx").on(table.email, table.createdAt),
+    index("access_requests_provisioned_user_idx").on(table.provisionedUserId),
   ],
 );
 
@@ -684,3 +732,4 @@ export type Workspace = typeof workspaces.$inferSelect;
 export type Lead = typeof leads.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
+export type AccessRequest = typeof accessRequests.$inferSelect;

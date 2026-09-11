@@ -4,6 +4,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   requireCsrf,
+  requirePermission,
   requireRoles,
   requireSession,
   requireWorkspace,
@@ -288,7 +289,8 @@ dealershipRouter.get(
 
 dealershipRouter.post(
   "/leads",
-  requireRoles("admin", "operator", "employee", "virtual_assistant"),
+  requireRoles("admin", "operator", "employee", "virtual_assistant", "recruiter"),
+  requirePermission("dealership.leads.write"),
   requireCsrf,
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
@@ -341,7 +343,8 @@ dealershipRouter.post(
 
 dealershipRouter.patch(
   "/leads/:id",
-  requireRoles("admin", "operator", "employee", "virtual_assistant"),
+  requireRoles("admin", "operator", "employee", "virtual_assistant", "recruiter"),
+  requirePermission("dealership.leads.write"),
   requireCsrf,
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
@@ -381,7 +384,8 @@ dealershipRouter.get(
 
 dealershipRouter.post(
   "/sales",
-  requireRoles("admin", "operator", "employee"),
+  requireRoles("admin", "operator", "employee", "recruiter"),
+  requirePermission("dealership.sales.write"),
   requireCsrf,
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
@@ -432,7 +436,8 @@ dealershipRouter.post(
 
 dealershipRouter.patch(
   "/sales/:id",
-  requireRoles("admin", "operator", "employee"),
+  requireRoles("admin", "operator", "employee", "recruiter"),
+  requirePermission("dealership.sales.write"),
   requireCsrf,
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
@@ -507,4 +512,27 @@ dealershipRouter.get(
   "/roles",
   requireRoles("admin", "operator", "recruiter"),
   (_request, response) => response.json({ data: roleSchema.options }),
+);
+
+dealershipRouter.get(
+  "/audit-events",
+  requireRoles("admin", "recruiter"),
+  asyncHandler(async (request, response) => {
+    const workspaceId = requireWorkspace(request);
+    const limit = z.coerce.number().int().min(1).max(100).default(50).parse(request.query.limit);
+    const rows = await db.select({
+      id: auditEvents.id,
+      action: auditEvents.action,
+      entityType: auditEvents.entityType,
+      entityId: auditEvents.entityId,
+      metadata: auditEvents.metadata,
+      createdAt: auditEvents.createdAt,
+      actorUserId: auditEvents.actorUserId,
+      actorFirstName: users.firstName,
+      actorLastName: users.lastName,
+      actorEmail: users.email,
+    }).from(auditEvents).leftJoin(users, eq(auditEvents.actorUserId, users.id))
+      .where(eq(auditEvents.workspaceId, workspaceId)).orderBy(desc(auditEvents.createdAt)).limit(limit);
+    response.json({ data: rows });
+  }),
 );

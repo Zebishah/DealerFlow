@@ -7,6 +7,34 @@ export interface SessionUser {
   firstName: string | null;
   lastName: string | null;
   role: UserRole;
+  mustChangePassword: boolean;
+  temporaryPasswordExpiresAt: string | null;
+  emailVerifiedAt: string | null;
+  isDemoRecruiter: boolean;
+}
+
+export type AccessRequestStatus = "pending" | "approved" | "rejected" | "expired" | "revoked";
+export interface AccessRequest {
+  id: string;
+  fullName: string;
+  company: string;
+  jobTitle: string;
+  email: string;
+  linkedInUrl: string | null;
+  reason: string;
+  platformScope: string[];
+  requestedPermissions: string[];
+  requestedDuration: string;
+  message: string | null;
+  status: AccessRequestStatus;
+  grantedPermissions: string[];
+  notes: string | null;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
+  provisionedUserId: string | null;
+  approvedUntil: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BootstrapData {

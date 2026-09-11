@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { requireCsrf, requireRoles, requireWorkspace, type AuthenticatedUser } from "../../auth/session.js";
+import { requireCsrf, requirePermission, requireRoles, requireWorkspace, type AuthenticatedUser } from "../../auth/session.js";
 import { env } from "../../config/env.js";
 import { createDocumentStorageKey, ownsDocumentStorageKey, validateDocumentFile } from "../../contracts/documents.js";
 import { db } from "../../db/client.js";
@@ -48,14 +48,14 @@ async function targetUser(requestUser: AuthenticatedUser | undefined, workspaceI
 }
 
 export const documentRouter = Router();
-documentRouter.use(requireRoles("admin", "employee"));
+documentRouter.use(requireRoles("admin", "employee", "recruiter"));
 
 documentRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const requestedUserId = request.query.userId === undefined ? undefined : uuid.parse(request.query.userId);
-    const condition = request.user!.role === "admin"
+    const condition = ["admin", "recruiter"].includes(request.user!.role)
       ? requestedUserId
         ? and(eq(employeeDocuments.workspaceId, workspaceId), eq(employeeDocuments.userId, requestedUserId))
         : eq(employeeDocuments.workspaceId, workspaceId)
@@ -86,6 +86,7 @@ documentRouter.get(
 documentRouter.post(
   "/upload-intents",
   requireCsrf,
+  requirePermission("dealership.documents.upload"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const input = uploadIntentSchema.parse(request.body);
@@ -100,6 +101,7 @@ documentRouter.post(
 documentRouter.post(
   "/complete",
   requireCsrf,
+  requirePermission("dealership.documents.upload"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const input = completeSchema.parse(request.body);
@@ -143,6 +145,7 @@ documentRouter.post(
 
 documentRouter.get(
   "/:id/download",
+  requireRoles("admin", "employee"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const id = uuid.parse(request.params.id);
@@ -169,6 +172,7 @@ documentRouter.get(
 documentRouter.patch(
   "/:id",
   requireCsrf,
+  requirePermission("dealership.documents.upload"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const id = uuid.parse(request.params.id);

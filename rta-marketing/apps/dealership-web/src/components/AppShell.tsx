@@ -14,8 +14,10 @@ import {
   SlidersHorizontal,
   Target,
   UserPlus,
+  UserCheck,
   Users,
   X,
+  ShieldAlert,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,24 +26,27 @@ import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
 import type { BootstrapData, UserRole } from "../types/domain";
 import { NavLink, useNavigation } from "../router/Navigation";
+import { AccessRequestModal } from "./AccessRequestModal";
+import { PasswordChangeModal } from "./PasswordChangeModal";
 
 const nav = [
   { to: "/app/overview", label: "Overview", icon: Gauge, roles: ["admin", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/leads", label: "Lead pipeline", icon: UserPlus, roles: ["admin", "employee", "virtual_assistant", "recruiter"] },
   { to: "/app/sales", label: "Sales", icon: CircleDollarSign, roles: ["admin", "employee", "recruiter"] },
   { to: "/app/team", label: "Team", icon: Users, roles: ["admin", "recruiter"] },
-  { to: "/app/configuration", label: "Configuration", icon: SlidersHorizontal, roles: ["admin"] },
-  { to: "/app/audit", label: "Audit history", icon: ShieldCheck, roles: ["admin"] },
-  { to: "/app/commissions", label: "Commissions", icon: CircleDollarSign, roles: ["admin", "employee"] },
-  { to: "/app/targets", label: "Targets", icon: Target, roles: ["admin", "employee"] },
+  { to: "/app/configuration", label: "Configuration", icon: SlidersHorizontal, roles: ["admin", "recruiter"] },
+  { to: "/app/audit", label: "Audit history", icon: ShieldCheck, roles: ["admin", "recruiter"] },
+  { to: "/app/commissions", label: "Commissions", icon: CircleDollarSign, roles: ["admin", "employee", "recruiter"] },
+  { to: "/app/targets", label: "Targets", icon: Target, roles: ["admin", "employee", "recruiter"] },
   { to: "/app/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "employee", "recruiter"] },
   { to: "/app/performance-board", label: "Performance board", icon: Gauge, roles: ["admin", "employee", "virtual_assistant", "recruiter", "viewer"] },
-  { to: "/app/documents", label: "Documents", icon: FileText, roles: ["admin", "employee"] },
+  { to: "/app/documents", label: "Documents", icon: FileText, roles: ["admin", "employee", "recruiter"] },
   { to: "/app/inventory", label: "Vehicle intelligence", icon: Car, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/saved-vehicles", label: "Saved vehicles", icon: Heart, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/compare", label: "Compare vehicles", icon: SlidersHorizontal, roles: ["admin", "operator", "employee", "virtual_assistant", "recruiter", "viewer"] },
   { to: "/app/acquisition", label: "Scraping workspace", icon: Activity, roles: ["admin", "operator", "recruiter"] },
   { to: "/app/source-control", label: "Source controls", icon: ShieldCheck, roles: ["admin", "operator"] },
+  { to: "/app/access-requests", label: "Access requests", icon: UserCheck, roles: ["admin"] },
 ] as const;
 
 const pageTitles: Record<string, [string, string]> = {
@@ -63,6 +68,7 @@ const pageTitles: Record<string, [string, string]> = {
   acquisition: ["Scraping workspace", "Collect and inspect persisted vehicle listings"],
   "scraping-results": ["Scraping workspace", "Collect and inspect persisted vehicle listings"],
   "source-control": ["Source controls", "Operational kill switches for acquisition adapters"],
+  "access-requests": ["Access requests", "Review scoped recruiter evaluation access"],
 };
 
 function initials(firstName: string | null, lastName: string | null, email: string): string {
@@ -74,6 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { navigate, path } = useNavigation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const bootstrap = useQuery({
     queryKey: ["dealership", "bootstrap"],
     queryFn: () => api<{ data: BootstrapData }>("/dealership/bootstrap").then((value) => value.data),
@@ -105,7 +112,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p>WORKSPACE</p>
         {items.filter((item) => !["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/scraping-results", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
         <p>INTELLIGENCE</p>
-        {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control", "/app/access-requests"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
       </nav>
       <div className="side-status"><span><i />API connected</span><small>PostgreSQL · SQS · Lambda</small></div>
     </aside>
@@ -119,7 +126,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      {user.isDemoRecruiter && <div className="demo-access-banner"><ShieldAlert size={16} /><div><strong>Recruiter Demo Mode</strong><span>You can explore all product areas. Sensitive and destructive actions require approved access.</span></div><button type="button" onClick={() => setRequestOpen(true)}>Request full access</button></div>}
       <div className="page-content">{children}</div>
     </main>
+    <AccessRequestModal open={requestOpen} onClose={() => setRequestOpen(false)} />
+    <PasswordChangeModal />
   </div>;
 }

@@ -26,6 +26,7 @@ const seedEnvSchema = z
     SEED_LIVE_SOURCES: booleanString,
     SEED_DEMO_DATA: booleanString,
     SEED_DEMO_PASSWORD: z.string().min(14).optional(),
+    SEED_RECRUITER_EMAIL: z.string().trim().email().default("recruiter.demo@rta.local"),
   })
   .superRefine((value, context) => {
     if (Boolean(value.SEED_OPERATOR_EMAIL) !== Boolean(value.SEED_OPERATOR_PASSWORD)) {
@@ -110,6 +111,7 @@ async function ensureUser(input: {
       firstName: input.firstName,
       lastName: input.lastName,
       role: input.role,
+      emailVerifiedAt: new Date(),
     })
     .returning({ id: users.id });
 
@@ -145,7 +147,7 @@ async function seedDemoWorkspace(): Promise<void> {
     ensureUser({ id: ids.admin, workspaceId: ids.workspace, email: "admin@rta.demo", password: seedEnv.SEED_DEMO_PASSWORD, firstName: "Maya", lastName: "Chen", role: "admin" }),
     ensureUser({ id: ids.employee, workspaceId: ids.workspace, email: "sales@rta.demo", password: seedEnv.SEED_DEMO_PASSWORD, firstName: "Daniel", lastName: "Brooks", role: "employee" }),
     ensureUser({ id: ids.assistant, workspaceId: ids.workspace, email: "assistant@rta.demo", password: seedEnv.SEED_DEMO_PASSWORD, firstName: "Priya", lastName: "Shah", role: "virtual_assistant" }),
-    ensureUser({ id: ids.recruiter, workspaceId: ids.workspace, email: "recruiter@rta.demo", password: seedEnv.SEED_DEMO_PASSWORD, firstName: "Portfolio", lastName: "Reviewer", role: "recruiter" }),
+    ensureUser({ id: ids.recruiter, workspaceId: ids.workspace, email: seedEnv.SEED_RECRUITER_EMAIL, password: seedEnv.SEED_DEMO_PASSWORD, firstName: "Portfolio", lastName: "Reviewer", role: "recruiter" }),
   ]);
 
   await db.insert(leadSources).values([

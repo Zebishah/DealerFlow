@@ -55,6 +55,7 @@ void test("liveness and public capabilities expose stable API contracts", async 
         demoMode: true,
         liveScrapingAllowed: false,
         defaultScrapeMode: "fixture",
+        recruiterDemoAvailable: false,
       },
     });
   });
@@ -104,6 +105,17 @@ void test("unknown endpoints return the documented safe error envelope", async (
     };
     assert.equal(payload.error.code, "ROUTE_NOT_FOUND");
     assert.match(payload.error.message, /GET \/api\/v1\/not-a-route/);
+  });
+});
+
+void test("access requests reject malformed public submissions before persistence", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const response = await fetch(`${baseUrl}/api/v1/access-requests`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "not-an-email", reason: "too short" }),
+    });
+    assert.equal(response.status, 400);
   });
 });
 

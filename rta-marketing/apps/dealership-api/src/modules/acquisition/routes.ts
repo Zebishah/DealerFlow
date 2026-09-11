@@ -1,7 +1,7 @@
 import { and, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { requireCsrf, requireOperator, requireRoles, requireSession } from "../../auth/session.js";
+import { requireCsrf, requirePermission, requireRoles, requireSession } from "../../auth/session.js";
 import { env } from "../../config/env.js";
 import { db } from "../../db/client.js";
 import { scrapedItems, scrapingSites } from "../../db/schema.js";
@@ -204,7 +204,8 @@ acquisitionRouter.get(
 
 acquisitionRouter.post(
   "/:siteId/trigger",
-  requireOperator,
+  requireRoles("admin", "operator", "recruiter"),
+  requirePermission("scraping.jobs.trigger"),
   requireCsrf,
   asyncHandler(async (request, response) => {
     const siteId = z.coerce.number().int().positive().parse(request.params.siteId);
