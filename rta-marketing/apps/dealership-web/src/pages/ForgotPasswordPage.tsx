@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { api } from "../lib/api";
 import { Link } from "../router/Navigation";
 import { AuthBrand } from "../components/AuthBrand";
+import { AuthPageLayout } from "../components/AuthPageLayout";
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -21,5 +22,5 @@ export function ForgotPasswordPage() {
       setSubmitting(false);
     }
   }
-  return <main className="auth-page"><section className="auth-card"><AuthBrand />{sent ? <div className="auth-success"><CheckCircle2 size={38} /><span className="eyebrow">REQUEST RECEIVED</span><h1>Check your inbox.</h1><p>If an account exists for that email address, we have sent password reset instructions.</p><Link className="auth-primary-link" to="/login">Back to sign in <ArrowRight size={16} /></Link></div> : <><div className="auth-card-heading"><span className="eyebrow">ACCOUNT RECOVERY</span><h1>Reset your password.</h1><p>Enter your email and we will send a secure, single-use reset link.</p></div><form className="auth-form" onSubmit={submit}><label>Email address<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label><button className="submit-button" disabled={submitting}>{submitting ? "Sending…" : <>Send reset link <ArrowRight size={17} /></>}</button></form><Link className="auth-back-link" to="/login"><ArrowLeft size={15} /> Back to sign in</Link></>}</section></main>;
+  return <AuthPageLayout><AuthBrand />{sent ? <div className="auth-success"><CheckCircle2 size={38} /><span className="eyebrow">REQUEST RECEIVED</span><h1>Check your inbox.</h1><p>If an account exists for that email address, we have sent password reset instructions.</p><Link className="auth-primary-link" to="/login">Back to sign in <ArrowRight size={16} /></Link></div> : <><div className="auth-card-heading"><span className="eyebrow">ACCOUNT RECOVERY</span><h1>Reset your password.</h1><p>Enter your email and we will send a secure, single-use reset link.</p></div><form className="auth-form" onSubmit={submit}><label>Email address<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label><button className="submit-button" disabled={submitting}>{submitting ? "Sending…" : <>Send reset link <ArrowRight size={17} /></>}</button></form><Link className="auth-back-link" to="/login"><ArrowLeft size={15} /> Back to sign in</Link></>}</AuthPageLayout>;
 }
