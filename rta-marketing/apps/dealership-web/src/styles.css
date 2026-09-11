@@ -149,3 +149,6 @@ button,input,select { font: inherit; } button { cursor: pointer; } a { color: in
 .ai-header-control{align-items:center;background:#f7f8ff;border:1px solid #d8dcf3;border-radius:9px;color:#3d438d;cursor:pointer;display:flex;font-size:10px;font-weight:800;gap:7px;height:36px;padding:0 12px}
 .ai-header-control:hover{background:#eef0ff;border-color:#c5c9ee}
 @media(max-width:560px){.ai-header-control{height:32px;padding:0 9px}.ai-header-control span{display:none}}
+
+/* Give dashboard intro copy and its action a consistent visual pause. */
+.page-intro > button{margin-top:14px}

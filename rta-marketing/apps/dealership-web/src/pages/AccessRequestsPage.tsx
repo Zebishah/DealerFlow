@@ -17,11 +17,33 @@ const grantOptions = [
 
 function label(value: string): string { return value.replaceAll("_", " ").replaceAll(".", " · "); }
 
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function normalizeRequest(value: unknown): AccessRequest | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Partial<AccessRequest>;
+  if (typeof row.id !== "string" || typeof row.fullName !== "string" || typeof row.email !== "string" || typeof row.status !== "string") return null;
+  return {
+    ...row as AccessRequest,
+    platformScope: stringArray(row.platformScope),
+    requestedPermissions: stringArray(row.requestedPermissions),
+    grantedPermissions: stringArray(row.grantedPermissions),
+  };
+}
+
 export function AccessRequestsPage() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<AccessRequest | null>(null);
   const [grants, setGrants] = useState<string[]>([]);
-  const requests = useQuery({ queryKey: ["dealership", "access-requests"], queryFn: () => api<{ data: AccessRequest[] }>("/dealership/admin/access-requests").then((result) => result.data) });
+  const requests = useQuery({ queryKey: ["dealership", "access-requests"], queryFn: async () => {
+    const result = await api<{ data: unknown }>("/dealership/admin/access-requests");
+    if (!Array.isArray(result.data)) throw new Error("The access-request response was invalid.");
+    const normalized = result.data.map(normalizeRequest).filter((request): request is AccessRequest => Boolean(request));
+    if (normalized.length !== result.data.length) throw new Error("The access-request response contained an invalid record.");
+    return normalized;
+  } });
   const review = useMutation({
     mutationFn: ({ request, action }: { request: AccessRequest; action: "approve" | "reject" | "revoke" | "extend" }) => api<{ data: { invitationSent?: boolean; notificationFailed?: boolean } }>(`/dealership/admin/access-requests/${request.id}`, { method: "PATCH", body: JSON.stringify(action === "approve" ? { action, grantedPermissions: grants, duration: request.requestedDuration === "7_days" ? "7_days" : request.requestedDuration === "3_days" ? "3_days" : "24_hours" } : action === "extend" ? { action, duration: "7_days" } : { action }) }),
     onSuccess: async (result, variables) => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -7,6 +7,7 @@ import {
   Car,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   CircleDollarSign,
   Database,
   ExternalLink,
@@ -44,11 +45,30 @@ const platformStats = [
   ["03", "lead sources"],
 ];
 
-const previewVehicles = [
-  { title: "2024 Example Atlas Comfortline", year: "2024", price: "$39,900", mileage: "12,300 km", source: "AutoTrader · sanitized preview", tone: "blue", image: "/vehicle-preview-blue.webp" },
-  { title: "2023 Example CX-5 GT", year: "2023", price: "$34,980", mileage: "27,400 km", source: "AutoPlanet · sanitized preview", tone: "red", image: "/vehicle-preview-red.webp" },
-  { title: "2024 Example Golf GTI", year: "2024", price: "$43,895", mileage: "6,200 km", source: "Humberview · sanitized preview", tone: "silver", image: "/vehicle-preview-white.webp" },
-  { title: "2022 Example Tiguan Comfortline", year: "2022", price: "$32,995", mileage: "38,800 km", source: "Yorkdale VW · sanitized preview", tone: "green", image: "/vehicle-preview-green.webp" },
+type PreviewVehicle = {
+  title: string;
+  year: string;
+  price: string;
+  mileage: string;
+  source: string;
+  tone: string;
+  image: string;
+  bodyStyle: string;
+  transmission: string;
+  drivetrain: string;
+  summary: string;
+  marketNote: string;
+};
+
+const previewVehicles: PreviewVehicle[] = [
+  { title: "2024 Volkswagen Atlas Comfortline", year: "2024", price: "$39,900", mileage: "12,300 km", source: "AutoTrader · sanitized preview", tone: "blue", image: "/vehicle-preview-blue.webp", bodyStyle: "SUV", transmission: "8-speed automatic", drivetrain: "AWD", summary: "A practical three-row SUV with a calm cabin and flexible space for everyday dealership customers.", marketNote: "Positioned as a strong family-SUV value in this preview set." },
+  { title: "2023 Mazda CX-5 GT", year: "2023", price: "$34,980", mileage: "27,400 km", source: "AutoPlanet · sanitized preview", tone: "red", image: "/vehicle-preview-red.webp", bodyStyle: "Compact SUV", transmission: "6-speed automatic", drivetrain: "AWD", summary: "A refined compact crossover that balances confident handling, comfort and useful cargo space.", marketNote: "A competitive price point for a well-equipped compact crossover." },
+  { title: "2024 Volkswagen Golf GTI", year: "2024", price: "$43,895", mileage: "6,200 km", source: "Humberview · sanitized preview", tone: "silver", image: "/vehicle-preview-white.webp", bodyStyle: "Hatchback", transmission: "7-speed DSG", drivetrain: "FWD", summary: "A low-mileage performance hatchback with everyday usability and a distinctive enthusiast profile.", marketNote: "Low mileage is the clearest differentiator in this preview listing." },
+  { title: "2022 Volkswagen Tiguan Comfortline", year: "2022", price: "$32,995", mileage: "38,800 km", source: "Yorkdale VW · sanitized preview", tone: "green", image: "/vehicle-preview-green.webp", bodyStyle: "SUV", transmission: "8-speed automatic", drivetrain: "AWD", summary: "A versatile compact SUV with familiar ergonomics, useful ground clearance and broad buyer appeal.", marketNote: "The most accessible SUV entry in this featured group." },
+  { title: "2024 Toyota RAV4 XLE", year: "2024", price: "$41,490", mileage: "9,850 km", source: "Northstar Toyota · sanitized preview", tone: "blue", image: "/vehicle-preview-blue.webp", bodyStyle: "Compact SUV", transmission: "8-speed automatic", drivetrain: "AWD", summary: "A dependable, efficient crossover suited to practical buyers who value low ownership friction.", marketNote: "A balanced option when reliability and resale confidence lead the brief." },
+  { title: "2023 Honda Civic Hatchback Sport", year: "2023", price: "$31,750", mileage: "18,600 km", source: "Lakeside Honda · sanitized preview", tone: "red", image: "/vehicle-preview-red.webp", bodyStyle: "Hatchback", transmission: "CVT", drivetrain: "FWD", summary: "A compact hatchback with easy city manners, flexible cargo room and an efficient ownership profile.", marketNote: "A strong practical alternative for buyers comparing compact cars and crossovers." },
+  { title: "2024 Audi A4 Progressiv", year: "2024", price: "$49,995", mileage: "7,100 km", source: "Humberview Audi · sanitized preview", tone: "silver", image: "/vehicle-preview-white.webp", bodyStyle: "Sedan", transmission: "7-speed S tronic", drivetrain: "quattro AWD", summary: "A premium sedan preview with composed road manners, understated design and a higher-equipment cabin.", marketNote: "Premium positioning is reflected in the equipment and price band." },
+  { title: "2022 Audi Q5 Progressiv", year: "2022", price: "$42,600", mileage: "31,200 km", source: "Yorkdale Audi · sanitized preview", tone: "green", image: "/vehicle-preview-green.webp", bodyStyle: "Luxury SUV", transmission: "7-speed S tronic", drivetrain: "quattro AWD", summary: "A premium compact SUV that brings a more elevated cabin experience to a familiar utility format.", marketNote: "A useful benchmark for customers stepping up from mainstream SUVs." },
 ];
 
 const operationModules = [
@@ -149,7 +169,58 @@ function AiIntelligenceSection() {
 }
 
 function InventorySection() {
-  return <section className="landing-section landing-inventory" id="inventory"><div className="landing-section-frame"><div className="landing-section-heading"><div><p className="landing-eyebrow">INVENTORY + MARKET INTELLIGENCE</p><h2>Find the right<br /><span>vehicle signal.</span></h2></div><p>Searchable vehicle records sit next to recommendations, saved vehicles, comparisons and market-price explanations. This first-look inventory uses sanitized preview data and never blocks first paint on a sleeping API.</p></div><div className="landing-inventory-search" aria-label="Inventory filter preview"><div><small>MAKE</small><span>Volkswagen</span></div><div><small>MODEL</small><span>Tiguan</span></div><div><small>YEAR</small><span>Any year</span></div><div><small>PRICE RANGE</small><span>Any price</span></div><div><small>MILEAGE</small><span>Any mileage</span></div><div><small>SOURCE</small><span>All sources</span></div><button type="button" aria-label="Preview search"><Search size={18} /></button></div><div className="landing-inventory-head"><div><p className="landing-eyebrow">SANITIZED PREVIEW DATA</p><h3>Featured vehicles</h3></div><span>Fields mirror persisted listing records <ArrowRight size={14} /></span></div><div className="landing-vehicle-cards">{previewVehicles.map((vehicle) => <article className="landing-vehicle-card" key={vehicle.title}><div className={`landing-vehicle-card-image landing-vehicle-card-image--${vehicle.tone}`}><img src={vehicle.image} alt={`${vehicle.title} preview`} loading="lazy" /><span className="landing-vehicle-badge">{vehicle.source.split(" · ")[0]}</span><span className="landing-vehicle-year">{vehicle.year}</span></div><div className="landing-vehicle-card-copy"><small>{vehicle.source}</small><h4>{vehicle.title}</h4><div><strong>{vehicle.price}</strong><span>{vehicle.mileage}</span></div></div></article>)}</div><div className="landing-inventory-cta"><span><Car size={17} /> Vehicle fields are drawn from the project listing contract.</span><button type="button" className="landing-text-link landing-inline-button" onClick={() => openRtaAssistant("Recommend active vehicles from the current inventory.")}>Ask RTA AI for a recommendation <MessageSquare size={14} /></button></div></div></section>;
+  const [selectedVehicle, setSelectedVehicle] = useState<PreviewVehicle | null>(null);
+
+  useEffect(() => {
+    if (!selectedVehicle) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedVehicle(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedVehicle]);
+
+  return <section className="landing-section landing-inventory" id="inventory">
+    <div className="landing-section-frame">
+      <div className="landing-section-heading">
+        <div><p className="landing-eyebrow">INVENTORY + MARKET INTELLIGENCE</p><h2>Find the right<br /><span>vehicle signal.</span></h2></div>
+        <p>Searchable vehicle records sit next to recommendations, saved vehicles, comparisons and market-price explanations. This first-look inventory uses sanitized preview data and never blocks first paint on a sleeping API.</p>
+      </div>
+      <div className="landing-inventory-search" aria-label="Inventory filter preview">
+        <div><small>MAKE</small><span>Volkswagen</span></div><div><small>MODEL</small><span>Tiguan</span></div><div><small>YEAR</small><span>Any year</span></div><div><small>PRICE RANGE</small><span>Any price</span></div><div><small>MILEAGE</small><span>Any mileage</span></div><div><small>SOURCE</small><span>All sources</span></div><button type="button" aria-label="Preview search"><Search size={18} /></button>
+      </div>
+      <div className="landing-inventory-head">
+        <div><p className="landing-eyebrow">SANITIZED PREVIEW DATA</p><h3>Featured vehicles</h3></div>
+        <span>Eight real-world models · listing detail preview <ArrowRight size={14} /></span>
+      </div>
+      <div className="landing-vehicle-cards">
+        {previewVehicles.map((vehicle) => <button className="landing-vehicle-card" key={vehicle.title} type="button" onClick={() => setSelectedVehicle(vehicle)} aria-label={`View details for ${vehicle.title}`}>
+          <div className={`landing-vehicle-card-image landing-vehicle-card-image--${vehicle.tone}`}><img src={vehicle.image} alt={`${vehicle.title} preview`} loading="lazy" /><span className="landing-vehicle-badge">{vehicle.source.split(" · ")[0]}</span><span className="landing-vehicle-year">{vehicle.year}</span></div>
+          <div className="landing-vehicle-card-copy"><small>{vehicle.source}</small><h4>{vehicle.title}</h4><div><strong>{vehicle.price}</strong><span>{vehicle.mileage}</span></div><span className="landing-vehicle-card-link">View vehicle details <ChevronRight size={14} /></span></div>
+        </button>)}
+      </div>
+      <div className="landing-inventory-cta"><span><Car size={17} /> Vehicle fields are drawn from the project listing contract.</span><button type="button" className="landing-text-link landing-inline-button" onClick={() => openRtaAssistant("Recommend active vehicles from the current inventory.")}>Ask RTA AI for a recommendation <MessageSquare size={14} /></button></div>
+    </div>
+    {selectedVehicle && <div className="landing-vehicle-detail-backdrop" role="presentation" onMouseDown={() => setSelectedVehicle(null)}>
+      <section className="landing-vehicle-detail-panel" role="dialog" aria-modal="true" aria-labelledby="landing-vehicle-detail-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className={`landing-vehicle-detail-visual landing-vehicle-card-image--${selectedVehicle.tone}`}><img src={selectedVehicle.image} alt={`${selectedVehicle.title} preview`} /><span className="landing-vehicle-badge">{selectedVehicle.source.split(" · ")[0]}</span><span className="landing-vehicle-detail-status"><CheckCircle2 size={13} /> Active preview listing</span></div>
+        <div className="landing-vehicle-detail-content">
+          <button className="landing-vehicle-detail-close" type="button" onClick={() => setSelectedVehicle(null)} aria-label="Close vehicle details"><X size={18} /></button>
+          <p className="landing-eyebrow">NORMALIZED VEHICLE RECORD</p>
+          <h3 id="landing-vehicle-detail-title">{selectedVehicle.title}</h3>
+          <p className="landing-vehicle-detail-summary">{selectedVehicle.summary}</p>
+          <div className="landing-vehicle-detail-facts"><span><small>Price</small><strong>{selectedVehicle.price}</strong></span><span><small>Mileage</small><strong>{selectedVehicle.mileage}</strong></span><span><small>Body style</small><strong>{selectedVehicle.bodyStyle}</strong></span><span><small>Source</small><strong>{selectedVehicle.source.split(" · ")[0]}</strong></span></div>
+          <div className="landing-vehicle-detail-specs"><span><small>Transmission</small><strong>{selectedVehicle.transmission}</strong></span><span><small>Drivetrain</small><strong>{selectedVehicle.drivetrain}</strong></span><span><small>Market signal</small><strong>{selectedVehicle.marketNote}</strong></span></div>
+          <div className="landing-vehicle-detail-actions"><Link className="landing-button landing-button--primary" to={landingLinks.dealership}>Open live inventory <ArrowRight size={15} /></Link><button className="landing-button landing-button--outline" type="button" onClick={() => openRtaAssistant(`Explain the market position of the ${selectedVehicle.title}.`)}>Ask RTA AI <MessageSquare size={14} /></button></div>
+          <small className="landing-vehicle-detail-note"><ShieldCheck size={13} /> Demo-safe preview data. Full offers and provenance are available inside the authenticated workspace.</small>
+        </div>
+      </section>
+    </div>}
+  </section>;
 }
 
 function ProductWindow({ scraping = false }: { scraping?: boolean }) {
