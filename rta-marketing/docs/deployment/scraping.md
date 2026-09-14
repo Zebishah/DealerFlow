@@ -61,8 +61,17 @@ SCRAPE_DEFAULT_LIMIT=5
 SCRAPE_MAX_LIMIT=10
 WORKER_CONCURRENCY=1
 MANUAL_SCRAPING_ONLY=true
-SCRAPE_LOCK_TTL_SECONDS=900
+SCRAPE_NAVIGATION_TIMEOUT_MS=20000
+SCRAPE_SELECTOR_TIMEOUT_MS=8000
+SCRAPE_JOB_TIMEOUT_MS=60000
+SCRAPE_LOCK_TTL_SECONDS=180
 ```
+
+The retry budget is deliberately small: BullMQ allows two worker attempts with
+a 5-second exponential backoff, and each Crawlee source request allows one
+request retry. The lock TTL must cover both worker attempts, the backoff, and a
+handoff margin. These limits keep a manual run bounded and prevent nested
+retries from multiplying production latency.
 
 Run `npm run db:migrate:scraping` from a trusted release environment when
 applying scraping schema migrations. Do not expose the trigger token to the
@@ -154,3 +163,9 @@ docker compose -f docker-compose.scraping.yml config --quiet
 
 The normal workflow remains manual-only. A scrape starts only when an
 authorized operator clicks a source button or invokes the bounded CLI.
+
+The requested vehicle count is a maximum, not a minimum. A normally loaded
+source that exposes three valid listings for a request of five completes
+successfully with `Requested: 5` and `Found: 3`; it is not retried merely to
+reach five. Navigation, timeout, blocking, browser, Redis, and database errors
+remain retryable technical failures.

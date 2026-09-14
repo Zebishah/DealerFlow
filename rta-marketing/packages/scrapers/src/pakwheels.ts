@@ -1,22 +1,31 @@
 import { CheerioCrawler, RequestQueue } from "crawlee";
-import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, runCrawlerWithTimeout, validateItem, wait, type ScraperOptions } from "./common.js";
+import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, recordScrapeTiming, reportScrapeStage, runCrawlerWithTimeout, validateItem, wait, type ScraperOptions } from "./common.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
 
 export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
+  const totalStartedAt = Date.now();
+  const robotsStartedAt = Date.now();
+  await reportScrapeStage(options, "checking-source");
   await assertRobotsAllowed(site, options.userAgent);
+  recordScrapeTiming(options, "robotsCheckMs", robotsStartedAt);
+  const delayStartedAt = Date.now();
+  await reportScrapeStage(options, "configured-delay");
   await wait(options.delayMs);
+  recordScrapeTiming(options, "configuredDelayMs", delayStartedAt);
   const items: ScrapedItem[] = [];
   const requestQueue = await RequestQueue.open(`rta-${site.key}-${Date.now()}`);
   const crawler = new CheerioCrawler({
     maxConcurrency: 1,
     requestQueue,
-    maxRequestRetries: 2,
-    requestHandlerTimeoutSecs: 45,
+    maxRequestRetries: 1,
+    requestHandlerTimeoutSecs: Math.ceil(options.jobTimeoutMs / 1000),
     maxRequestsPerCrawl: 1,
     preNavigationHooks: [async (_context, gotOptions) => {
       gotOptions.headers = { ...gotOptions.headers, "user-agent": options.userAgent, "accept-language": "en-US,en;q=0.8" };
     }],
     requestHandler: async ({ $, request }) => {
+      await reportScrapeStage(options, "extracting");
+      const extractionStartedAt = Date.now();
       $("li.classified-listing").each((_index, element) => {
         if (items.length >= options.limit) return false;
         const card = $(element);
@@ -50,12 +59,17 @@ export async function scrapePakWheels(site: SiteConfig, options: ScraperOptions)
         });
         if (item) items.push(item);
       });
+      recordScrapeTiming(options, "extractionMs", extractionStartedAt);
     },
   });
+  await reportScrapeStage(options, "loading-page");
+  const navigationStartedAt = Date.now();
   try {
     await runCrawlerWithTimeout(crawler, site.baseUrl, options.jobTimeoutMs);
   } finally {
+    recordScrapeTiming(options, "navigationMs", navigationStartedAt);
     await requestQueue.drop();
+    recordScrapeTiming(options, "totalDurationMs", totalStartedAt);
   }
   return items;
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { assertSafeScraperUrl, assertSingleSourcePayload, appConfigSchema, canReleaseScrapeLock, findConfiguredSite, isScrapeTokenValid, manualScrapeJobId, parseScrapeLimit, rateLimitDecision, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT } from "../packages/shared/src/index.ts";
+import { assertSafeScraperUrl, assertSingleSourcePayload, appConfigSchema, buildSuccessfulScrapeResult, canReleaseScrapeLock, createScrapeLockToken, findConfiguredSite, isOrphanedScrapeLock, isScrapeTokenValid, isTerminalScrapeAttempt, manualScrapeJobId, minimumScrapeLockTtlSeconds, parseScrapeLimit, rateLimitDecision, SCRAPE_JOB_ATTEMPTS, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT, SCRAPE_RETRY_BACKOFF_MS } from "../packages/shared/src/index.ts";
 import { runCrawlerWithTimeout } from "../packages/scrapers/src/common.ts";
 import { PLAYWRIGHT_MAX_CONCURRENCY, PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER, PLAYWRIGHT_MIN_CONCURRENCY } from "../packages/scrapers/src/olx.ts";
 import { scrapeSyntheticSource } from "../packages/scrapers/src/mock-source.ts";
@@ -78,6 +78,41 @@ test("lock scripts use ownership checks and the lock TTL is bounded", () => {
   assert.equal(canReleaseScrapeLock(null, "owner-a"), false);
   const config = appConfigSchema.parse({ DATABASE_URL: "https://example.com/neon" });
   assert.ok(config.SCRAPE_LOCK_TTL_SECONDS > config.SCRAPE_JOB_TIMEOUT_MS / 1_000);
+  assert.equal(minimumScrapeLockTtlSeconds(60_000), 135);
+  assert.equal(SCRAPE_JOB_ATTEMPTS, 2);
+  assert.equal(SCRAPE_RETRY_BACKOFF_MS, 5_000);
+});
+
+test("partial scrape results complete successfully without padding or retrying", () => {
+  assert.deepEqual(buildSuccessfulScrapeResult(5, 5), { status: "completed", requestedCount: 5, foundCount: 5 });
+  assert.deepEqual(buildSuccessfulScrapeResult(5, 3), { status: "completed", requestedCount: 5, foundCount: 3 });
+  assert.deepEqual(buildSuccessfulScrapeResult(10, 0), { status: "completed", requestedCount: 10, foundCount: 0 });
+  assert.throws(() => buildSuccessfulScrapeResult(5, 6));
+});
+
+test("retry and stale-lock boundaries are explicit", () => {
+  assert.equal(isTerminalScrapeAttempt(0, 2), false);
+  assert.equal(isTerminalScrapeAttempt(1, 2), true);
+  assert.equal(isTerminalScrapeAttempt(0, 2, true), true);
+  const now = Date.now();
+  assert.equal(isOrphanedScrapeLock(createScrapeLockToken(now), now, 10_000), false);
+  assert.equal(isOrphanedScrapeLock(createScrapeLockToken(now - 10_001), now, 10_000), true);
+  assert.equal(isOrphanedScrapeLock("legacy-uuid", now, 10_000), false);
+});
+
+test("scraper and queue retry budgets remain bounded", async () => {
+  const [olx, pakwheels, worker, api, enqueue] = await Promise.all([
+    readFile(new URL("../packages/scrapers/src/olx.ts", import.meta.url), "utf8"),
+    readFile(new URL("../packages/scrapers/src/pakwheels.ts", import.meta.url), "utf8"),
+    readFile(new URL("../apps/scraping-worker/src/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../apps/scraping-api/src/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../apps/scraping-worker/src/enqueue-once.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(olx, /maxRequestRetries:\s*1/);
+  assert.match(pakwheels, /maxRequestRetries:\s*1/);
+  assert.match(worker, /attempts:\s*SCRAPE_JOB_ATTEMPTS/);
+  assert.match(api, /attempts:\s*SCRAPE_JOB_ATTEMPTS/);
+  assert.match(enqueue, /attempts:\s*SCRAPE_JOB_ATTEMPTS/);
 });
 
 test("job IDs are deterministic per source but isolated between sources", () => {

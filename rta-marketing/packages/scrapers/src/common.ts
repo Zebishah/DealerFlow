@@ -10,6 +10,20 @@ export interface ScraperOptions {
   navigationTimeoutMs: number;
   selectorTimeoutMs: number;
   jobTimeoutMs: number;
+  timings?: ScrapeTimings;
+  onStage?: (stage: ScrapeStage) => void | Promise<void>;
+}
+
+export type ScrapeStage = "queued" | "starting" | "checking-source" | "configured-delay" | "launching-browser" | "loading-page" | "extracting" | "saving" | "retrying" | "completed" | "failed";
+export type ScrapeTimingKey = "robotsCheckMs" | "configuredDelayMs" | "browserLaunchMs" | "navigationMs" | "selectorWaitMs" | "extractionMs" | "persistenceMs" | "totalDurationMs";
+export type ScrapeTimings = Partial<Record<ScrapeTimingKey, number>>;
+
+export async function reportScrapeStage(options: ScraperOptions, stage: ScrapeStage): Promise<void> {
+  await options.onStage?.(stage);
+}
+
+export function recordScrapeTiming(options: ScraperOptions, key: ScrapeTimingKey, startedAt: number): void {
+  if (options.timings) options.timings[key] = (options.timings[key] ?? 0) + Math.max(0, Date.now() - startedAt);
 }
 
 type TimeoutCapableCrawler = {

@@ -3,8 +3,8 @@ import { RtaAssistant, type AssistantAnswer, type AssistantRequest } from "@rta/
 
 type Site = { id: number; name: string; baseUrl: string; itemCount: number; lastScrapedAt: string | null };
 type Item = { id: number; title: string; price: string | null; year: string | null; mileage: string | null; city: string | null; listingUrl: string; thumbnailUrl: string | null; scrapedAt: string };
-type JobStatus = "queued" | "scraping" | "completed" | "failed";
-type ActiveJob = { jobId: string; siteKey: string; limit: number; status: JobStatus; failedReason?: string | null };
+type JobStatus = "queued" | "scraping" | "retrying" | "completed" | "failed";
+type ActiveJob = { jobId: string; siteKey: string; limit: number; status: JobStatus; attempt?: number; maxAttempts?: number; elapsedMs?: number; progressStage?: string | null; requestedCount?: number; foundCount?: number | null; failedReason?: string | null };
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 const dealershipWebUrl = import.meta.env.VITE_DEALERSHIP_WEB_URL ?? "http://localhost:5173";
 const scrapeControlBase = import.meta.env.PROD ? "" : apiUrl;
@@ -18,6 +18,22 @@ function sourceKey(site: Site): string {
   if (site.baseUrl.includes("pakwheels.com")) return "pakwheels";
   if (site.baseUrl.includes("olx.com.pk")) return "olx-pakistan";
   return "demo-synthetic";
+}
+
+function formatElapsed(milliseconds = 0): string {
+  const seconds = Math.floor(Math.max(0, milliseconds) / 1_000);
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function stageLabel(stage?: string | null): string {
+  return ({ "checking-source": "checking source", "configured-delay": "respecting source delay", "launching-browser": "launching browser", "loading-page": "loading page", extracting: "extracting listings", saving: "saving results" } as Record<string, string>)[stage ?? ""] ?? "working";
+}
+
+function jobLabel(job: ActiveJob): string {
+  if (job.status === "retrying") return `Retrying · attempt ${job.attempt ?? 1} of ${job.maxAttempts ?? 2}`;
+  if (job.status === "scraping") return `Scraping · ${formatElapsed(job.elapsedMs)}`;
+  if (job.status === "queued") return `Queued · ${formatElapsed(job.elapsedMs)}`;
+  return job.status === "completed" ? "Completed" : "Failed";
 }
 
 export function App() {
@@ -58,7 +74,7 @@ export function App() {
   }, [loadScrapeSession, loadScrapeStatus, loadSites]);
 
   useEffect(() => {
-    if (!activeJob || (activeJob.status !== "queued" && activeJob.status !== "scraping")) return undefined;
+    if (!activeJob || !["queued", "scraping", "retrying"].includes(activeJob.status)) return undefined;
     const pollHandle = window.setInterval(() => {
       void fetch(`${apiUrl}/api/scrape/jobs/${encodeURIComponent(activeJob.jobId)}`, { credentials: "include" })
         .then(async (response) => {
@@ -75,7 +91,7 @@ export function App() {
           if (value.data.status === "completed" || value.data.status === "failed") {
             void loadSites();
             window.setTimeout(() => setActiveJob(null), 2500);
-            if (value.data.status === "completed") setNotice(`${value.data.siteKey} completed. Results refreshed.`);
+            if (value.data.status === "completed") setNotice(`${value.data.siteKey} completed. Requested: ${value.data.requestedCount ?? value.data.limit}; found: ${value.data.foundCount ?? 0}. Results refreshed.`);
             else setError(value.data.failedReason ?? "Scrape failed after retries");
           }
         })
@@ -96,7 +112,7 @@ export function App() {
   }
 
   async function triggerScrape(site: Site): Promise<void> {
-    if (!authorized || (activeJob && (activeJob.status === "queued" || activeJob.status === "scraping"))) return;
+    if (!authorized || (activeJob && ["queued", "scraping", "retrying"].includes(activeJob.status))) return;
     setNotice("");
     setError("");
     try {
@@ -142,7 +158,7 @@ export function App() {
     setNotice("Scrape access ended.");
   }
 
-  const workerBusy = Boolean(activeJob && (activeJob.status === "queued" || activeJob.status === "scraping"));
+  const workerBusy = Boolean(activeJob && ["queued", "scraping", "retrying"].includes(activeJob.status));
 
   async function askAssistant(input: AssistantRequest): Promise<AssistantAnswer> {
     const response = await fetch(`${dealershipApiUrl}/assistant/chat`, {
@@ -191,12 +207,12 @@ export function App() {
             </button>
             <div className="status-row">
               <span className={`job-status ${activeJob?.siteKey === sourceKey(site) ? activeJob.status : "idle"}`}>
-                {activeJob?.siteKey === sourceKey(site) ? activeJob.status : workerBusy ? "Worker busy" : "Ready"}
+                {activeJob?.siteKey === sourceKey(site) ? jobLabel(activeJob) : workerBusy ? "Worker busy" : "Ready"}
               </span>
-              {activeJob?.siteKey === sourceKey(site) && <small>up to {activeJob.limit} vehicles</small>}
+              {activeJob?.siteKey === sourceKey(site) && <small>{activeJob.progressStage ? stageLabel(activeJob.progressStage) : `up to ${activeJob.limit} vehicles`}</small>}
             </div>
             <button className="scrape-button" disabled={workerBusy || !authorized} onClick={() => void triggerScrape(site)}>
-              {activeJob?.siteKey === sourceKey(site) && activeJob.status === "scraping" ? "Scraping…" : activeJob?.siteKey === sourceKey(site) && activeJob.status === "queued" ? "Queued…" : workerBusy ? "Worker busy" : "Scrape now"}
+              {activeJob?.siteKey === sourceKey(site) && ["scraping", "retrying"].includes(activeJob.status) ? activeJob.status === "retrying" ? "Retrying…" : "Scraping…" : activeJob?.siteKey === sourceKey(site) && activeJob.status === "queued" ? "Queued…" : workerBusy ? "Worker busy" : "Scrape now"}
             </button>
           </article>
         ))}

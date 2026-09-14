@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomUUID } from "node:crypto";
 import type { RedisOptions } from "ioredis";
 import { z } from "zod";
 import pino from "pino";
@@ -11,6 +12,13 @@ export const logger = pino({
 });
 
 export const siteEngineSchema = z.enum(["cheerio", "playwright"]);
+
+// Keep one retry boundary around the whole scrape job. Crawlee gets one retry
+// for a transient request failure, while BullMQ gets one retry for a failed
+// worker attempt. This avoids multiplying retries inside retries.
+export const SCRAPE_JOB_ATTEMPTS = 2;
+export const SCRAPE_RETRY_BACKOFF_MS = 5_000;
+export const SCRAPE_LOCK_SAFETY_MARGIN_MS = 10_000;
 
 export const siteConfigSchema = z.object({
   key: z.string().regex(/^[a-z0-9-]+$/),
@@ -54,10 +62,10 @@ export const appConfigSchema = z.object({
   SCRAPE_MAX_LIMIT: z.coerce.number().int().min(1).max(10).default(10),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(1).default(1),
   MANUAL_SCRAPING_ONLY: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
-  SCRAPE_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(30_000),
-  SCRAPE_SELECTOR_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
-  SCRAPE_JOB_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(300_000).default(120_000),
-  SCRAPE_LOCK_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
+  SCRAPE_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(20_000),
+  SCRAPE_SELECTOR_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(8_000),
+  SCRAPE_JOB_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(300_000).default(60_000),
+  SCRAPE_LOCK_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(180),
   SCRAPE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
   SCRAPE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(20).default(3),
   SCRAPE_AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(20).default(5),
@@ -81,13 +89,50 @@ export function loadConfig(options: { requireScrapeAuth?: boolean } = {}) {
   if (config.SCRAPE_DEFAULT_LIMIT > config.SCRAPE_MAX_LIMIT) {
     throw new Error("SCRAPE_DEFAULT_LIMIT cannot exceed SCRAPE_MAX_LIMIT");
   }
-  const minimumLockTtlSeconds = Math.ceil((config.SCRAPE_JOB_TIMEOUT_MS * 3 + 10_000) / 1_000);
+  const minimumLockTtlSeconds = minimumScrapeLockTtlSeconds(config.SCRAPE_JOB_TIMEOUT_MS);
   if (config.SCRAPE_LOCK_TTL_SECONDS < minimumLockTtlSeconds) {
     throw new Error(`SCRAPE_LOCK_TTL_SECONDS must be at least ${minimumLockTtlSeconds} seconds for the configured job timeout and retries`);
   }
   const sites = z.array(siteConfigSchema).parse(JSON.parse(config.SCRAPER_SITES_JSON));
   for (const site of sites) assertSafeScraperUrl(site.baseUrl);
   return { ...config, sites };
+}
+
+/**
+ * The lock must survive every legal BullMQ attempt, the retry backoff, and a
+ * small hand-off margin. It is intentionally independent of the configured
+ * TTL so custom deployments are validated rather than silently unsafe.
+ */
+export function minimumScrapeLockTtlSeconds(jobTimeoutMs: number): number {
+  return Math.ceil((jobTimeoutMs * SCRAPE_JOB_ATTEMPTS + SCRAPE_RETRY_BACKOFF_MS + SCRAPE_LOCK_SAFETY_MARGIN_MS) / 1_000);
+}
+
+export function createScrapeLockToken(acquiredAt = Date.now()): string {
+  return JSON.stringify({ token: randomUUID(), acquiredAt });
+}
+
+export function scrapeLockAcquiredAt(lockToken: string): number | null {
+  try {
+    const value = JSON.parse(lockToken) as { acquiredAt?: unknown };
+    return typeof value.acquiredAt === "number" && Number.isFinite(value.acquiredAt) ? value.acquiredAt : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isOrphanedScrapeLock(lockToken: string | null, now = Date.now(), graceMs = SCRAPE_LOCK_SAFETY_MARGIN_MS): boolean {
+  const acquiredAt = lockToken ? scrapeLockAcquiredAt(lockToken) : null;
+  return acquiredAt !== null && now - acquiredAt >= graceMs;
+}
+
+export function isTerminalScrapeAttempt(attemptsMade: number, maxAttempts: number, unrecoverable = false): boolean {
+  return unrecoverable || attemptsMade + 1 >= maxAttempts;
+}
+
+export function buildSuccessfulScrapeResult(requestedCount: number, foundCount: number): { status: "completed"; requestedCount: number; foundCount: number } {
+  if (!Number.isInteger(requestedCount) || requestedCount < 1) throw new Error("requested scrape count must be a positive integer");
+  if (!Number.isInteger(foundCount) || foundCount < 0 || foundCount > requestedCount) throw new Error("found scrape count must be between zero and the requested count");
+  return { status: "completed", requestedCount, foundCount };
 }
 
 export function parseScrapeLimit(value: unknown, defaultLimit: number, maxLimit: number): number {

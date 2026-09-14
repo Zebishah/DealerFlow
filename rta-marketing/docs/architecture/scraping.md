@@ -31,6 +31,16 @@ bundled into browser JavaScript.
 normalized listings to the scraping tables in Neon. It has no public HTTP
 port.
 
+Each manual job reports queue state, attempt/max-attempt, stage, elapsed time,
+requested count, found count, and bounded timings for robots, configured delay,
+browser launch, navigation, selector wait, extraction, persistence, and total
+duration. The status endpoint exposes this data without exposing credentials.
+
+The source limit is a maximum target. Once the bounded source strategy has
+been inspected, the worker persists every valid listing found, including zero
+or fewer results than requested, and marks the job completed. Only genuine
+technical failures enter the two-attempt retry boundary.
+
 The worker is manual-only by default. A presenter may enqueue one source with:
 
 ```bash

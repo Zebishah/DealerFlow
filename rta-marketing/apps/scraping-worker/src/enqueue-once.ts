@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { createRedisConnectionConfig, loadConfig, manualScrapeJobId, parseScrapeLimit } from "@rta/shared";
+import { createRedisConnectionConfig, loadConfig, manualScrapeJobId, parseScrapeLimit, SCRAPE_JOB_ATTEMPTS, SCRAPE_RETRY_BACKOFF_MS } from "@rta/shared";
 
 const config = loadConfig();
 const requestedSite = process.argv.slice(2).find((argument) => argument.startsWith("--site="))?.slice("--site=".length);
@@ -23,7 +23,7 @@ const job = await queue.add(manualScrapeJobId(requestedSite), {
   type: "scrape-all-sites",
   limit: requestedLimit,
   siteKey: requestedSite,
-}, { jobId, attempts: 3, backoff: { type: "exponential", delay: 5_000 }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } });
+}, { jobId, attempts: SCRAPE_JOB_ATTEMPTS, backoff: { type: "exponential", delay: SCRAPE_RETRY_BACKOFF_MS }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } });
 
 console.log(`Queued scrape job ${job.id} for ${requestedSite} with limit ${requestedLimit}. Watch: docker compose logs -f worker`);
 await queue.close();

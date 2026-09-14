@@ -1,6 +1,6 @@
 import { Configuration, PlaywrightCrawler, RequestQueue } from "crawlee";
 import { logger } from "@rta/shared";
-import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, runCrawlerWithTimeout, validateItem, wait, type ScraperOptions } from "./common.js";
+import { assertRobotsAllowed, absoluteUrl, imageUrlFromCandidates, recordScrapeTiming, reportScrapeStage, runCrawlerWithTimeout, validateItem, wait, type ScraperOptions } from "./common.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
 
 export const PLAYWRIGHT_MIN_CONCURRENCY = 1;
@@ -8,11 +8,20 @@ export const PLAYWRIGHT_MAX_CONCURRENCY = 1;
 export const PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER = 1;
 
 export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
+  const totalStartedAt = Date.now();
+  const robotsStartedAt = Date.now();
+  await reportScrapeStage(options, "checking-source");
   await assertRobotsAllowed(site, options.userAgent);
+  recordScrapeTiming(options, "robotsCheckMs", robotsStartedAt);
+  const delayStartedAt = Date.now();
+  await reportScrapeStage(options, "configured-delay");
   await wait(options.delayMs);
+  recordScrapeTiming(options, "configuredDelayMs", delayStartedAt);
   const items: ScrapedItem[] = [];
   const requestQueue = await RequestQueue.open(`rta-${site.key}-${Date.now()}`);
   const crawleeConfiguration = new Configuration({ memoryMbytes: options.crawleeMemoryMbytes });
+  let crawlStartedAt = 0;
+  let navigationStartedAt = 0;
   logger.info({
     site: site.name,
     minConcurrency: PLAYWRIGHT_MIN_CONCURRENCY,
@@ -24,7 +33,7 @@ export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOption
     minConcurrency: PLAYWRIGHT_MIN_CONCURRENCY,
     maxConcurrency: PLAYWRIGHT_MAX_CONCURRENCY,
     requestQueue,
-    maxRequestRetries: 3,
+    maxRequestRetries: 1,
     requestHandlerTimeoutSecs: Math.ceil(options.jobTimeoutMs / 1000),
     maxRequestsPerCrawl: 1,
     browserPoolOptions: { maxOpenPagesPerBrowser: PLAYWRIGHT_MAX_OPEN_PAGES_PER_BROWSER },
@@ -37,6 +46,8 @@ export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOption
       },
     },
     preNavigationHooks: [async ({ page }) => {
+      const browserStartedAt = crawlStartedAt;
+      if (browserStartedAt) recordScrapeTiming(options, "browserLaunchMs", browserStartedAt);
       await page.setViewportSize({ width: 1440, height: 900 });
       page.setDefaultNavigationTimeout(options.navigationTimeoutMs);
       page.setDefaultTimeout(options.selectorTimeoutMs);
@@ -49,10 +60,25 @@ export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOption
         }
         await route.continue();
       });
+      navigationStartedAt = Date.now();
     }],
     requestHandler: async ({ page, request }) => {
-      await page.waitForSelector("article", { state: "attached", timeout: options.selectorTimeoutMs });
-      const collectVisible = async (): Promise<void> => {
+      if (navigationStartedAt) recordScrapeTiming(options, "navigationMs", navigationStartedAt);
+      const selectorStartedAt = Date.now();
+      let noResultsPage = false;
+      try {
+        await page.waitForSelector("article", { state: "attached", timeout: options.selectorTimeoutMs });
+      } catch (error) {
+        const bodyText = await page.locator("body").innerText().catch(() => "");
+        noResultsPage = /no results|no listings|no ads|nothing found|try another search/i.test(bodyText);
+        if (!noResultsPage) throw error;
+      }
+      recordScrapeTiming(options, "selectorWaitMs", selectorStartedAt);
+      await reportScrapeStage(options, "extracting");
+      if (noResultsPage) return;
+      const collectVisible = async (): Promise<number> => {
+        const beforeCount = items.length;
+        const extractionStartedAt = Date.now();
         const extracted = await page.$$eval("article", (cards) => cards.map((card) => {
           const textFromAria = (label: string) => Array.from(card.querySelectorAll("[aria-label]"))
             .find((node) => node.getAttribute("aria-label") === label)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -101,20 +127,27 @@ export async function scrapeOlxPakistan(site: SiteConfig, options: ScraperOption
           });
           if (item) items.push(item);
         }
+        recordScrapeTiming(options, "extractionMs", extractionStartedAt);
+        return items.length - beforeCount;
       };
 
       await collectVisible();
       for (let scroll = 0; scroll < 2 && items.length < options.limit; scroll += 1) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await page.waitForTimeout(options.delayMs);
-        await collectVisible();
+        if (await collectVisible() === 0) break;
       }
     },
   }, crawleeConfiguration);
+  await reportScrapeStage(options, "launching-browser");
+  await reportScrapeStage(options, "loading-page");
+  crawlStartedAt = Date.now();
   try {
     await runCrawlerWithTimeout(crawler, site.baseUrl, options.jobTimeoutMs);
   } finally {
+    if (navigationStartedAt && options.timings?.navigationMs === undefined) recordScrapeTiming(options, "navigationMs", navigationStartedAt);
     await requestQueue.drop();
+    recordScrapeTiming(options, "totalDurationMs", totalStartedAt);
   }
   return items;
 }

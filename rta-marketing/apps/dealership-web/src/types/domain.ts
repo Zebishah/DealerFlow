@@ -191,13 +191,24 @@ export interface ScrapingResultsResponse {
   };
 }
 
-export type ScrapeJobStatus = "queued" | "scraping" | "completed" | "failed";
+export type ScrapeJobStatus = "queued" | "scraping" | "retrying" | "completed" | "failed";
 
 export interface ScrapingJob {
   jobId: string;
   siteKey: string;
   limit: number;
   status: ScrapeJobStatus;
+  attempt?: number;
+  attemptsMade?: number;
+  maxAttempts?: number;
+  enqueuedAt?: string | null;
+  processingStartedAt?: string | null;
+  finishedAt?: string | null;
+  elapsedMs?: number;
+  progressStage?: string | null;
+  requestedCount?: number;
+  foundCount?: number | null;
+  timings?: Record<string, number> | null;
   failedReason: string | null;
 }
 

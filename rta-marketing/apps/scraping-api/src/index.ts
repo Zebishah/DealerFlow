@@ -4,7 +4,7 @@ import { Redis } from "ioredis";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { count, desc, eq, max } from "drizzle-orm";
 import { db, schema, verifyDatabase } from "@rta/db";
-import { assertSingleSourcePayload, createRedisConnectionConfig, findConfiguredSite, isScrapeTokenValid, loadConfig, logger, manualScrapeJobId, parseScrapeLimit, rateLimitDecision, SCRAPE_LOCK_KEY, SCRAPE_LOCK_RELEASE_SCRIPT } from "@rta/shared";
+import { assertSingleSourcePayload, createRedisConnectionConfig, createScrapeLockToken, findConfiguredSite, isOrphanedScrapeLock, isScrapeTokenValid, loadConfig, logger, manualScrapeJobId, parseScrapeLimit, rateLimitDecision, SCRAPE_JOB_ATTEMPTS, SCRAPE_LOCK_KEY, SCRAPE_LOCK_RELEASE_SCRIPT, SCRAPE_LOCK_SAFETY_MARGIN_MS, SCRAPE_RETRY_BACKOFF_MS } from "@rta/shared";
 
 const config = loadConfig({ requireScrapeAuth: true });
 const connection = createRedisConnectionConfig(config);
@@ -14,6 +14,7 @@ const scrapeQueue = new Queue("vehicle-scrape", {
 });
 type ScrapeJobData = { type: "scrape-all-sites"; siteKey?: string; limit?: number; lockToken?: string };
 const activeJobStates = ["waiting", "active", "delayed", "prioritized", "paused"] as const;
+const staleQueueStateGraceMs = 60_000;
 const sessionCookieName = "rta_scrape_session";
 const app = express();
 app.set("trust proxy", 1);
@@ -79,8 +80,9 @@ function clearSessionCookie(response: express.Response): void {
   setSessionCookie(response, "", 0);
 }
 
-function publicJobStatus(state: string): "queued" | "scraping" | "completed" | "failed" {
+function publicJobStatus(state: string, attemptsMade: number, maxAttempts: number): "queued" | "scraping" | "retrying" | "completed" | "failed" {
   if (state === "active") return "scraping";
+  if (state === "delayed" && attemptsMade < maxAttempts) return "retrying";
   if (state === "completed") return "completed";
   if (state === "failed") return "failed";
   return "queued";
@@ -88,18 +90,44 @@ function publicJobStatus(state: string): "queued" | "scraping" | "completed" | "
 
 async function describeJob(job: Job<ScrapeJobData>): Promise<Record<string, unknown>> {
   const state = await job.getState();
+  const maxAttempts = Number(job.opts.attempts ?? SCRAPE_JOB_ATTEMPTS);
+  const attemptsMade = Number(job.attemptsMade ?? 0);
+  const progress = job.progress && typeof job.progress === "object" ? job.progress as Record<string, unknown> : null;
+  const finishedAt = job.finishedOn ?? null;
+  const elapsedMs = Math.max(0, (finishedAt ?? Date.now()) - job.timestamp);
   return {
     jobId: job.id,
     siteKey: job.data.siteKey ?? "all",
     limit: job.data.limit ?? config.SCRAPE_DEFAULT_LIMIT,
-    status: publicJobStatus(state),
-    failedReason: state === "failed" ? "scrape failed after retries" : null,
+    status: publicJobStatus(state, attemptsMade, maxAttempts),
+    attempt: state === "completed" || state === "failed" ? Math.min(maxAttempts, Math.max(1, attemptsMade)) : Math.min(maxAttempts, attemptsMade + 1),
+    attemptsMade,
+    maxAttempts,
+    enqueuedAt: new Date(job.timestamp).toISOString(),
+    processingStartedAt: job.processedOn ? new Date(job.processedOn).toISOString() : null,
+    finishedAt: finishedAt ? new Date(finishedAt).toISOString() : null,
+    elapsedMs,
+    progressStage: typeof progress?.stage === "string" ? progress.stage : null,
+    requestedCount: typeof progress?.requestedCount === "number" ? progress.requestedCount : (job.data.limit ?? config.SCRAPE_DEFAULT_LIMIT),
+    foundCount: typeof progress?.foundCount === "number" ? progress.foundCount : null,
+    timings: progress?.timings ?? null,
+    failedReason: state === "failed" ? job.failedReason ?? "scrape failed after retries" : null,
   };
 }
 
-async function getActiveJob(): Promise<Job<ScrapeJobData> | undefined> {
+async function getActiveJob(options: { recoverStale?: boolean } = {}): Promise<Job<ScrapeJobData> | undefined> {
   const jobs = await scrapeQueue.getJobs([...activeJobStates], 0, 0);
-  return jobs[0] as Job<ScrapeJobData> | undefined;
+  const job = jobs[0] as Job<ScrapeJobData> | undefined;
+  if (!job || !options.recoverStale) return job;
+  const state = await job.getState();
+  const lockExists = redis.status === "wait" ? await redis.connect().then(() => redis.exists(SCRAPE_LOCK_KEY)) : await redis.exists(SCRAPE_LOCK_KEY);
+  const oldQueuedJob = ["waiting", "delayed", "prioritized", "paused"].includes(state) && Date.now() - job.timestamp > Math.max(staleQueueStateGraceMs, config.SCRAPE_LOCK_TTL_SECONDS * 1_000);
+  if (oldQueuedJob && Number(lockExists) === 0) {
+    await job.remove();
+    logger.warn({ jobId: job.id, siteKey: job.data.siteKey, state }, "removed stale scrape queue record after lock expiry");
+    return undefined;
+  }
+  return job;
 }
 
 async function releaseScrapeLock(lockToken: string): Promise<void> {
@@ -109,9 +137,21 @@ async function releaseScrapeLock(lockToken: string): Promise<void> {
 
 async function acquireScrapeLock(): Promise<string | null> {
   if (redis.status === "wait") await redis.connect();
-  const lockToken = randomUUID();
+  const lockToken = createScrapeLockToken();
   const acquired = await redis.set(SCRAPE_LOCK_KEY, lockToken, "EX", config.SCRAPE_LOCK_TTL_SECONDS, "NX");
   return acquired === "OK" ? lockToken : null;
+}
+
+async function recoverOrphanedScrapeLock(): Promise<boolean> {
+  const activeJob = await getActiveJob({ recoverStale: true });
+  if (activeJob) return false;
+  if (redis.status === "wait") await redis.connect();
+  const lockToken = await redis.get(SCRAPE_LOCK_KEY);
+  const orphanGraceMs = config.SCRAPE_JOB_TIMEOUT_MS + SCRAPE_RETRY_BACKOFF_MS + SCRAPE_LOCK_SAFETY_MARGIN_MS;
+  if (!lockToken || !isOrphanedScrapeLock(lockToken, Date.now(), orphanGraceMs)) return false;
+  const released = await redis.eval(SCRAPE_LOCK_RELEASE_SCRIPT, 1, SCRAPE_LOCK_KEY, lockToken);
+  if (Number(released) === 1) logger.warn("released orphaned scrape lock after its queue record disappeared");
+  return Number(released) === 1;
 }
 app.use((request, response, next) => {
   response.setHeader("Access-Control-Allow-Origin", config.CORS_ORIGIN);
@@ -178,7 +218,8 @@ app.get("/api/sites", async (_request, response) => {
 });
 
 app.get("/api/scrape/status", async (_request, response) => {
-  const activeJob = await getActiveJob();
+  const activeJob = await getActiveJob({ recoverStale: true });
+  if (!activeJob) await recoverOrphanedScrapeLock();
   response.json({ data: { activeJob: activeJob ? await describeJob(activeJob) : null, defaultLimit: config.SCRAPE_DEFAULT_LIMIT, maxLimit: config.SCRAPE_MAX_LIMIT } });
 });
 
@@ -213,15 +254,19 @@ app.post("/api/scrape/:siteKey", async (request, response) => {
     return response.status(400).json({ error: error instanceof Error ? error.message : "invalid scrape limit" });
   }
 
-  const activeJob = await getActiveJob();
+  const activeJob = await getActiveJob({ recoverStale: true });
   if (activeJob) {
     const activeStatus = await describeJob(activeJob);
     return response.status(409).json({ error: "another scrape is already queued or running", data: { activeJob: activeStatus } });
   }
 
-  const lockToken = await acquireScrapeLock();
+  let lockToken = await acquireScrapeLock();
   if (!lockToken) {
-    const lockedJob = await getActiveJob();
+    await recoverOrphanedScrapeLock();
+    lockToken = await acquireScrapeLock();
+  }
+  if (!lockToken) {
+    const lockedJob = await getActiveJob({ recoverStale: true });
     return response.status(409).json({ error: "another scrape is already queued or running", data: { activeJob: lockedJob ? await describeJob(lockedJob) : null } });
   }
 
@@ -232,7 +277,7 @@ app.post("/api/scrape/:siteKey", async (request, response) => {
     const job = await scrapeQueue.add(
       manualScrapeJobId(siteKey),
       { type: "scrape-all-sites", siteKey, limit, lockToken },
-      { jobId, attempts: 3, backoff: { type: "exponential", delay: 5_000 }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } },
+      { jobId, attempts: SCRAPE_JOB_ATTEMPTS, backoff: { type: "exponential", delay: SCRAPE_RETRY_BACKOFF_MS }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } },
     );
     response.status(202).json({ data: await describeJob(job) });
   } catch (error) {

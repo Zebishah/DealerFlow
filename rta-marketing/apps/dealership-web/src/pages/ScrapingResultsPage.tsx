@@ -24,7 +24,9 @@ function sourceKey(site: ScrapingSite): string | null {
 }
 
 function activeStatusLabel(status: NonNullable<ScrapingStatusResponse["data"]["activeJob"]>["status"]): string {
-  return status === "scraping" ? "Processing" : "Queued";
+  if (status === "scraping") return "Processing";
+  if (status === "retrying") return "Retrying";
+  return status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Queued";
 }
 
 export function ScrapingResultsPage() {
@@ -59,7 +61,7 @@ export function ScrapingResultsPage() {
     refetchIntervalInBackground: false,
   });
   const activeJob = scrapeStatus.data?.data.activeJob ?? null;
-  const scraperBusy = Boolean(activeJob && ["queued", "scraping"].includes(activeJob.status));
+  const scraperBusy = Boolean(activeJob && ["queued", "scraping", "retrying"].includes(activeJob.status));
   const trigger = useMutation({
     mutationFn: (siteId: number) => api<{ data: { jobId: string | null; siteName: string } }>(`/scraping-results/${siteId}/trigger`, { method: "POST" }),
     onSuccess: async (value) => {
@@ -86,7 +88,7 @@ export function ScrapingResultsPage() {
       <div className="run-control scraping-hero-stats"><span>SAVED LISTINGS</span><strong>{total}</strong><small>{sites.length} scraper sites connected</small><button className="hero-secondary-action" onClick={() => results.refetch()}><RefreshCw size={14} />Refresh results</button></div>
     </section>
 
-    {activeJob && <div className="warning-banner" role="status"><AlertTriangle size={18} /><span><strong>{activeStatusLabel(activeJob.status)}: one scrape is already in progress.</strong>{activeJob.siteKey} is {activeJob.status === "scraping" ? "being processed" : "waiting in the queue"} for up to {activeJob.limit} vehicles. Scrape buttons are disabled until it finishes.</span></div>}
+    {activeJob && <div className="warning-banner" role="status"><AlertTriangle size={18} /><span><strong>{activeStatusLabel(activeJob.status)}: one scrape is already in progress.</strong>{activeJob.siteKey} is {activeJob.status === "scraping" ? "being processed" : activeJob.status === "retrying" ? "recovering from a transient failure" : "waiting in the queue"} for up to {activeJob.limit} vehicles. {activeJob.progressStage ? `${activeJob.progressStage} · ` : ""}Requested: {activeJob.requestedCount ?? activeJob.limit}; found: {activeJob.foundCount ?? 0}. Scrape buttons are disabled until it finishes.</span></div>}
 
     <section className="surface scraping-filter-panel">
       <div className="surface-head"><div><span>SEARCH SCOPE</span><h3>Vehicle and site filters</h3></div><button className="filter-button" type="button" onClick={clearFilters}>Clear filters</button></div>

@@ -4,7 +4,7 @@ import { scrapeSyntheticSource } from "./mock-source.js";
 import type { ScrapedItem, SiteConfig } from "@rta/shared";
 import type { ScraperOptions } from "./common.js";
 
-export type { ScraperOptions } from "./common.js";
+export type { ScrapeStage, ScrapeTimings, ScraperOptions } from "./common.js";
 export { scrapePakWheels } from "./pakwheels.js";
 export { scrapeOlxPakistan } from "./olx.js";
 export { scrapeSyntheticSource } from "./mock-source.js";
