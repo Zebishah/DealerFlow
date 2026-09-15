@@ -3,8 +3,8 @@ import test from "node:test";
 import type { BaseScraperConfig, ScrapedItem } from "@rta/shared";
 import { runActorScrape } from "./run.js";
 
-const config = { NODE_ENV: "test", DATABASE_URL: "postgres://localhost/rta", SCRAPER_USER_AGENT: "RTA-Actor-Test/1.0 (+https://example.com)", CRAWLEE_MEMORY_MBYTES: 3000, SCRAPER_SITES_JSON: "[]", SCRAPE_DEFAULT_LIMIT: 5, SCRAPE_MAX_LIMIT: 10, SCRAPE_NAVIGATION_TIMEOUT_MS: 20000, SCRAPE_SELECTOR_TIMEOUT_MS: 8000, SCRAPE_JOB_TIMEOUT_MS: 60000, sites: [{ key: "collector-car-list", name: "CollectorCarList", baseUrl: "https://collectorcarlist.com/", engine: "cheerio", itemSelector: "[data-listing-card]", titleSelector: "h2", priceSelector: ".price", linkSelector: "a", delayMs: 0, maxConcurrency: 1 }] } as BaseScraperConfig;
-const item = (id: string): ScrapedItem => ({ title: id, price: null, year: null, mileage: null, city: null, listingUrl: `https://collectorcarlist.com/cars/${id}`, thumbnailUrl: null, rawData: {} });
+const config = { NODE_ENV: "test", DATABASE_URL: "postgres://localhost/rta", SCRAPER_USER_AGENT: "RTA-Actor-Test/1.0 (+https://example.com)", CRAWLEE_MEMORY_MBYTES: 3000, SCRAPER_SITES_JSON: "[]", SCRAPE_DEFAULT_LIMIT: 5, SCRAPE_MAX_LIMIT: 10, SCRAPE_NAVIGATION_TIMEOUT_MS: 20000, SCRAPE_SELECTOR_TIMEOUT_MS: 8000, SCRAPE_JOB_TIMEOUT_MS: 60000, sites: [{ key: "collector-car-list", name: "CollectorCarList", baseUrl: "https://www.collectorcarlist.com/", engine: "cheerio", itemSelector: 'a[href^="/listings/"]', titleSelector: "h3", priceSelector: "div > p", linkSelector: 'a[href^="/listings/"]', delayMs: 0, maxConcurrency: 1 }] } as BaseScraperConfig;
+const item = (id: string): ScrapedItem => ({ title: id, price: null, year: null, mileage: null, city: null, listingUrl: `https://www.collectorcarlist.com/listings/${id}`, thumbnailUrl: null, rawData: {} });
 
 test("actor persists fewer discovered items as a successful maximum-target scrape", async () => {
   let persisted = 0;

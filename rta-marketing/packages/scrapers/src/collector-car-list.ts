@@ -1,7 +1,7 @@
 import { CheerioCrawler, RequestQueue } from "crawlee";
 import { load } from "cheerio";
 import type { CheerioAPI } from "cheerio";
-import type { ScrapedItem, SiteConfig } from "@rta/shared";
+import { logger, type ScrapedItem, type SiteConfig } from "@rta/shared";
 import {
   absoluteUrl,
   assertRobotsAllowed,
@@ -14,45 +14,108 @@ import {
   type ScraperOptions,
 } from "./common.js";
 
-const CARD_SELECTOR = "[data-listing-card], [data-vehicle-card], article.vehicle-card, article.listing-card";
+const LISTING_CARD_SELECTOR = 'a[href^="/listings/"]';
+const STRUCTURED_DATA_SELECTOR = 'script[type="application/ld+json"], script#__NEXT_DATA__, script[type="application/json"]';
+const ANTI_BOT_MARKERS = ["captcha", "access denied", "verify you are human", "cloudflare", "akamai", "bot detected", "just a moment"];
+
+export interface CollectorCarListDiagnostics {
+  finalUrl: string;
+  statusCode: number | null;
+  pageTitle: string;
+  matchedCardCount: number;
+  knownListingLinkCount: number;
+  structuredJsonBlockCount: number;
+  validEmptyState: boolean;
+}
+
+export interface CollectorCarListParseContext {
+  finalUrl?: string;
+  statusCode?: number;
+  onDiagnostics?: (diagnostics: CollectorCarListDiagnostics) => void;
+}
+
+export class CollectorCarListSourceContractError extends Error {
+  constructor(message: string, readonly diagnostics: CollectorCarListDiagnostics) {
+    super(message);
+    this.name = "CollectorCarListSourceContractError";
+  }
+}
 
 function cleanText(value: string | undefined): string | null {
   const cleaned = value?.replace(/\s+/g, " ").trim();
   return cleaned || null;
 }
 
-function firstText(card: ReturnType<CheerioAPI>, selectors: string): string | null {
-  return cleanText(card.find(selectors).first().text());
+function firstText(card: ReturnType<CheerioAPI>, selector: string): string | null {
+  return cleanText(card.find(selector).first().text());
 }
 
-function firstHref(card: ReturnType<CheerioAPI>, selectors: string, baseUrl: string): string | null {
-  return absoluteUrl(card.find(selectors).first().attr("href"), baseUrl);
+function labeledValue($: CheerioAPI, card: ReturnType<CheerioAPI>, label: string): string | null {
+  let value: string | null = null;
+  card.find("div").each((_index, element) => {
+    if (value) return;
+    const children = $(element).children("p");
+    if (children.length < 2) return;
+    if (cleanText(children.eq(0).text())?.toLowerCase() !== label.toLowerCase()) return;
+    value = cleanText(children.eq(1).text());
+  });
+  return value;
 }
 
-/**
- * Parse the public CollectorCarList card contract without making a network
- * request. The selector fallbacks tolerate harmless markup changes while the
- * required title and stable listing URL prevent malformed cards being stored.
- */
-export function parseCollectorCarListHtml(html: string, site: SiteConfig, sourceUrl: string, limit: number): ScrapedItem[] {
+function sourceContractDiagnostics($: CheerioAPI, sourceUrl: string, context: CollectorCarListParseContext): CollectorCarListDiagnostics {
+  const bodyText = $("body").text();
+  const pageTitle = cleanText($("title").first().text())?.slice(0, 200) ?? "";
+  const knownListingLinkCount = $(LISTING_CARD_SELECTOR).length;
+  const validEmptyState = /(?:^|\D)0\s+cars?\s+available/i.test(bodyText) && /no listings found/i.test(bodyText);
+  return {
+    finalUrl: context.finalUrl ?? sourceUrl,
+    statusCode: context.statusCode ?? null,
+    pageTitle,
+    matchedCardCount: knownListingLinkCount,
+    knownListingLinkCount,
+    structuredJsonBlockCount: $(STRUCTURED_DATA_SELECTOR).length,
+    validEmptyState,
+  };
+}
+
+function isAntiBotPage($: CheerioAPI): boolean {
+  const bodyText = $("body").text().toLowerCase();
+  return ANTI_BOT_MARKERS.some((marker) => bodyText.includes(marker));
+}
+
+function throwUnexpectedContract(diagnostics: CollectorCarListDiagnostics, reason: string): never {
+  throw new CollectorCarListSourceContractError(`CollectorCarList source contract not detected: ${reason}`, diagnostics);
+}
+
+/** Parse the current public, server-rendered CollectorCarList listing cards. */
+export function parseCollectorCarListHtml(html: string, site: SiteConfig, sourceUrl: string, limit: number, context: CollectorCarListParseContext = {}): ScrapedItem[] {
   const $ = load(html);
+  const diagnostics = sourceContractDiagnostics($, sourceUrl, context);
+  context.onDiagnostics?.(diagnostics);
+
+  if (isAntiBotPage($)) throwUnexpectedContract(diagnostics, "anti-bot or interstitial page");
+  if (diagnostics.statusCode !== null && diagnostics.statusCode >= 400) throwUnexpectedContract(diagnostics, `HTTP ${diagnostics.statusCode}`);
+  if (diagnostics.matchedCardCount === 0) {
+    if (diagnostics.validEmptyState) return [];
+    throwUnexpectedContract(diagnostics, "no listing cards or valid empty-inventory state");
+  }
+
   const items: ScrapedItem[] = [];
   const seenUrls = new Set<string>();
-  const cards = $(CARD_SELECTOR).length ? $(CARD_SELECTOR) : $("article");
-
-  cards.each((_index, element) => {
+  $(LISTING_CARD_SELECTOR).each((_index, element) => {
     if (items.length >= limit) return false;
     const card = $(element);
-    const listingUrl = firstHref(card, "a[data-listing-link], a[data-vehicle-link], a[href]", site.baseUrl);
-    const title = firstText(card, "[data-listing-title], [data-vehicle-title], h2, h3, .listing-title");
+    const listingUrl = absoluteUrl(card.attr("href"), site.baseUrl);
+    const title = firstText(card, "h3");
     if (!title || !listingUrl || seenUrls.has(listingUrl)) return;
     seenUrls.add(listingUrl);
 
-    const price = firstText(card, "[data-listing-price], [data-vehicle-price], .price");
-    const mileage = firstText(card, "[data-listing-mileage], [data-vehicle-mileage], .mileage, .miles");
-    const year = firstText(card, "[data-listing-year], [data-vehicle-year], .year");
-    const city = firstText(card, "[data-listing-location], [data-vehicle-location], .location, .city");
-    const image = card.find("img").first();
+    const yearLine = firstText(card, "p") ?? "";
+    const year = yearLine.match(/\b(?:18|19|20)\d{2}\b/)?.[0] ?? null;
+    const price = labeledValue($, card, "Asking");
+    const mileage = labeledValue($, card, "Miles");
+    const city = labeledValue($, card, "Location");
+    const image = card.find('img[data-nimg="fill"], img').first();
     const thumbnailUrl = imageUrlFromCandidates([
       image.attr("data-src"),
       image.attr("data-lazy-src"),
@@ -65,8 +128,6 @@ export function parseCollectorCarListHtml(html: string, site: SiteConfig, source
 
     const item = validateItem(site, {
       title,
-      // Preserve “Price on request” and other source text. Never invent a
-      // numeric value when a seller has not published a price.
       price,
       year,
       mileage,
@@ -76,7 +137,7 @@ export function parseCollectorCarListHtml(html: string, site: SiteConfig, source
       rawData: {
         source: sourceUrl,
         sourceKey: site.key,
-        listingId: card.attr("data-listing-id") ?? null,
+        listingId: card.attr("href") ?? null,
         title,
         price,
         year,
@@ -90,6 +151,7 @@ export function parseCollectorCarListHtml(html: string, site: SiteConfig, source
     return;
   });
 
+  if (items.length === 0) throwUnexpectedContract(diagnostics, "listing links matched but no valid listing cards were extracted");
   return items;
 }
 
@@ -114,17 +176,28 @@ export async function scrapeCollectorCarList(site: SiteConfig, options: ScraperO
     requestHandlerTimeoutSecs: Math.ceil(options.jobTimeoutMs / 1000),
     maxRequestsPerCrawl: 1,
     preNavigationHooks: [async (_context, gotOptions) => {
-      gotOptions.headers = {
-        ...gotOptions.headers,
-        "user-agent": options.userAgent,
-        "accept-language": "en-US,en;q=0.8",
-      };
+      gotOptions.headers = { ...gotOptions.headers, "user-agent": options.userAgent, "accept-language": "en-US,en;q=0.8" };
     }],
-    requestHandler: async ({ body, request }) => {
+    requestHandler: async ({ body, request, response }) => {
       await reportScrapeStage(options, "extracting");
       const extractionStartedAt = Date.now();
-      items.push(...parseCollectorCarListHtml(String(body), site, request.url, options.limit));
-      recordScrapeTiming(options, "extractionMs", extractionStartedAt);
+      const diagnostics: Partial<CollectorCarListDiagnostics> = {};
+      const finalUrl = String(response.url ?? request.loadedUrl ?? request.url);
+      try {
+        items.push(...parseCollectorCarListHtml(String(body), site, request.url, options.limit, {
+          finalUrl,
+          statusCode: response.statusCode,
+          onDiagnostics: (value) => Object.assign(diagnostics, value),
+        }));
+        logger.info({ site: site.key, ...diagnostics }, "CollectorCarList source contract inspected");
+      } catch (error) {
+        if (error instanceof CollectorCarListSourceContractError) {
+          logger.error({ site: site.key, ...error.diagnostics }, "CollectorCarList source contract missing");
+        }
+        throw error;
+      } finally {
+        recordScrapeTiming(options, "extractionMs", extractionStartedAt);
+      }
     },
   });
 

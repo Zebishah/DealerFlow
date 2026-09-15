@@ -1,33 +1,43 @@
 <!doctype html>
-<html><body>
-  <article data-listing-card data-listing-id="ccl-001">
-    <a data-listing-link href="/cars/aston-martin-db5-001"><h2 data-listing-title>Aston Martin DB5</h2></a>
-    <span data-listing-price>CHF 125,000</span>
-    <span data-listing-year>1964</span>
-    <span data-listing-mileage>42,000 miles</span>
-    <span data-listing-location>Geneva, Switzerland</span>
-    <img src="data:image/gif;base64,placeholder" data-src="/images/db5.jpg" srcset="/images/db5-small.jpg 480w, /images/db5.jpg 1200w" />
-  </article>
-  <article data-listing-card data-listing-id="ccl-002">
-    <a data-listing-link href="https://collectorcarlist.com/cars/ferrari-250-002"><h2 data-listing-title>Ferrari 250 GT</h2></a>
-    <span data-listing-price>Price on request</span>
-    <span data-listing-year>1961</span>
-    <span data-listing-location>London, United Kingdom</span>
-    <img src="/placeholders/car.svg" data-lazy-src="https://images.example.test/ferrari.jpg" />
-  </article>
-  <article data-listing-card data-listing-id="ccl-invalid">
-    <h2 data-listing-title>Card without a stable link</h2>
-    <span data-listing-price>CHF 10,000</span>
-  </article>
-  <article data-listing-card data-listing-id="ccl-003">
-    <a data-listing-link href="/cars/porsche-911-003"><h2 data-listing-title>Porsche 911 Carrera</h2></a>
-    <span data-listing-price>CHF 89,500</span>
-    <span data-listing-year>1987</span>
-    <span data-listing-mileage>88,100 km</span>
-    <span data-listing-location>Zurich, Switzerland</span>
-    <img srcset="/images/porsche-small.jpg 320w, /images/porsche.jpg 1024w" />
-  </article>
-  <article data-listing-card data-listing-id="ccl-003-duplicate">
-    <a data-listing-link href="/cars/porsche-911-003"><h2 data-listing-title>Duplicate Porsche 911</h2></a>
-  </article>
-</body></html>
+<html>
+  <head><title>CollectorCarList — Where Car People Buy &amp; Sell</title></head>
+  <body>
+    <main id="listings">
+      <h2>Latest Listings</h2>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <a class="group block overflow-hidden border border-line bg-surface" href="/listings/1970-porsche-911t-rs-pro-touring-one">
+          <div class="relative aspect-[4/3] overflow-hidden bg-raised">
+            <img alt="1970 Porsche 911 T RS Pro Touring" loading="lazy" data-nimg="fill" src="/_next/image?url=https%3A%2F%2Fimages.example.test%2Fporsche.jpg&amp;w=1200&amp;q=75" srcset="/_next/image?url=https%3A%2F%2Fimages.example.test%2Fporsche.jpg&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Fimages.example.test%2Fporsche.jpg&amp;w=1200&amp;q=75 1200w" />
+          </div>
+          <div class="p-5">
+            <p>1970 · Porsche</p><h3>911 T "RS Pro Touring" 3.6 G50 Patrick Motorsports</h3>
+            <div class="grid"><div><p>Asking</p><p>$220,000</p></div><div><p>Miles</p><p>15,154</p></div><div><p>Location</p><p>San Diego, CA</p></div></div>
+          </div>
+        </a>
+        <a class="group block overflow-hidden border border-line bg-surface" href="/listings/1964-ferrari-250-gt-two">
+          <div><img alt="1964 Ferrari 250 GT" loading="lazy" data-nimg="fill" src="/placeholder.svg" data-src="https://images.example.test/ferrari.jpg" /></div>
+          <div class="p-5">
+            <p>1964 · Ferrari</p><h3>250 GT Lusso</h3>
+            <div><div><p>Asking</p><p>Price on request</p></div><div><p>Miles</p><p>8,200</p></div><div><p>Location</p><p>London, UK</p></div></div>
+          </div>
+        </a>
+        <a class="group block overflow-hidden border border-line bg-surface" href="/listings/1987-porsche-911-three">
+          <div><img alt="1987 Porsche 911 Carrera" loading="lazy" src="/placeholder.svg" srcset="/images/911-small.jpg 320w, /images/911.jpg 1024w" /></div>
+          <div class="p-5"><p>1987 · Porsche</p><h3>911 Carrera</h3><div><div><p>Asking</p><p>$89,500</p></div><div><p>Miles</p><p>88,100</p></div><div><p>Location</p><p>Zurich, CH</p></div></div></div>
+        </a>
+        <a class="group block overflow-hidden border border-line bg-surface" href="/listings/1967-jaguar-e-type-four">
+          <div><img alt="1967 Jaguar E-Type" loading="lazy" data-nimg="fill" srcset="/images/e-type.jpg 1024w" /></div>
+          <div class="p-5"><p>1967 · Jaguar</p><h3>E-Type Series 1</h3><div><div><p>Asking</p><p>$145,000</p></div><div><p>Miles</p><p>31,400</p></div><div><p>Location</p><p>Austin, TX</p></div></div></div>
+        </a>
+        <a class="group block overflow-hidden border border-line bg-surface" href="/listings/1972-bmw-2002-five">
+          <div><img alt="1972 BMW 2002" loading="lazy" data-nimg="fill" src="/images/bmw.jpg" /></div>
+          <div class="p-5"><p>1972 · BMW</p><h3>2002 tii</h3><div><div><p>Asking</p><p>$42,000</p></div><div><p>Miles</p><p>55,000</p></div><div><p>Location</p><p>Denver, CO</p></div></div></div>
+        </a>
+        <a class="group block overflow-hidden border border-line bg-surface" href="/listings/1970-porsche-911t-rs-pro-touring-one">
+          <div><img alt="Duplicate listing" loading="lazy" data-nimg="fill" src="/duplicate.jpg" /></div>
+          <div class="p-5"><p>1970 · Porsche</p><h3>Duplicate card</h3><div><div><p>Asking</p><p>$220,000</p></div></div></div>
+        </a>
+      </div>
+    </main>
+  </body>
+</html>

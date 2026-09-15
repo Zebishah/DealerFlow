@@ -18,7 +18,7 @@ did not explicitly prohibit the intended extraction.
 | [LuxuryPulse](https://luxurypulse.com/) | Public listings and pagination are visible. | Rejected: [terms](https://luxurypulse.com/terms) prohibit copying, extraction, and database reuse without permission. |
 | [Classics on Autotrader](https://classics.autotrader.com/) | Public SSR listings and pagination are visible, but direct crawler access returned Akamai HTTP 403. | Rejected: implementing it would depend on an anti-bot/WAF bypass, which is out of scope. |
 | [Classic Driver](https://www.classicdriver.com/) | Not audited for implementation. | Explicitly excluded by project requirements. |
-| [CollectorCarList](https://collectorcarlist.com/) | Public SSR listings, robots allows the public path, and no explicit automated-crawling prohibition was found in the terms audit. | **Approved replacement.** Uses Cheerio and a bounded one-page strategy. |
+| [CollectorCarList](https://www.collectorcarlist.com/) | Public SSR listings, robots allows the public path, and no explicit automated-crawling prohibition was found in the terms audit. The non-www URL redirects to this canonical host. | **Approved replacement.** Uses Cheerio and a bounded one-page strategy. |
 
 The target of three approved sources could not be met without implementing a
 source that failed the policy or anti-bot checks. CollectorCarList is the
@@ -70,6 +70,12 @@ container-level budget. These are operational defaults, not billing or plan
 assumptions. The current source uses Cheerio, so the Actor Docker image does
 not install a Playwright browser.
 
+The current Actor environment value is:
+
+```text
+SCRAPER_SITES_JSON='[{"key":"collector-car-list","name":"CollectorCarList","baseUrl":"https://www.collectorcarlist.com/","engine":"cheerio","itemSelector":"a[href^=\"/listings/\"]","titleSelector":"h3","priceSelector":"div > p","linkSelector":"a[href^=\"/listings/\"]","delayMs":2500,"maxConcurrency":1}]'
+```
+
 Keep the Actor private in Apify metadata and do not place database URLs,
 Redis credentials, scraper tokens, cookies, or request headers in logs or
 Actor output.
@@ -80,8 +86,13 @@ The CollectorCarList adapter uses one public page and stops at the requested
 maximum. It normalizes the existing `ScrapedItem` shape, deduplicates stable
 listing URLs, resolves relative links and image URLs, handles lazy/srcset
 images, preserves raw source fields, and keeps “Price on request” as source
-text. It skips malformed cards rather than manufacturing title, URL, mileage,
-image, or price values.
+text. The live card contract is an anchor whose path begins with
+`/listings/`, with an `h3` title, labelled `Asking`, `Miles`, and `Location`
+value blocks, and a lazy-loaded image using `srcset`/Next image attributes. It
+skips malformed cards rather than manufacturing title, URL, mileage, image,
+or price values. A page with the explicit `0 cars available` and `No listings
+found` state is a valid empty inventory; an otherwise normal page with no
+listing contract raises a source-contract error.
 
 The source currently exposes a bounded public page rather than a verified
 pagination contract. Pagination should be audited separately before adding
