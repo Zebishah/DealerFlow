@@ -12,6 +12,9 @@ async function main(): Promise<void> {
     const input = await Actor.getInput();
     const output = await runActorScrape(input, config, { verifyDatabase, scrapeSite, persistScrapedItems });
     await Actor.setValue("OUTPUT", output);
+    if (output.items.length > 0) {
+      await Actor.pushData(output.items);
+    }
     logger.info({ site: output.siteKey, requestedCount: output.requestedCount, foundCount: output.foundCount }, "Apify scrape completed");
   } catch (error) {
     exitCode = 1;

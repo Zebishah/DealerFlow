@@ -8,6 +8,10 @@
   "dockerfile": "../Dockerfile",
   "dockerContextDir": "../../..",
   "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
   "minMemoryMbytes": 512,
   "maxMemoryMbytes": 4096,
   "defaultMemoryMbytes": 1024

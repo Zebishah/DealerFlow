@@ -1,0 +1,76 @@
+{
+  "actorSpecification": 1,
+  "title": "RTA scraped vehicles",
+  "description": "Normalized vehicle listings discovered during the Actor run. Neon remains the persistent source of truth.",
+  "fields": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "title": "Vehicle",
+        "description": "Vehicle title as published by the source."
+      },
+      "price": {
+        "type": ["string", "null"],
+        "title": "Price",
+        "description": "Source price text, including price-on-request values."
+      },
+      "year": {
+        "type": ["string", "null"],
+        "title": "Year",
+        "description": "Vehicle model year when published by the source."
+      },
+      "mileage": {
+        "type": ["string", "null"],
+        "title": "Mileage",
+        "description": "Source mileage text."
+      },
+      "city": {
+        "type": ["string", "null"],
+        "title": "Location",
+        "description": "Source location text."
+      },
+      "listingUrl": {
+        "type": "string",
+        "format": "uri",
+        "title": "Listing URL",
+        "description": "Canonical public URL for the source listing."
+      },
+      "thumbnailUrl": {
+        "type": ["string", "null"],
+        "format": "uri",
+        "title": "Thumbnail",
+        "description": "Source listing image URL when available."
+      },
+      "rawData": {
+        "type": "object",
+        "title": "Source data",
+        "description": "Safe normalized source fields retained for traceability.",
+        "additionalProperties": true
+      }
+    },
+    "required": ["title", "listingUrl"]
+  },
+  "views": {
+    "overview": {
+      "title": "Vehicle listings",
+      "transformation": {
+        "fields": ["thumbnailUrl", "title", "year", "price", "mileage", "city", "listingUrl"]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "thumbnailUrl": {
+            "label": "Image",
+            "format": "image"
+          },
+          "listingUrl": {
+            "label": "Listing URL",
+            "format": "link"
+          }
+        }
+      }
+    }
+  }
+}

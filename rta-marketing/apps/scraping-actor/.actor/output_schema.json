@@ -1,0 +1,19 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "RTA Luxury Vehicle Scraper output",
+  "description": "Links to the scrape summary and the structured vehicle rows produced by this run.",
+  "properties": {
+    "result": {
+      "title": "Scrape result",
+      "description": "The complete scrape summary, including status, counts, timings, and normalized items.",
+      "type": "string",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/OUTPUT"
+    },
+    "vehicles": {
+      "title": "Scraped vehicles",
+      "description": "Structured vehicle rows written to this run's default Dataset for browsing and API access.",
+      "type": "string",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}
