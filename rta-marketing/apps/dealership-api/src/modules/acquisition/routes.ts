@@ -7,6 +7,7 @@ import { db } from "../../db/client.js";
 import { scrapedItems, scrapingSites } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
+import { callScrapingApi, ScrapingApiTransportError, type ScrapingApiPayload } from "./scraping-client.js";
 
 function isTransientDatabaseError(error: unknown): boolean {
   const candidate = error as { code?: string; cause?: { code?: string; message?: string } };
@@ -152,64 +153,40 @@ function loadScrapingResults(where: SQL | undefined, limit: number, offset: numb
   ]);
 }
 
-type ScrapeJobStatus = {
-  jobId: string;
-  siteKey: string;
-  limit: number;
-  status: "queued" | "scraping" | "retrying" | "completed" | "failed";
-  failedReason: string | null;
-  attempt?: number;
-  attemptsMade?: number;
-  maxAttempts?: number;
-  enqueuedAt?: string | null;
-  processingStartedAt?: string | null;
-  finishedAt?: string | null;
-  elapsedMs?: number;
-  progressStage?: string | null;
-  requestedCount?: number;
-  foundCount?: number | null;
-  timings?: Record<string, number> | null;
-};
-
-type ScraperApiPayload = {
-  data?: {
-    jobId?: string | null;
-    activeJob?: ScrapeJobStatus | null;
-    defaultLimit?: number;
-    maxLimit?: number;
-    retryAfterSeconds?: number;
-  };
-  error?: string;
-};
-
-async function callScrapingApi(path: string, init: RequestInit = {}): Promise<{ response: Response; payload: ScraperApiPayload | null }> {
+function callScrapingApiForRoute(path: string, init: RequestInit = {}, options: { pathCategory: string; retryTransient?: boolean } = { pathCategory: "unknown" }): Promise<{ response: Response; payload: ScrapingApiPayload | null; attempt: number; elapsedMs: number }> {
   if (!env.SCRAPING_STACK_API_TOKEN) {
     throw new AppError(503, "SCRAPER_CREDENTIAL_NOT_CONFIGURED", "The scraping service credential is not configured");
   }
+  const callOptions = { baseUrl: env.SCRAPING_STACK_API_URL, token: env.SCRAPING_STACK_API_TOKEN, path, init, pathCategory: options.pathCategory };
+  return options.retryTransient === undefined ? callScrapingApi(callOptions) : callScrapingApi({ ...callOptions, retryTransient: options.retryTransient });
+}
 
-  let response: Response;
-  try {
-    response = await fetch(`${env.SCRAPING_STACK_API_URL.replace(/\/$/, "")}${path}`, {
-      ...init,
-      headers: { Authorization: `Bearer ${env.SCRAPING_STACK_API_TOKEN}` },
-      signal: AbortSignal.timeout(5_000),
-    });
-  } catch {
-    throw new AppError(502, "SCRAPING_STACK_UNAVAILABLE", "The scraping service is not reachable. Please try again shortly.");
-  }
+function warmingUpError(error: ScrapingApiTransportError): AppError {
+  return new AppError(503, "SCRAPER_WARMING_UP", "Starting the scraping service. This can take up to a minute after inactivity.", { serviceStatus: "waking", pathCategory: error.pathCategory, attempt: error.attempt, elapsedMs: error.elapsedMs });
+}
 
-  const payload = await response.json().catch(() => null) as ScraperApiPayload | null;
-  return { response, payload };
+function upstreamError(code: string, message: string, response: Response, payload: ScrapingApiPayload | null): AppError {
+  if (response.status === 401) return new AppError(502, "SCRAPER_CREDENTIAL_REJECTED", "The scraping service rejected its server credential. Check the Render token configuration.", { serviceStatus: "credential-rejected" });
+  return new AppError(502, code, message, { serviceStatus: "upstream-error", upstreamStatus: response.status, upstreamMessage: payload?.error ?? null });
+}
+
+function ambiguousTriggerError(attempt: number, elapsedMs: number): AppError {
+  return new AppError(503, "SCRAPER_TRIGGER_AMBIGUOUS", "The trigger outcome could not be confirmed. No second trigger was sent to prevent duplicate jobs.", { serviceStatus: "waking", attempt, elapsedMs });
 }
 
 acquisitionRouter.get(
   "/status",
   asyncHandler(async (_request, response) => {
-    const { response: upstream, payload } = await callScrapingApi("/api/scrape/status");
-    if (!upstream.ok || !payload?.data) {
-      throw new AppError(502, "SCRAPER_STATUS_UNAVAILABLE", "The scraping service status is temporarily unavailable");
+    let result;
+    try {
+      result = await callScrapingApiForRoute("/api/scrape/status", {}, { pathCategory: "status", retryTransient: true });
+    } catch (error) {
+      if (error instanceof ScrapingApiTransportError) throw warmingUpError(error);
+      throw error;
     }
-    response.json({ data: payload.data });
+    if (!result.response.ok) throw upstreamError("SCRAPER_STATUS_UPSTREAM_ERROR", "The scraping service returned a status error.", result.response, result.payload);
+    if (!result.payload?.data) throw new AppError(502, "SCRAPER_STATUS_UPSTREAM_ERROR", "The scraping service returned an invalid status response.", { serviceStatus: "upstream-error", upstreamStatus: result.response.status });
+    response.json({ data: { ...result.payload.data, serviceStatus: result.payload.data.activeJob ? "active" : "available" } });
   }),
 );
 
@@ -225,7 +202,34 @@ acquisitionRouter.post(
 
     const siteKey = site.baseUrl.includes("pakwheels.com") ? "pakwheels" : site.baseUrl.includes("olx.com.pk") ? "olx-pakistan" : null;
     if (!siteKey) return response.status(422).json({ error: { code: "SCRAPER_SITE_NOT_TRIGGERABLE", message: `${site.name} has no live scraper trigger configured` } });
-    const { response: upstream, payload } = await callScrapingApi(`/api/scrape/${siteKey}`, { method: "POST" });
+    let warmup;
+    try {
+      warmup = await callScrapingApiForRoute("/health", {}, { pathCategory: "health", retryTransient: true });
+    } catch (error) {
+      if (error instanceof ScrapingApiTransportError) throw warmingUpError(error);
+      throw error;
+    }
+    if (!warmup.response.ok) throw upstreamError("SCRAPER_WARMUP_UPSTREAM_ERROR", "The scraping service returned a health-check error.", warmup.response, warmup.payload);
+
+    let triggerResult;
+    try {
+      triggerResult = await callScrapingApiForRoute(`/api/scrape/${siteKey}`, { method: "POST" }, { pathCategory: "trigger" });
+    } catch (error) {
+      if (!(error instanceof ScrapingApiTransportError)) throw error;
+      let confirmation;
+      try {
+        confirmation = await callScrapingApiForRoute("/api/scrape/status", {}, { pathCategory: "trigger-confirmation", retryTransient: true });
+      } catch (confirmationError) {
+        if (confirmationError instanceof ScrapingApiTransportError) throw ambiguousTriggerError(confirmationError.attempt, confirmationError.elapsedMs);
+        throw confirmationError;
+      }
+      if (!confirmation.response.ok) throw upstreamError("SCRAPER_TRIGGER_CONFIRMATION_FAILED", "The trigger outcome could not be confirmed.", confirmation.response, confirmation.payload);
+      if (confirmation.payload?.data?.activeJob) {
+        throw new AppError(409, "SCRAPER_ALREADY_RUNNING", "The scrape request was accepted and is already running.", { activeJob: confirmation.payload.data.activeJob });
+      }
+      throw ambiguousTriggerError(error.attempt, error.elapsedMs);
+    }
+    const { response: upstream, payload } = triggerResult;
     if (!upstream.ok) {
       if (upstream.status === 409) {
         throw new AppError(409, "SCRAPER_ALREADY_RUNNING", "A scrape is already queued or processing. Please wait until it finishes.", payload?.data?.activeJob ?? null);

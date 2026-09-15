@@ -217,6 +217,7 @@ export interface ScrapingStatusResponse {
     activeJob: ScrapingJob | null;
     defaultLimit: number;
     maxLimit: number;
+    serviceStatus?: "available" | "active" | "waking" | "upstream-error" | "credential-rejected";
   };
 }
 

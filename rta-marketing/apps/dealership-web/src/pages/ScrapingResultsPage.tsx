@@ -4,7 +4,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { ScrapedVehicleCard, ScrapedVehicleDetailsModal } from "../components/ScrapedVehicleCard";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import type { ScrapedListing, ScrapingResultsResponse, ScrapingSite, ScrapingStatusResponse } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
@@ -64,6 +64,8 @@ export function ScrapingResultsPage() {
   const scraperBusy = Boolean(activeJob && ["queued", "scraping", "retrying"].includes(activeJob.status));
   const trigger = useMutation({
     mutationFn: (siteId: number) => api<{ data: { jobId: string | null; siteName: string } }>(`/scraping-results/${siteId}/trigger`, { method: "POST" }),
+    retry: (failureCount, error) => error instanceof ApiError && error.code === "SCRAPER_WARMING_UP" && failureCount < 1,
+    retryDelay: 3_000,
     onSuccess: async (value) => {
       toast.success(`${displaySiteName(value.data.siteName)} queued (job ${value.data.jobId ?? "accepted"})`);
       await scrapeStatus.refetch();
@@ -71,9 +73,10 @@ export function ScrapingResultsPage() {
     },
     onError: async (error: Error) => {
       await scrapeStatus.refetch();
-      toast.error(error.message);
+      if (!(error instanceof ApiError && error.code === "SCRAPER_WARMING_UP")) toast.error(error.message);
     },
   });
+  const warmingUp = (scrapeStatus.error instanceof ApiError && scrapeStatus.error.code === "SCRAPER_WARMING_UP") || (trigger.error instanceof ApiError && trigger.error.code === "SCRAPER_WARMING_UP");
 
   if (results.isLoading) return <PageSkeleton />;
   if (results.isError || !results.data) return <ErrorState message={results.error instanceof Error ? results.error.message : "Scraping results are unavailable."} />;
@@ -88,6 +91,8 @@ export function ScrapingResultsPage() {
       <div className="run-control scraping-hero-stats"><span>SAVED LISTINGS</span><strong>{total}</strong><small>{sites.length} scraper sites connected</small><button className="hero-secondary-action" onClick={() => results.refetch()}><RefreshCw size={14} />Refresh results</button></div>
     </section>
 
+    {warmingUp && <div className="warning-banner" role="status"><AlertTriangle size={18} /><span><strong>Starting scraping service…</strong>Connecting to worker infrastructure. This can take up to a minute after inactivity.</span></div>}
+    {scrapeStatus.error && !warmingUp && <div className="warning-banner" role="alert"><AlertTriangle size={18} /><span><strong>Scraping service unavailable.</strong>{scrapeStatus.error instanceof Error ? scrapeStatus.error.message : "The scraping service returned an unexpected error."}</span></div>}
     {activeJob && <div className="warning-banner" role="status"><AlertTriangle size={18} /><span><strong>{activeStatusLabel(activeJob.status)}: one scrape is already in progress.</strong>{activeJob.siteKey} is {activeJob.status === "scraping" ? "being processed" : activeJob.status === "retrying" ? "recovering from a transient failure" : "waiting in the queue"} for up to {activeJob.limit} vehicles. {activeJob.progressStage ? `${activeJob.progressStage} · ` : ""}Requested: {activeJob.requestedCount ?? activeJob.limit}; found: {activeJob.foundCount ?? 0}. Scrape buttons are disabled until it finishes.</span></div>}
 
     <section className="surface scraping-filter-panel">

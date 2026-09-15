@@ -13,7 +13,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --env-file=.env.test --import tsx --test src/*.test.ts src/**/*.test.ts",
+    "test": "node --env-file=.env.test --import tsx --test src/*.test.ts src/**/*.test.ts src/modules/acquisition/scraping-client.test.ts",
     "test:coverage": "node --env-file=.env.test --import tsx --test --experimental-test-coverage src/*.test.ts src/**/*.test.ts"
   },
   "private": true,
