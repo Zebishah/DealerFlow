@@ -4,5 +4,11 @@
   "title": "RTA Luxury Vehicle Scraper",
   "description": "Private Apify runtime for approved public collector-vehicle sources.",
   "version": "0.1",
-  "buildTag": "latest"
+  "buildTag": "latest",
+  "dockerfile": "../Dockerfile",
+  "dockerContextDir": "../../..",
+  "input": "./input_schema.json",
+  "minMemoryMbytes": 512,
+  "maxMemoryMbytes": 4096,
+  "defaultMemoryMbytes": 1024
 }

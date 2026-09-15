@@ -21,6 +21,7 @@
     "typecheck": "npm run typecheck:dealership-api && npm run typecheck:dealership-web && npm run typecheck:scraping",
     "typecheck:dealership-api": "npm run typecheck --workspace=@rta/dealership-api",
     "typecheck:dealership-web": "npm run typecheck --workspace=@rta/dealership-web",
+    "typecheck:scraping-actor": "npm run typecheck --workspace=@rta/scraping-actor",
     "typecheck:scraping": "npm run typecheck --workspace=@rta/shared && npm run typecheck --workspace=@rta/db && npm run typecheck --workspace=@rta/scrapers && npm run typecheck --workspace=@rta/scraping-api && npm run typecheck --workspace=@rta/scraping-worker && npm run typecheck --workspace=@rta/scraping-actor && npm run typecheck --workspace=@rta/scraping-web",
     "test": "npm run test:dealership-api && npm run test:dealership-web && npm run test:scraping",
     "test:dealership-api": "npm run test --workspace=@rta/dealership-api",
