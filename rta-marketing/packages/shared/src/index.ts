@@ -56,6 +56,7 @@ export const appConfigSchema = z.object({
   SCRAPER_USER_AGENT: z.string().min(10).default("RTA-Portfolio-Scraper/1.0 (+https://example.com/contact)"),
   // Keep Crawlee below the B1s VM's usable memory so Node, Chromium, the OS,
   // and database/Redis clients retain headroom.
+  // Keep the legacy Azure worker's established memory ceiling unchanged.
   CRAWLEE_MEMORY_MBYTES: z.coerce.number().int().min(128).max(450).default(450),
   SCRAPER_SITES_JSON: z.string().default("[]"),
   SCRAPE_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(10).default(5),
@@ -78,6 +79,45 @@ export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type ScrapedItem = z.infer<typeof scrapedItemSchema>;
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
+export const baseScraperConfigSchema = appConfigSchema.pick({
+  NODE_ENV: true,
+  DATABASE_URL: true,
+  SCRAPER_USER_AGENT: true,
+  CRAWLEE_MEMORY_MBYTES: true,
+  SCRAPER_SITES_JSON: true,
+  SCRAPE_DEFAULT_LIMIT: true,
+  SCRAPE_MAX_LIMIT: true,
+  SCRAPE_NAVIGATION_TIMEOUT_MS: true,
+  SCRAPE_SELECTOR_TIMEOUT_MS: true,
+  SCRAPE_JOB_TIMEOUT_MS: true,
+}).extend({
+  // Apify's bounded 4 GB container can safely use a larger Crawlee snapshot
+  // budget without changing the legacy worker/API validation above.
+  CRAWLEE_MEMORY_MBYTES: z.coerce.number().int().min(128).max(4096).default(450),
+});
+
+export type BaseScraperConfig = z.infer<typeof baseScraperConfigSchema> & { sites: SiteConfig[] };
+
+function parseConfiguredSites(value: string): SiteConfig[] {
+  const sites = z.array(siteConfigSchema).parse(JSON.parse(value));
+  for (const site of sites) assertSafeScraperUrl(site.baseUrl);
+  return sites;
+}
+
+/** Configuration shared by non-queue scraper runtimes such as Apify Actors. */
+export function loadBaseScraperConfig(): BaseScraperConfig {
+  const config = baseScraperConfigSchema.parse(process.env);
+  if (config.SCRAPE_DEFAULT_LIMIT > config.SCRAPE_MAX_LIMIT) {
+    throw new Error("SCRAPE_DEFAULT_LIMIT cannot exceed SCRAPE_MAX_LIMIT");
+  }
+  return { ...config, sites: parseConfiguredSites(config.SCRAPER_SITES_JSON) };
+}
+
+/** DB-only configuration keeps Actors independent from Redis/BullMQ secrets. */
+export function loadDatabaseConfig(): Pick<AppConfig, "DATABASE_URL"> {
+  return appConfigSchema.pick({ DATABASE_URL: true }).parse(process.env);
+}
+
 export function loadConfig(options: { requireScrapeAuth?: boolean } = {}) {
   const config = appConfigSchema.parse(process.env);
   if (options.requireScrapeAuth && config.NODE_ENV === "production" && (!config.SCRAPE_TRIGGER_TOKEN || !config.SCRAPE_ACCESS_CODE)) {
@@ -93,9 +133,7 @@ export function loadConfig(options: { requireScrapeAuth?: boolean } = {}) {
   if (config.SCRAPE_LOCK_TTL_SECONDS < minimumLockTtlSeconds) {
     throw new Error(`SCRAPE_LOCK_TTL_SECONDS must be at least ${minimumLockTtlSeconds} seconds for the configured job timeout and retries`);
   }
-  const sites = z.array(siteConfigSchema).parse(JSON.parse(config.SCRAPER_SITES_JSON));
-  for (const site of sites) assertSafeScraperUrl(site.baseUrl);
-  return { ...config, sites };
+  return { ...config, sites: parseConfiguredSites(config.SCRAPER_SITES_JSON) };
 }
 
 /**
