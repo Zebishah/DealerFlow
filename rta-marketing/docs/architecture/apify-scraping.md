@@ -20,7 +20,7 @@ did not explicitly prohibit the intended extraction.
 | [Classic Driver](https://www.classicdriver.com/) | Not audited for implementation. | Explicitly excluded by project requirements. |
 | [Romans International](https://www.romansinternational.com/used/cars/) | Public server-rendered vehicle cards with verified pagination. | **Approved production source.** Uses Cheerio and sequential pagination. |
 | [Tom Hartley](https://www.tomhartley.com/) | Public sitemap exposes vehicle-detail URLs and detail pages are server-rendered. | **Approved production source.** Uses Cheerio, strict sitemap filtering, and bounded detail crawling. |
-| [Redline Specialist Cars](https://redlinespecialistcars.co.uk/) | Public category pages are server-rendered; the main `/cars/` route does not provide the listing contract. | **Approved production source.** Uses bounded sitemap-discovered vehicle categories. |
+| [Redline Specialist Cars](https://redlinespecialistcars.co.uk/) | The public `/cars/` shell exposes category links; confirmed category pages are server-rendered with vehicle cards. Its sitemap is a bounded Rank Math index. | **Approved production source.** Uses `/cars/` category-link discovery with relevant page-sitemap fallback. |
 | [CollectorCarList](https://www.collectorcarlist.com/) | Existing adapter and fixture tests are retained. | **Legacy/internal only.** Not available in the live Actor source set. |
 
 The live Actor source set is intentionally limited to the three approved
@@ -76,7 +76,7 @@ not install a Playwright browser.
 The current Actor environment value is:
 
 ```text
-SCRAPER_SITES_JSON='[{"key":"romans-international","name":"Romans International","baseUrl":"https://www.romansinternational.com/used/cars/","engine":"cheerio","strategy":"cards","itemSelector":".vehicle--teaser[data-vehicle]","titleSelector":".vehicle__title","priceSelector":".vehicle__price","linkSelector":"a[href*=\"/used/cars/\"]","delayMs":2250,"maxConcurrency":1},{"key":"tom-hartley","name":"Tom Hartley","baseUrl":"https://www.tomhartley.com/","engine":"cheerio","strategy":"sitemap-details","sitemapUrl":"https://www.tomhartley.com/sitemap.xml","itemSelector":"body","titleSelector":"h1","priceSelector":".price","linkSelector":"a[href*=\"/used-car-details/\"]","delayMs":2250,"maxConcurrency":1},{"key":"redline-specialist-cars","name":"Redline Specialist Cars","baseUrl":"https://redlinespecialistcars.co.uk/","engine":"cheerio","strategy":"sitemap-categories","sitemapUrl":"https://redlinespecialistcars.co.uk/sitemap.xml","categoryPathPattern":"^/[a-z0-9][a-z0-9-]*-cars-for-sale/$","itemSelector":".col-md-4[data-at-price][data-at-year][data-at-mileage]","titleSelector":".product-content h4","priceSelector":".price","linkSelector":".item-link","delayMs":2250,"maxConcurrency":1}]'
+SCRAPER_SITES_JSON='[{"key":"romans-international","name":"Romans International","baseUrl":"https://www.romansinternational.com/used/cars/","engine":"cheerio","strategy":"cards","itemSelector":".vehicle--teaser[data-vehicle]","titleSelector":".vehicle__title","priceSelector":".vehicle__price","linkSelector":"a[href*=\"/used/cars/\"]","delayMs":2250,"maxConcurrency":1},{"key":"tom-hartley","name":"Tom Hartley","baseUrl":"https://www.tomhartley.com/","engine":"cheerio","strategy":"sitemap-details","sitemapUrl":"https://www.tomhartley.com/sitemap.xml","itemSelector":"body","titleSelector":"h1","priceSelector":".price","linkSelector":"a[href*=\"/used-car-details/\"]","delayMs":2250,"maxConcurrency":1},{"key":"redline-specialist-cars","name":"Redline Specialist Cars","baseUrl":"https://redlinespecialistcars.co.uk/cars/","engine":"cheerio","strategy":"cards","sitemapUrl":"https://redlinespecialistcars.co.uk/sitemap.xml","categoryPathPattern":"^/[a-z0-9][a-z0-9-]*-cars-for-sale/$","itemSelector":".col-md-4[data-at-price][data-at-year][data-at-mileage]","titleSelector":".product-content h4","priceSelector":".price","linkSelector":".item-link","delayMs":2250,"maxConcurrency":1}]'
 ```
 
 Keep the Actor private in Apify metadata and do not place database URLs,
@@ -86,8 +86,8 @@ Actor output.
 ## Parser behavior and limitations
 
 The live Actor uses Romans International cards, Tom Hartley sitemap-filtered
-vehicle detail pages, and Redline Specialist Cars sitemap-discovered category
-pages. Each adapter uses Cheerio, one request at a time, bounded discovery,
+vehicle detail pages, and Redline Specialist Cars public `/cars/` category-link
+discovery with relevant page-sitemap fallback. Each adapter uses Cheerio, one request at a time, bounded discovery,
 stable URL deduplication, source-native text, lazy/srcset or background-image
 handling, robots checks, and explicit source-contract diagnostics. A valid
 empty inventory completes with zero items; malformed markup, interstitials,
