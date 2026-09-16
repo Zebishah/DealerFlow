@@ -105,14 +105,13 @@ void test("does not retry definitive HTTP responses or ambiguous POSTs", async (
   assert.equal(ambiguousPostCalls, 1);
 });
 
-void test("trigger confirmation and frontend warming copy prevent duplicate replay", async () => {
+void test("the live dealership path uses Apify and has no warm-up UX", async () => {
   const [route, page] = await Promise.all([
     readFile(join(process.cwd(), "src/modules/acquisition/routes.ts"), "utf8"),
     readFile(join(process.cwd(), "../dealership-web/src/pages/ScrapingResultsPage.tsx"), "utf8"),
   ]);
-  assert.match(route, /trigger-confirmation/);
-  assert.match(route, /No second trigger was sent to prevent duplicate jobs/);
-  assert.match(page, /Starting scraping service/);
-  assert.match(page, /Connecting to worker infrastructure/);
-  assert.match(page, /SCRAPER_WARMING_UP/);
+  assert.match(route, /requireApifyClient/);
+  assert.doesNotMatch(route, /callScrapingApiForRoute|SCRAPING_WARMING_UP|SCRAPING_STACK_API_URL/);
+  assert.match(page, /Apify scraping pipeline/);
+  assert.doesNotMatch(page, /SCRAPER_WARMING_UP|Starting scraping service|worker infrastructure|Docker\/BullMQ/);
 });

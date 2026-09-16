@@ -1,13 +1,16 @@
-import { and, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { Router } from "express";
 import { z } from "zod";
 import { requireCsrf, requirePermission, requireRoles, requireSession } from "../../auth/session.js";
 import { env } from "../../config/env.js";
 import { db } from "../../db/client.js";
-import { scrapedItems, scrapingSites } from "../../db/schema.js";
+import { scrapeActorRuns, scrapedItems, scrapingSites } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
-import { callScrapingApi, ScrapingApiTransportError, type ScrapingApiPayload } from "./scraping-client.js";
+import { logger } from "../../lib/logger.js";
+import { ApifyClientError, mapApifyStatus, requireApifyClient, type ApifyRun } from "./apify-client.js";
+import { apifySiteKeyForBaseUrl, isApprovedImageHost, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
 
 function isTransientDatabaseError(error: unknown): boolean {
   const candidate = error as { code?: string; cause?: { code?: string; message?: string } };
@@ -44,7 +47,7 @@ export const acquisitionRouter = Router();
 
 // Serve source thumbnails through the API so browser hotlink/referrer rules do not
 // turn a valid scraped image URL into a blank card. The target host is restricted
-// to the configured inventory domains; this is not an open proxy.
+// to the explicit approved source/CDN map; this is not an open proxy.
 acquisitionRouter.get(
   "/image",
   asyncHandler(async (request, response) => {
@@ -52,13 +55,7 @@ acquisitionRouter.get(
     const target = new URL(rawUrl);
     if (!/^https?:$/.test(target.protocol)) throw new AppError(400, "INVALID_IMAGE_URL", "Only HTTP image URLs are supported");
 
-    const sites = await db.select({ baseUrl: scrapingSites.baseUrl }).from(scrapingSites);
-    const targetHost = target.hostname.replace(/^www\./, "");
-    const allowed = sites.some(({ baseUrl }) => {
-      const sourceHost = new URL(baseUrl).hostname.replace(/^www\./, "");
-      return targetHost === sourceHost || targetHost.endsWith(`.${sourceHost}`) || sourceHost.endsWith(`.${targetHost}`);
-    });
-    if (!allowed) throw new AppError(403, "IMAGE_HOST_NOT_ALLOWED", "This image host is not an approved inventory source");
+    if (!isApprovedImageHost(target.hostname)) throw new AppError(403, "IMAGE_HOST_NOT_ALLOWED", "This image host is not an approved inventory source");
 
     const origin = `${target.protocol}//${target.host}/`;
     const upstream = await fetch(target, {
@@ -67,6 +64,7 @@ acquisitionRouter.get(
         Referer: origin,
         "User-Agent": "Mozilla/5.0 (compatible; RTA Inventory/1.0)",
       },
+      redirect: "manual",
       signal: AbortSignal.timeout(12_000),
     }).catch(() => null);
     if (!upstream?.ok) throw new AppError(404, "SOURCE_IMAGE_UNAVAILABLE", "The source image is no longer available");
@@ -109,7 +107,8 @@ acquisitionRouter.get(
       }
       throw error;
     }
-    const [items, totalRows, sites] = result;
+    const [items, totalRows, siteRows] = result;
+    const sites = siteRows.map((site) => ({ ...site, ...sourceExecutionMetadata(site.baseUrl) }));
 
     response.json({ data: { items, sites }, page: { limit: query.limit, offset: query.offset, total: totalRows[0]?.count ?? 0, hasMore: query.offset + items.length < Number(totalRows[0]?.count ?? 0) } });
   }),
@@ -153,45 +152,90 @@ function loadScrapingResults(where: SQL | undefined, limit: number, offset: numb
   ]);
 }
 
-function callScrapingApiForRoute(path: string, init: RequestInit = {}, options: { pathCategory: string; retryTransient?: boolean } = { pathCategory: "unknown" }): Promise<{ response: Response; payload: ScrapingApiPayload | null; attempt: number; elapsedMs: number }> {
-  if (!env.SCRAPING_STACK_API_TOKEN) {
-    throw new AppError(503, "SCRAPER_CREDENTIAL_NOT_CONFIGURED", "The scraping service credential is not configured");
+const triggerBodySchema = z.object({ limit: z.coerce.number().int().min(1).max(10).optional(), siteKey: z.string().optional() }).strict();
+const terminalActorStatuses = ["completed", "failed", "cancelled"] as const;
+
+function apifyErrorToAppError(error: ApifyClientError): AppError {
+  if (error.kind === "credentials") return new AppError(502, "SCRAPER_CREDENTIAL_REJECTED", "The Apify integration rejected its server credential.", { serviceStatus: "credential-rejected" });
+  if (error.kind === "not-found") return new AppError(502, "SCRAPER_ACTOR_NOT_FOUND", "The configured Apify Actor or run was not found.", { serviceStatus: "upstream-error" });
+  if (error.kind === "rate-limited") return new AppError(429, "SCRAPER_RATE_LIMITED", "Apify is rate limiting scrape requests. Please try again shortly.", { serviceStatus: "upstream-error" });
+  if (error.kind === "malformed") return new AppError(502, "SCRAPER_UPSTREAM_INVALID_RESPONSE", "Apify returned an invalid response.", { serviceStatus: "upstream-error" });
+  return new AppError(503, "SCRAPER_UPSTREAM_UNAVAILABLE", "The Apify scraping service is temporarily unavailable.", { serviceStatus: "upstream-error" });
+}
+
+function safeRunError(run: ApifyRun): string | null {
+  const status = mapApifyStatus(run.status);
+  return status === "failed" ? "The Apify Actor run failed." : null;
+}
+
+function publicActorRun(row: typeof scrapeActorRuns.$inferSelect) {
+  return {
+    jobId: row.apifyRunId,
+    runId: row.apifyRunId,
+    siteKey: row.siteKey,
+    status: row.status as "queued" | "scraping" | "completed" | "failed" | "cancelled",
+    progressStage: row.progressStage,
+    limit: row.requestedLimit,
+    requestedCount: row.requestedLimit,
+    foundCount: row.foundCount,
+    startedAt: row.startedAt?.toISOString() ?? null,
+    finishedAt: row.finishedAt?.toISOString() ?? null,
+    durationMs: row.durationMs,
+    failedReason: row.lastError,
+  };
+}
+
+async function reconcileActorRun(row: typeof scrapeActorRuns.$inferSelect): Promise<typeof scrapeActorRuns.$inferSelect> {
+  if (terminalActorStatuses.includes(row.status as (typeof terminalActorStatuses)[number])) return row;
+  const key = row.siteKey as ApifySiteKey;
+  const client = requireApifyClient();
+  const remote = await client.getRun(row.apifyRunId, key);
+  const status = mapApifyStatus(remote.status);
+  const finishedAt = status === "completed" || status === "failed" || status === "cancelled" ? (remote.finishedAt ? new Date(remote.finishedAt) : new Date()) : null;
+  let output: Awaited<ReturnType<typeof client.getOutput>> | undefined;
+  if (status === "completed") {
+    try {
+      output = await client.getOutput(remote, key);
+    } catch (error) {
+      logger.warn({ siteKey: key, runId: row.apifyRunId, errorKind: error instanceof ApifyClientError ? error.kind : "unknown" }, "Apify run completed but output metadata was unavailable");
+    }
   }
-  const callOptions = { baseUrl: env.SCRAPING_STACK_API_URL, token: env.SCRAPING_STACK_API_TOKEN, path, init, pathCategory: options.pathCategory };
-  return options.retryTransient === undefined ? callScrapingApi(callOptions) : callScrapingApi({ ...callOptions, retryTransient: options.retryTransient });
-}
-
-function warmingUpError(error: ScrapingApiTransportError): AppError {
-  return new AppError(503, "SCRAPER_WARMING_UP", "Starting the scraping service. This can take up to a minute after inactivity.", { serviceStatus: "waking", pathCategory: error.pathCategory, attempt: error.attempt, elapsedMs: error.elapsedMs });
-}
-
-function upstreamError(code: string, message: string, response: Response, payload: ScrapingApiPayload | null): AppError {
-  if (response.status === 401) return new AppError(502, "SCRAPER_CREDENTIAL_REJECTED", "The scraping service rejected its server credential. Check the Render token configuration.", { serviceStatus: "credential-rejected" });
-  return new AppError(502, code, message, { serviceStatus: "upstream-error", upstreamStatus: response.status, upstreamMessage: payload?.error ?? null });
-}
-
-function ambiguousTriggerError(attempt: number, elapsedMs: number): AppError {
-  return new AppError(503, "SCRAPER_TRIGGER_AMBIGUOUS", "The trigger outcome could not be confirmed. No second trigger was sent to prevent duplicate jobs.", { serviceStatus: "waking", attempt, elapsedMs });
+  const startedAt = remote.startedAt ? new Date(remote.startedAt) : row.startedAt;
+  const durationMs = output?.durationMs ?? (finishedAt && startedAt ? Math.max(0, finishedAt.getTime() - startedAt.getTime()) : row.durationMs);
+  const [updated] = await db.update(scrapeActorRuns).set({
+    status,
+    foundCount: output?.foundCount ?? row.foundCount,
+    durationMs,
+    timings: output?.timings ?? row.timings,
+    startedAt,
+    finishedAt,
+    lastError: safeRunError(remote),
+    updatedAt: new Date(),
+  }).where(eq(scrapeActorRuns.id, row.id)).returning();
+  if (!updated) throw new Error("Apify run reconciliation failed");
+  return updated;
 }
 
 acquisitionRouter.get(
   "/status",
   asyncHandler(async (_request, response) => {
-    let result;
+    const [row] = await db.select().from(scrapeActorRuns).orderBy(desc(scrapeActorRuns.createdAt)).limit(1);
+    if (!row) return response.json({ data: { serviceStatus: "available", activeJob: null, defaultLimit: env.APIFY_DEFAULT_SCRAPE_LIMIT, maxLimit: env.APIFY_MAX_SCRAPE_LIMIT } });
+    let current: typeof row;
     try {
-      result = await callScrapingApiForRoute("/api/scrape/status", {}, { pathCategory: "status", retryTransient: true });
+      current = await reconcileActorRun(row);
     } catch (error) {
-      if (error instanceof ScrapingApiTransportError) throw warmingUpError(error);
+      if (error instanceof ApifyClientError) throw apifyErrorToAppError(error);
       throw error;
     }
-    if (!result.response.ok) throw upstreamError("SCRAPER_STATUS_UPSTREAM_ERROR", "The scraping service returned a status error.", result.response, result.payload);
-    if (!result.payload?.data) throw new AppError(502, "SCRAPER_STATUS_UPSTREAM_ERROR", "The scraping service returned an invalid status response.", { serviceStatus: "upstream-error", upstreamStatus: result.response.status });
-    response.json({ data: { ...result.payload.data, serviceStatus: result.payload.data.activeJob ? "active" : "available" } });
+    const active = !terminalActorStatuses.includes(current.status as (typeof terminalActorStatuses)[number]);
+    response.json({ data: { serviceStatus: active ? "active" : "available", activeJob: publicActorRun(current), defaultLimit: env.APIFY_DEFAULT_SCRAPE_LIMIT, maxLimit: env.APIFY_MAX_SCRAPE_LIMIT } });
   }),
 );
 
 acquisitionRouter.post(
   "/:siteId/trigger",
+  rateLimit({ windowMs: env.SCRAPE_RATE_LIMIT_WINDOW_MS, limit: env.SCRAPE_RATE_LIMIT_MAX, standardHeaders: "draft-8", legacyHeaders: false, keyGenerator: (request) => request.user?.id ?? ipKeyGenerator(request.ip ?? "unknown"), handler: (_request, response) => response.status(429).json({ error: { code: "SCRAPER_RATE_LIMITED", message: "Scraping was recently started. Please wait before trying again." } }) }),
   requireRoles("admin", "operator", "recruiter"),
   requirePermission("scraping.jobs.trigger"),
   requireCsrf,
@@ -199,53 +243,36 @@ acquisitionRouter.post(
     const siteId = z.coerce.number().int().positive().parse(request.params.siteId);
     const [site] = await db.select({ id: scrapingSites.id, name: scrapingSites.name, baseUrl: scrapingSites.baseUrl }).from(scrapingSites).where(eq(scrapingSites.id, siteId)).limit(1);
     if (!site) return response.status(404).json({ error: { code: "SCRAPER_SITE_NOT_FOUND", message: "Scraper site was not found" } });
-
-    const siteKey = site.baseUrl.includes("pakwheels.com") ? "pakwheels" : site.baseUrl.includes("olx.com.pk") ? "olx-pakistan" : null;
-    if (!siteKey) return response.status(422).json({ error: { code: "SCRAPER_SITE_NOT_TRIGGERABLE", message: `${site.name} has no live scraper trigger configured` } });
-    let warmup;
+    const siteKey = apifySiteKeyForBaseUrl(site.baseUrl);
+    if (!siteKey) return response.status(422).json({ error: { code: "SCRAPER_SITE_NOT_TRIGGERABLE", message: `${site.name} is a reference or legacy source and cannot be run from this dashboard` } });
+    const body = triggerBodySchema.parse(request.body ?? {});
+    if (body.siteKey && body.siteKey !== siteKey) throw new AppError(400, "SCRAPER_SITE_KEY_MISMATCH", "The requested site key does not match the selected source");
+    const limit = body.limit ?? env.APIFY_DEFAULT_SCRAPE_LIMIT;
+    if (limit > env.APIFY_MAX_SCRAPE_LIMIT) throw new AppError(400, "SCRAPER_LIMIT_INVALID", `limit cannot exceed ${env.APIFY_MAX_SCRAPE_LIMIT}`);
+    const client = requireApifyClient();
+    let created: typeof scrapeActorRuns.$inferSelect;
     try {
-      warmup = await callScrapingApiForRoute("/health", {}, { pathCategory: "health", retryTransient: true });
+      created = await db.transaction(async (transaction) => {
+        await transaction.execute(sql`select pg_advisory_xact_lock(hashtext('rta:apify:single-active-run'))`);
+        const [active] = await transaction.select().from(scrapeActorRuns).where(inArray(scrapeActorRuns.status, ["queued", "scraping"])).orderBy(desc(scrapeActorRuns.createdAt)).limit(1);
+        if (active) throw new AppError(409, "SCRAPER_ALREADY_RUNNING", "A scrape is already queued or processing.", { activeJob: publicActorRun(active) });
+        const remote = await client.startRun(siteKey, limit);
+        const [row] = await transaction.insert(scrapeActorRuns).values({
+          apifyRunId: remote.id,
+          siteId: site.id,
+          siteKey,
+          requestedLimit: limit,
+          status: mapApifyStatus(remote.status),
+          startedAt: remote.startedAt ? new Date(remote.startedAt) : null,
+          updatedAt: new Date(),
+        }).returning();
+        if (!row) throw new Error("Failed to persist Apify run metadata");
+        return row;
+      });
     } catch (error) {
-      if (error instanceof ScrapingApiTransportError) throw warmingUpError(error);
+      if (error instanceof ApifyClientError) throw apifyErrorToAppError(error);
       throw error;
     }
-    if (!warmup.response.ok) throw upstreamError("SCRAPER_WARMUP_UPSTREAM_ERROR", "The scraping service returned a health-check error.", warmup.response, warmup.payload);
-
-    let triggerResult;
-    try {
-      triggerResult = await callScrapingApiForRoute(`/api/scrape/${siteKey}`, { method: "POST" }, { pathCategory: "trigger" });
-    } catch (error) {
-      if (!(error instanceof ScrapingApiTransportError)) throw error;
-      let confirmation;
-      try {
-        confirmation = await callScrapingApiForRoute("/api/scrape/status", {}, { pathCategory: "trigger-confirmation", retryTransient: true });
-      } catch (confirmationError) {
-        if (confirmationError instanceof ScrapingApiTransportError) throw ambiguousTriggerError(confirmationError.attempt, confirmationError.elapsedMs);
-        throw confirmationError;
-      }
-      if (!confirmation.response.ok) throw upstreamError("SCRAPER_TRIGGER_CONFIRMATION_FAILED", "The trigger outcome could not be confirmed.", confirmation.response, confirmation.payload);
-      if (confirmation.payload?.data?.activeJob) {
-        throw new AppError(409, "SCRAPER_ALREADY_RUNNING", "The scrape request was accepted and is already running.", { activeJob: confirmation.payload.data.activeJob });
-      }
-      throw ambiguousTriggerError(error.attempt, error.elapsedMs);
-    }
-    const { response: upstream, payload } = triggerResult;
-    if (!upstream.ok) {
-      if (upstream.status === 409) {
-        throw new AppError(409, "SCRAPER_ALREADY_RUNNING", "A scrape is already queued or processing. Please wait until it finishes.", payload?.data?.activeJob ?? null);
-      }
-      if (upstream.status === 429) {
-        const retryAfter = payload?.data?.retryAfterSeconds;
-        throw new AppError(429, "SCRAPER_RATE_LIMITED", retryAfter ? `Scraping was recently started. Try again in about ${retryAfter} seconds.` : "Scraping was recently started. Please wait before trying again.", { retryAfterSeconds: retryAfter ?? null });
-      }
-      if (upstream.status === 401) {
-        throw new AppError(502, "SCRAPER_CREDENTIAL_REJECTED", "The scraping service rejected its server credential. Check the Render token configuration.");
-      }
-      if (upstream.status === 404) {
-        throw new AppError(502, "SCRAPER_SITE_NOT_CONFIGURED", `${site.name} is not configured in the scraping service.`);
-      }
-      throw new AppError(502, "SCRAPER_TRIGGER_FAILED", payload?.error ?? "The scraping service could not start this scrape");
-    }
-    response.status(202).json({ data: { siteId: site.id, siteName: site.name, siteKey, jobId: payload?.data?.jobId ?? null, status: "queued" } });
+    response.status(202).json({ data: { siteId: site.id, siteName: site.name, siteKey, jobId: created.apifyRunId, runId: created.apifyRunId, status: "queued" } });
   }),
 );

@@ -1,18 +1,21 @@
 # Deployment overview
 
-RTA has two application paths. The dealership application retains an isolated
-AWS SQS/Lambda reference implementation for portfolio showcase. SQS dispatch
-and Lambda event triggers are disabled by default. The manual scraping application uses
-Vercel, Render, Northflank, Azure, and Neon.
+RTA has a live dealership path and a preserved reference path. The dealership
+dashboard uses Apify for approved international scraping; the AWS SQS/Lambda
+and BullMQ/Redis/Azure implementations remain available for portfolio
+inspection and legacy operation.
 
 ## Production topology
 
 ```text
-dealership-web  → dealership-api → Neon
-                                  └─ AWS SQS/Lambda reference path (disabled)
+dealership-web  → dealership-api → Apify Actor → approved sources
+                    └────────────→ Neon
 
 scraping-web    → scraping-api → Northflank Redis → scraping-worker on Azure
                                   └───────────────→ Neon
+
+legacy dealership worker path remains in the repository and is not called by
+the live dealership scraping dashboard
 ```
 
 ## Main dealership application

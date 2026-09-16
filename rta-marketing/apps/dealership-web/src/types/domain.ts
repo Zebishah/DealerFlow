@@ -157,6 +157,9 @@ export interface ScrapingSite {
   baseUrl: string;
   itemCount: number;
   lastScrapedAt: string | null;
+  siteKey: string | null;
+  triggerable: boolean;
+  executionProvider: "apify" | "legacy" | "reference";
 }
 
 export interface ScrapedListing {
@@ -191,10 +194,11 @@ export interface ScrapingResultsResponse {
   };
 }
 
-export type ScrapeJobStatus = "queued" | "scraping" | "retrying" | "completed" | "failed";
+export type ScrapeJobStatus = "queued" | "scraping" | "completed" | "failed" | "cancelled";
 
 export interface ScrapingJob {
   jobId: string;
+  runId: string;
   siteKey: string;
   limit: number;
   status: ScrapeJobStatus;
@@ -215,9 +219,9 @@ export interface ScrapingJob {
 export interface ScrapingStatusResponse {
   data: {
     activeJob: ScrapingJob | null;
-    defaultLimit: number;
-    maxLimit: number;
-    serviceStatus?: "available" | "active" | "waking" | "upstream-error" | "credential-rejected";
+    defaultLimit?: number;
+    maxLimit?: number;
+    serviceStatus: "available" | "active" | "upstream-error" | "credential-rejected";
   };
 }
 

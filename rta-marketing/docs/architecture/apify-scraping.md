@@ -1,9 +1,10 @@
 # Apify scraping runtime
 
-The Apify Actor is an additional execution target for approved public vehicle
-sources. It does not replace the existing BullMQ/Redis queue, scraping API,
+The Apify Actor is the live execution target for the dealership dashboard's
+approved public vehicle sources. The existing BullMQ/Redis queue, scraping API,
 scraping worker, Azure VM deployment, GitHub worker CI, retry/backoff,
-distributed locking, stale-job recovery, or observability paths.
+distributed locking, stale-job recovery, and observability paths remain in the
+repository as reference architecture.
 
 ## Source audit
 
@@ -38,6 +39,15 @@ The existing production path remains:
 
 It continues to own manual triggers, queue retries, distributed scrape locks,
 stale-job recovery, status updates, and the existing PakWheels/OLX adapters.
+
+### Current dealership dashboard runtime
+
+The live dealership flow is:
+
+`dealership-web -> dealership-api -> Apify Actor -> approved sources -> Neon`
+
+The API stores only Apify run metadata. The Actor remains the sole writer of
+scraped vehicle records, preventing duplicate persistence.
 
 ### Apify runtime
 

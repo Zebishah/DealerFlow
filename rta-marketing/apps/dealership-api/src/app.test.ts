@@ -55,7 +55,7 @@ void test("liveness and public capabilities expose stable API contracts", async 
         demoMode: true,
         liveScrapingAllowed: false,
         defaultScrapeMode: "fixture",
-        recruiterDemoAvailable: false,
+        recruiterDemoAvailable: Boolean(process.env.DEMO_RECRUITER_PASSWORD),
       },
     });
   });

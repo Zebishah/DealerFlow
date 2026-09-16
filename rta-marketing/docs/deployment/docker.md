@@ -43,13 +43,14 @@ Scraping dashboard:   http://localhost:8081
 
 Redis is internal to the Compose network and has no published host port.
 
-## Production platforms remain unchanged
+## Live dealership dashboard deployment
 
 Docker support does not replace the current production services:
 
 ```text
-dealership-web  → Vercel
-dealership-api  → Render
+dealership-web  → Vercel → dealership-api on Render → Apify Actor → Neon
+
+## Preserved legacy scraping deployment
 scraping-web    → Vercel
 scraping-api    → Render
 scraping-worker → Azure

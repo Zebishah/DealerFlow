@@ -47,6 +47,15 @@ const envSchema = z
     // Server-to-server credential for the separate scraping API. This is
     // intentionally never exposed to the browser.
     SCRAPING_STACK_API_TOKEN: z.string().min(32).optional(),
+    // Apify is the live dealership dashboard provider. Credentials remain
+    // optional at boot so fixture/reference deployments can still start, but
+    // trigger and status routes fail clearly when the integration is needed.
+    APIFY_API_TOKEN: optionalSecret,
+    APIFY_ACTOR_ID: optionalSecret,
+    APIFY_API_BASE_URL: z.string().url().default("https://api.apify.com/v2"),
+    APIFY_RUN_TIMEOUT_SECONDS: z.coerce.number().int().min(5).max(3_600).default(120),
+    APIFY_DEFAULT_SCRAPE_LIMIT: z.coerce.number().int().min(1).max(10).default(5),
+    APIFY_MAX_SCRAPE_LIMIT: z.coerce.number().int().min(1).max(10).default(10),
     S3_DOCUMENT_BUCKET: z.string().min(3).max(63).optional(),
     DOCUMENT_UPLOAD_MAX_BYTES: z.coerce
       .number()
@@ -156,6 +165,9 @@ const envSchema = z
         path: [value.AI_PROVIDER === "gemini" ? "GEMINI_API_KEY" : value.AI_PROVIDER === "groq" ? "GROQ_API_KEY" : value.AI_PROVIDER === "openrouter" ? "OPENROUTER_API_KEY" : "AI_API_KEY"],
         message: `The key for the ${value.AI_PROVIDER} provider is required when AI_ENABLED is true`,
       });
+    }
+    if (value.APIFY_DEFAULT_SCRAPE_LIMIT > value.APIFY_MAX_SCRAPE_LIMIT) {
+      context.addIssue({ code: "custom", path: ["APIFY_DEFAULT_SCRAPE_LIMIT"], message: "APIFY_DEFAULT_SCRAPE_LIMIT cannot exceed APIFY_MAX_SCRAPE_LIMIT" });
     }
   });
 

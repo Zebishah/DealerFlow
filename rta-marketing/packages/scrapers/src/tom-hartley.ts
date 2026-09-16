@@ -55,6 +55,31 @@ function hasExplicitEmptyInventory(text: string): boolean {
   return /(?:no|zero)\s+(?:vehicles|cars|stock|listings|results)|(?:vehicles|cars|stock|listings)\s+(?:not|currently not)\s+available|nothing\s+found/i.test(text);
 }
 
+export function yearFromTomHartleyTitle(title: string | null): string | null {
+  const match = title?.match(/^((?:19|20)\d{2})(?:\/\d{2})?\b/);
+  return match?.[1] ?? null;
+}
+
+function tomHartleyImage($: CheerioAPI, jsonImage: unknown, baseUrl: string): string | null {
+  const candidates: Array<string | undefined | null> = [];
+  const addImages = (selector: string): void => {
+    $(selector).each((_index, element) => {
+      const image = $(element);
+      candidates.push(image.attr("src"), image.attr("srcset"), image.attr("data-src"), image.attr("data-srcset"));
+    });
+  };
+  candidates.push($("meta[property='og:image']").attr("content"));
+  addImages(".gallery__open img, .used-details-title ~ * img, .used-list-vehicle__image img");
+  $("img").each((_index, element) => {
+    const image = $(element);
+    const attributes = `${image.attr("class") ?? ""} ${image.attr("id") ?? ""} ${image.attr("src") ?? ""}`;
+    if (!/logo|header|branding|brand-mark/i.test(attributes)) {
+      candidates.push(image.attr("src"), image.attr("srcset"), image.attr("data-src"), image.attr("data-srcset"));
+    }
+  });
+  return jsonLdImage(jsonImage, baseUrl) ?? imageUrlFromCandidates(candidates, baseUrl);
+}
+
 export interface TomHartleyInventoryDiscovery {
   detailUrls: string[];
   diagnostics: TomHartleyDiagnostics;
@@ -205,15 +230,9 @@ export function parseTomHartleyDetailHtml(
   const brand = json?.brand && typeof json.brand === "object" ? stringValue((json.brand as Record<string, unknown>).name) : stringValue(json?.brand);
   const title = stringValue(json?.name) ?? textFrom($, "h1");
   const listingUrl = canonicalUrl(stringValue(json?.url) ?? sourceUrl, site.baseUrl);
-  const image = jsonLdImage(json?.image, site.baseUrl) ?? imageUrlFromCandidates([
-    $("meta[property='og:image']").attr("content"),
-    $("img").first().attr("src"),
-    $("img").first().attr("srcset"),
-    $("img").first().attr("data-src"),
-    $("img").first().attr("data-srcset"),
-  ], site.baseUrl);
+  const image = tomHartleyImage($, json?.image, site.baseUrl);
   const price = textFrom($, "h4.price, .used-details-title + .price") ?? jsonLdPrice(json ?? {}) ?? labeledValue($, ["price", "our price", "sale price"]);
-  const year = stringValue(json?.productionDate) ?? stringValue(json?.vehicleModelDate) ?? stringValue(json?.modelDate) ?? stringValue(json?.year) ?? labeledValue($, ["year", "registration year"]);
+  const year = stringValue(json?.productionDate) ?? stringValue(json?.vehicleModelDate) ?? stringValue(json?.modelDate) ?? stringValue(json?.year) ?? labeledValue($, ["year", "registration year"]) ?? yearFromTomHartleyTitle(title);
   const mileage = labeledValue($, ["mileage", "miles", "odometer"]) ?? stringValue(json?.mileageFromOdometer && typeof json.mileageFromOdometer === "object" ? (json.mileageFromOdometer as Record<string, unknown>).value : null);
   const city = labeledValue($, ["city", "location", "town"]);
   const model = stringValue(json?.model);

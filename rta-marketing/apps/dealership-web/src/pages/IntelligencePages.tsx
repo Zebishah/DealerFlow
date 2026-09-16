@@ -223,7 +223,7 @@ type ScrapingFilters = {
 const emptyScrapingFilters: ScrapingFilters = { q: "", siteId: "", minYear: "", maxYear: "", maxPrice: "", maxMileage: "" };
 
 function sourceIsTriggerable(site: ScrapingSite): boolean {
-  return /pakwheels\.com|olx\.com\.pk/i.test(site.baseUrl);
+  return site.triggerable && site.executionProvider === "apify";
 }
 
 export function ScrapingResultsPage() {
@@ -273,7 +273,7 @@ export function ScrapingResultsPage() {
 
   return <div className="page-stack">
     <section className="operations-hero scraping-results-hero">
-      <div><span>SCRAPING WORKSPACE</span><h2>Collect and review vehicle inventory.</h2><p>Run the Docker scraper for a permitted source, then search the vehicle records persisted in Neon. The legacy SQS and Lambda worker remains available separately for portfolio demonstration.</p></div>
+      <div><span>SCRAPING WORKSPACE</span><h2>Collect and review vehicle inventory.</h2><p>Run an approved international source through the Apify scraping pipeline, then search the vehicle records persisted in Neon.</p></div>
       <div className="run-control scraping-hero-stats"><span>SCRAPED VEHICLES</span><strong>{total}</strong><small>{sites.length} configured sources</small></div>
     </section>
 

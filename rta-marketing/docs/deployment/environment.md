@@ -134,6 +134,31 @@ AI_RATE_LIMIT_MAX=12
 AI_DAILY_QUOTA=200
 ```
 
+### Live Apify dealership scraping
+
+The dealership API uses these server-only variables for the live dashboard
+trigger and status flow. Never add the token to `VITE_*` variables.
+
+```dotenv
+APIFY_API_TOKEN=your_apify_api_token
+APIFY_ACTOR_ID=your_apify_actor_id
+APIFY_API_BASE_URL=https://api.apify.com/v2
+APIFY_RUN_TIMEOUT_SECONDS=120
+APIFY_DEFAULT_SCRAPE_LIMIT=5
+APIFY_MAX_SCRAPE_LIMIT=10
+```
+
+The Vercel dealership web app needs only its browser-safe API URL:
+
+```dotenv
+VITE_API_URL=https://<dealership-api-domain>/api/v1
+```
+
+The Apify Actor needs `DATABASE_URL`, `SCRAPER_SITES_JSON`, and the existing
+scraper timeout, memory, user-agent, and limit variables documented in
+`docs/architecture/apify-scraping.md`. The old `SCRAPING_STACK_API_URL` and
+`SCRAPING_STACK_API_TOKEN` variables remain only for the legacy scraping stack.
+
 `GROQ_API_KEY` and `OPENROUTER_API_KEY` are optional. If supplied, they are
 used only as failover providers; set `GROQ_MODEL` to an active Groq model and
 leave `OPENROUTER_MODEL=openrouter/free` for OpenRouter's free router.

@@ -1,10 +1,10 @@
 # RTA — AI-Powered Automotive Dealership Operations & Vehicle Intelligence
 
-RTA is a portfolio-grade dealership operations platform with a separate,
-manual vehicle-scraping subsystem. The boundaries are intentional: the
-dealership platform retains an isolated AWS SQS/Lambda reference implementation
-for portfolio showcase, while scraping runs through BullMQ, Redis, and a
-dedicated browser-capable worker.
+RTA is a portfolio-grade dealership operations platform with on-demand vehicle
+intelligence. The live dealership dashboard runs approved international
+scrapes through Apify and persists Actor output into Neon. The previous
+BullMQ/Redis/Azure implementation remains in the repository as an isolated
+reference architecture.
 
 The product includes a site-wide, read-only RTA Assistant. It combines curated
 product knowledge with role- and workspace-authorized tools for natural-language
@@ -19,8 +19,8 @@ or start scraping jobs. Public/demo conversations use sanitized context.
 | Application | Responsibility | Production hosting |
 |---|---|---|
 | `apps/dealership-web` | Main dealership dashboard for leads, sales, documents, targets, commissions, team, audit, and vehicle intelligence | Vercel or static hosting |
-| `apps/dealership-api` | Main authenticated RTA API, PostgreSQL domain, S3 documents, and SQS/Lambda ingestion | AWS |
-| `apps/scraping-web` | Manual scraping dashboard and persisted vehicle search | Vercel |
+| `apps/dealership-api` | Main authenticated RTA API, PostgreSQL domain, S3 documents, and Apify dashboard integration | Render |
+| `apps/scraping-web` | Legacy/reference scraping dashboard and persisted vehicle search | Vercel |
 | `apps/scraping-api` | Authenticated BullMQ job producer and scraping API | Render |
 | `apps/scraping-worker` | Cheerio/Playwright worker with Chromium | Azure VM |
 
@@ -33,7 +33,14 @@ or start scraping jobs. Public/demo conversations use sanitized context.
 The dealership API keeps its own domain schema and AWS ingestion implementation
 because it has a different deployment and data responsibility.
 
-## Production architecture
+## Live production architecture
+
+The live flow is `dealership-web → dealership-api → Apify Actor → approved
+international sources → Neon → dashboard refresh`. The dealership API starts
+an asynchronous Apify run, persists only run metadata, and the Actor remains
+the sole writer of scraped vehicle records.
+
+## Legacy/reference architecture
 
 ```mermaid
 flowchart LR

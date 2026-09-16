@@ -670,11 +670,36 @@ export const ingestionRejections = pgTable(
 // Tables owned by the separate Docker/BullMQ scraper stack. They share Neon
 // with this admin application so operators can inspect its output here.
 export const scrapingSites = pgTable("sites", {
-  id: integer("id").primaryKey(),
+  id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
   name: text("name").notNull(),
   baseUrl: text("base_url").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }),
 });
+
+export const scrapeActorRuns = pgTable(
+  "scrape_actor_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    apifyRunId: text("apify_run_id").notNull(),
+    siteId: integer("site_id").notNull(),
+    siteKey: text("site_key").notNull(),
+    requestedLimit: integer("requested_limit").notNull(),
+    status: text("status").notNull().default("queued"),
+    progressStage: text("progress_stage"),
+    foundCount: integer("found_count"),
+    durationMs: integer("duration_ms"),
+    timings: jsonb("timings").$type<Record<string, number>>(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("scrape_actor_runs_apify_id_uq").on(table.apifyRunId),
+    index("scrape_actor_runs_status_created_idx").on(table.status, table.createdAt),
+  ],
+);
 
 export const scrapedItems = pgTable("scraped_items", {
   id: integer("id").primaryKey(),

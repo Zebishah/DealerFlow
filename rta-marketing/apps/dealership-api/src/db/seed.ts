@@ -9,6 +9,7 @@ import {
   leads,
   monthlyTargets,
   sales,
+  scrapingSites,
   sources,
   users,
   workspaces,
@@ -66,6 +67,23 @@ const sourceDefinitions = [
   { key: "humberview", name: "Baron MINI", minDelayMs: 2500 },
   { key: "yorkdalevw", name: "Mercedes-Benz of Westwood", minDelayMs: 2500 },
 ] as const;
+
+const liveScrapingSiteDefinitions = [
+  { name: "Romans International", baseUrl: "https://www.romansinternational.com/used/cars/" },
+  { name: "Tom Hartley", baseUrl: "https://www.tomhartley.com/used/" },
+  { name: "Redline Specialist Cars", baseUrl: "https://redlinespecialistcars.co.uk/cars/" },
+] as const;
+
+async function seedLiveScrapingSites(): Promise<void> {
+  for (const site of liveScrapingSiteDefinitions) {
+    const existing = await db.select({ id: scrapingSites.id }).from(scrapingSites).where(eq(scrapingSites.baseUrl, site.baseUrl)).limit(1);
+    if (existing[0]) {
+      await db.update(scrapingSites).set({ name: site.name }).where(eq(scrapingSites.id, existing[0].id));
+    } else {
+      await db.insert(scrapingSites).values(site);
+    }
+  }
+}
 
 async function seedScrapeSources(): Promise<void> {
   for (const source of sourceDefinitions) {
@@ -292,6 +310,7 @@ async function main(): Promise<void> {
   // endpoint cannot be reached. The first Drizzle query otherwise wraps the
   // connection error and makes a network problem look like a seed SQL error.
   await verifySeedDatabaseConnection();
+  await seedLiveScrapingSites();
   await seedScrapeSources();
   await seedOperator();
   await seedDemoWorkspace();

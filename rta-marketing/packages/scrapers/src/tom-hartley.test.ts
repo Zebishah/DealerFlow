@@ -4,7 +4,7 @@ import test from "node:test";
 import type { SiteConfig } from "@rta/shared";
 import type { CheerioPage } from "./cheerio-runtime.js";
 import type { ScraperOptions } from "./common.js";
-import { scrapeTomHartley, TomHartleySourceContractError, isTomHartleyVehicleDetailUrl, parseTomHartleyDetailHtml, parseTomHartleyInventoryHtml, parseTomHartleySitemap } from "./tom-hartley.js";
+import { scrapeTomHartley, TomHartleySourceContractError, isTomHartleyVehicleDetailUrl, parseTomHartleyDetailHtml, parseTomHartleyInventoryHtml, parseTomHartleySitemap, yearFromTomHartleyTitle } from "./tom-hartley.js";
 
 const site: SiteConfig = { key: "tom-hartley", name: "Tom Hartley", baseUrl: "https://www.tomhartley.com/used/", engine: "cheerio", strategy: "cards", itemSelector: ".used-list-vehicle-wrap", titleSelector: ".used-list-summary__heading", priceSelector: ".used-list-vehicle__price", linkSelector: 'a[href*="/used-car-details/"]', delayMs: 0, maxConcurrency: 1 };
 const fixture = (name: string) => readFile(new URL(`./fixtures/tom-hartley/${name}`, import.meta.url), "utf8");
@@ -66,6 +66,14 @@ test("Tom Hartley preserves live price status values", () => {
     const item = parseTomHartleyDetailHtml(`<html><body><h1>2024 Ferrari Roma</h1><h4 class="price">${price}</h4></body></html>`, site, "https://www.tomhartley.com/used-car-details/status/");
     assert.equal(item.price, price);
   }
+});
+
+test("Tom Hartley derives only clear leading years and avoids branding images", () => {
+  assert.equal(yearFromTomHartleyTitle("2025/75 Rolls-Royce Phantom"), "2025");
+  assert.equal(yearFromTomHartleyTitle("Rolls-Royce Phantom"), null);
+  const item = parseTomHartleyDetailHtml("<html><body><img class=\"site-logo\" src=\"https://www.tomhartley.com/logo.png\"><h1>2025 Ferrari Roma</h1><img data-src=\"https://images.example.test/roma.jpg\"></body></html>", site, "https://www.tomhartley.com/used-car-details/roma/");
+  assert.equal(item.year, "2025");
+  assert.equal(item.thumbnailUrl, "https://images.example.test/roma.jpg");
 });
 
 test("Tom Hartley runtime processes inventory-discovered detail pages and stops at five", async () => {
