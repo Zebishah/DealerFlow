@@ -194,6 +194,14 @@ export interface ScrapingResultsResponse {
   };
 }
 
+export interface PublicInventoryResponse {
+  data: {
+    items: ScrapedListing[];
+    sources: Array<{ id: number; name: string; siteKey: string }>;
+  };
+  page: { limit: number; offset: number; total: number; hasMore: boolean };
+}
+
 export type ScrapeJobStatus = "queued" | "scraping" | "completed" | "failed" | "cancelled";
 
 export interface ScrapingJob {

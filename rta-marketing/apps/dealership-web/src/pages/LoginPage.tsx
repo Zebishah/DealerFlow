@@ -13,6 +13,13 @@ import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../lib/api";
 import { Link, Redirect, useNavigation } from "../router/Navigation";
 
+function loginReturnPath(): string {
+  const requested = new URLSearchParams(window.location.search).get("next");
+  return requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\")
+    ? requested
+    : "/app/overview";
+}
+
 export function LoginPage() {
   const { user, login, demoLogin } = useAuth();
   const { navigate } = useNavigation();
@@ -23,14 +30,14 @@ export function LoginPage() {
   const [verificationEmail, setVerificationEmail] = useState<string | null>(
     null,
   );
-  if (user) return <Redirect to="/app/overview" />;
+  if (user) return <Redirect to={loginReturnPath()} />;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate("/app/overview", { replace: true });
+      navigate(loginReturnPath(), { replace: true });
       toast.success("Welcome back");
     } catch (error) {
       if (
@@ -48,7 +55,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       await demoLogin();
-      navigate("/app/overview", { replace: true });
+      navigate(loginReturnPath(), { replace: true });
       toast.success("Recruiter demo opened");
     } catch (error) {
       toast.error(

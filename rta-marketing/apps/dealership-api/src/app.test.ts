@@ -160,6 +160,15 @@ void test("intelligence and acquisition endpoints reject unauthenticated access"
   });
 });
 
+void test("public inventory validates live-source filters without requiring a session", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const response = await fetch(`${baseUrl}/api/v1/scraping-results/public?siteKey=pakwheels`);
+    assert.equal(response.status, 400);
+    const payload = (await response.json()) as { error: { code: string } };
+    assert.notEqual(payload.error.code, "AUTH_REQUIRED");
+  });
+});
+
 void test(
   "login endpoint applies a stricter failed-attempt limit",
   { skip: process.env.RUN_DATABASE_TESTS !== "true" },

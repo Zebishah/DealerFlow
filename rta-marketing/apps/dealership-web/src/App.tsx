@@ -8,6 +8,7 @@ import { Suspense } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LandingPage } from "./pages/LandingPage";
+import { PublicInventoryPage } from "./pages/PublicInventoryPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage, SetupAccessPage } from "./pages/PasswordTokenPage";
@@ -25,6 +26,7 @@ export function App() {
   // The session check can continue in the background while the landing page
   // renders immediately, even when the hosted API is asleep.
   if (path === "/") return <LandingPage />;
+  if (path === "/inventory") return <PublicInventoryPage />;
 
   if (loading) {
     return (

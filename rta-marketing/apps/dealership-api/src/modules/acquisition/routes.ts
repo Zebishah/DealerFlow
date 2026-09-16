@@ -10,7 +10,7 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { ApifyClientError, mapApifyStatus, requireApifyClient, type ApifyRun } from "./apify-client.js";
-import { apifySiteKeyForBaseUrl, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
+import { APPROVED_APIFY_SITE_KEYS, apifySiteKeyForBaseUrl, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
 import { fetchApprovedSourceImage } from "./image-proxy.js";
 
 function isTransientDatabaseError(error: unknown): boolean {
@@ -44,6 +44,18 @@ const querySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 }).strict();
 
+const publicInventoryQuerySchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  siteKey: z.enum(APPROVED_APIFY_SITE_KEYS as [ApifySiteKey, ...ApifySiteKey[]]).optional(),
+  minYear: z.coerce.number().int().min(1980).optional(),
+  maxYear: z.coerce.number().int().max(new Date().getUTCFullYear() + 1).optional(),
+  minPrice: z.coerce.number().int().min(0).optional(),
+  maxPrice: z.coerce.number().int().min(0).optional(),
+  maxMileage: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(48).default(24),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0),
+}).strict();
+
 export const acquisitionRouter = Router();
 
 // Serve source thumbnails through the API so browser hotlink/referrer rules do not
@@ -62,6 +74,72 @@ acquisitionRouter.get(
     response.setHeader("Cache-Control", "public, max-age=3600");
     response.setHeader("Content-Type", contentType);
     response.send(body);
+  }),
+);
+
+// Public browsing is intentionally limited to the three live Apify sources and
+// a public-safe listing projection. Workspace actions remain behind the session
+// middleware below.
+acquisitionRouter.get(
+  "/public",
+  asyncHandler(async (request, response) => {
+    const query = publicInventoryQuerySchema.parse(request.query);
+    const siteRows = await db.select({ id: scrapingSites.id, name: scrapingSites.name, baseUrl: scrapingSites.baseUrl })
+      .from(scrapingSites)
+      .orderBy(scrapingSites.id);
+    const liveSites = siteRows
+      .map((site) => ({ ...site, siteKey: apifySiteKeyForBaseUrl(site.baseUrl) }))
+      .filter((site): site is typeof site & { siteKey: ApifySiteKey } => site.siteKey !== null);
+    const selectedSites = query.siteKey
+      ? liveSites.filter((site) => site.siteKey === query.siteKey)
+      : liveSites;
+    const sources = liveSites.map(({ id, name, siteKey }) => ({ id, name, siteKey }));
+    const siteIds = selectedSites.map((site) => site.id);
+
+    if (siteIds.length === 0) {
+      return response.json({ data: { items: [], sources }, page: { limit: query.limit, offset: query.offset, total: 0, hasMore: false } });
+    }
+
+    const conditions: SQL[] = [inArray(scrapedItems.siteId, siteIds)];
+    if (query.q) {
+      const search = `%${query.q}%`;
+      conditions.push(or(ilike(scrapedItems.title, search), ilike(scrapedItems.city, search))!);
+    }
+    const listedYear = sql`NULLIF(substring(${scrapedItems.year} from '[0-9]{4}'), '')::int`;
+    const listedPrice = sql`NULLIF(replace(substring(${scrapedItems.price} from '[0-9][0-9,.]*'), ',', ''), '')::numeric`;
+    const listedMileage = sql`NULLIF(replace(substring(${scrapedItems.mileage} from '[0-9][0-9,.]*'), ',', ''), '')::numeric`;
+    if (query.minYear) conditions.push(sql`${listedYear} >= ${query.minYear}`);
+    if (query.maxYear) conditions.push(sql`${listedYear} <= ${query.maxYear}`);
+    if (query.minPrice !== undefined) conditions.push(sql`${listedPrice} >= ${query.minPrice}`);
+    if (query.maxPrice !== undefined) conditions.push(sql`${listedPrice} <= ${query.maxPrice}`);
+    if (query.maxMileage !== undefined) conditions.push(sql`${listedMileage} <= ${query.maxMileage}`);
+    const where = and(...conditions);
+    const [items, totalRows] = await Promise.all([
+      db.select({
+        id: scrapedItems.id,
+        siteId: scrapedItems.siteId,
+        siteName: scrapingSites.name,
+        title: scrapedItems.title,
+        price: scrapedItems.price,
+        year: scrapedItems.year,
+        mileage: scrapedItems.mileage,
+        city: scrapedItems.city,
+        listingUrl: scrapedItems.listingUrl,
+        thumbnailUrl: scrapedItems.thumbnailUrl,
+        scrapedAt: scrapedItems.scrapedAt,
+      })
+        .from(scrapedItems)
+        .innerJoin(scrapingSites, eq(scrapedItems.siteId, scrapingSites.id))
+        .where(where)
+        .orderBy(desc(scrapedItems.scrapedAt), desc(scrapedItems.id))
+        .limit(query.limit)
+        .offset(query.offset),
+      db.select({ count: count(scrapedItems.id) })
+        .from(scrapedItems)
+        .where(where),
+    ]);
+    const total = Number(totalRows[0]?.count ?? 0);
+    response.json({ data: { items, sources }, page: { limit: query.limit, offset: query.offset, total, hasMore: query.offset + items.length < total } });
   }),
 );
 

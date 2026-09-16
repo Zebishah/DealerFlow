@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   ArrowRight,
@@ -7,7 +8,6 @@ import {
   Car,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   CircleDollarSign,
   Database,
   ExternalLink,
@@ -29,6 +29,9 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Link } from "../router/Navigation";
 import { openRtaAssistant } from "@rta/assistant-ui";
+import { api } from "../lib/api";
+import { PublicVehicleCard } from "../components/PublicVehicleCard";
+import type { PublicInventoryResponse } from "../types/domain";
 import "../landing.css";
 
 const landingLinks = {
@@ -43,33 +46,6 @@ const platformStats = [
   ["04", "funded deals"],
   ["06", "fixture vehicles"],
   ["03", "lead sources"],
-];
-
-type PreviewVehicle = {
-  title: string;
-  year: string;
-  price: string;
-  mileage: string;
-  source: string;
-  sourceUrl: string;
-  tone: string;
-  image: string;
-  bodyStyle: string;
-  transmission: string;
-  drivetrain: string;
-  summary: string;
-  marketNote: string;
-};
-
-const previewVehicles: PreviewVehicle[] = [
-  { title: "2024 Volkswagen Atlas Comfortline", year: "2024", price: "C$36,000", mileage: "63,082 km", source: "AutoTrader Canada · listing snapshot", sourceUrl: "https://www.autotrader.ca/research/volkswagen/atlas/2024/", tone: "blue", image: "/vehicle-preview-atlas.webp", bodyStyle: "SUV", transmission: "8-speed automatic", drivetrain: "AWD", summary: "A practical three-row SUV with a calm cabin and flexible space for everyday dealership customers.", marketNote: "Public Canadian used listing snapshot for a Comfortline AWD example." },
-  { title: "2023 Mazda CX-5 GT", year: "2023", price: "C$29,495", mileage: "61,338 km", source: "AutoTrader Canada · listing snapshot", sourceUrl: "https://www.autotrader.ca/offers/mazda-cx-5-gt-awd-toit-nav-sieges-ventil-cuir-bose-hud-gasoline-red-cat_ma46gr200952tr14238-afeddf2e-cf37-4acf-b6b7-0bb81798a693", tone: "red", image: "/vehicle-preview-cx5.webp", bodyStyle: "Compact SUV", transmission: "6-speed automatic", drivetrain: "AWD", summary: "A refined compact crossover that balances confident handling, comfort and useful cargo space.", marketNote: "Public Canadian used listing snapshot for a GT AWD example." },
-  { title: "2024 Volkswagen Golf GTI", year: "2024", price: "C$37,421", mileage: "13,627 km", source: "AutoTrader Canada · listing snapshot", sourceUrl: "https://www.autotrader.ca/research/volkswagen/golf%20gti/2024/", tone: "silver", image: "/vehicle-preview-golf.webp", bodyStyle: "Hatchback", transmission: "7-speed DSG", drivetrain: "FWD", summary: "A low-mileage performance hatchback with everyday usability and a distinctive enthusiast profile.", marketNote: "Public Canadian used listing snapshot for a low-kilometre GTI example." },
-  { title: "2022 Volkswagen Tiguan Comfortline", year: "2022", price: "C$27,488", mileage: "56,067 km", source: "Volkswagen Unionville · listing snapshot", sourceUrl: "https://www.volkswagenunionville.ca/inventory/2022-volkswagen-tiguan-comfortline-c8K1CnGsR9OKq8YkPfKtCAvdp/", tone: "green", image: "/vehicle-preview-tiguan.webp", bodyStyle: "SUV", transmission: "8-speed automatic", drivetrain: "AWD", summary: "A versatile compact SUV with familiar ergonomics, useful ground clearance and broad buyer appeal.", marketNote: "Public Canadian used listing snapshot for a Comfortline 4MOTION example." },
-  { title: "2024 Toyota RAV4 XLE", year: "2024", price: "C$35,798", mileage: "41,645 km", source: "Ken Shaw Toyota · listing snapshot", sourceUrl: "https://www.ontariocars.ca/inventory/2024-toyota-rav4/13872246", tone: "blue", image: "/vehicle-preview-rav4.webp", bodyStyle: "Compact SUV", transmission: "8-speed automatic", drivetrain: "AWD", summary: "A dependable, efficient crossover suited to practical buyers who value low ownership friction.", marketNote: "Public Canadian used listing snapshot for an XLE AWD example." },
-  { title: "2023 Honda Civic Hatchback Sport", year: "2023", price: "C$28,488", mileage: "53,100 km", source: "AutoTrader Canada · listing snapshot", sourceUrl: "https://www.autotrader.ca/cars/honda/civic/va_civic-hatchback/my_2023/reg_on/cit_toronto?offer=N%2CU", tone: "red", image: "/vehicle-preview-civic.webp", bodyStyle: "Hatchback", transmission: "CVT", drivetrain: "FWD", summary: "A compact hatchback with easy city manners, flexible cargo room and an efficient ownership profile.", marketNote: "Public Canadian used listing snapshot for a Sport hatchback example." },
-  { title: "2024 Audi A4 Progressiv", year: "2024", price: "C$40,303", mileage: "33,369 km", source: "AutoTrader Canada · listing snapshot", sourceUrl: "https://www.autotrader.ca/cars/audi/a4/my_2024/reg_on", tone: "silver", image: "/vehicle-preview-a4.webp", bodyStyle: "Sedan", transmission: "7-speed S tronic", drivetrain: "quattro AWD", summary: "A premium sedan preview with composed road manners, understated design and a higher-equipment cabin.", marketNote: "Public Canadian used listing snapshot for a Progressiv quattro example." },
-  { title: "2022 Audi Q5 Progressiv", year: "2022", price: "C$31,992", mileage: "98,901 km", source: "AutoTrader Canada · listing snapshot", sourceUrl: "https://www.autotrader.ca/research/audi/Q5/2022/", tone: "green", image: "/vehicle-preview-q5.webp", bodyStyle: "Luxury SUV", transmission: "7-speed S tronic", drivetrain: "quattro AWD", summary: "A premium compact SUV that brings a more elevated cabin experience to a familiar utility format.", marketNote: "Public Canadian used listing snapshot for a Progressiv quattro example." },
 ];
 
 const operationModules = [
@@ -142,11 +118,12 @@ const techGroups: Array<[string, string[]]> = [
   ["Delivery", ["GitHub", "GHCR", "health checks", "rollback-ready deploys"]],
 ];
 
-function LandingNav() {
+export function LandingNav({ browsePage = false }: { browsePage?: boolean }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
+  const section = (id: string) => browsePage ? `/#${id}` : `#${id}`;
 
-  return <header className="landing-nav"><a className="landing-brand" href="#top" aria-label="RTA home"><span className="landing-brand-mark"><Car size={17} strokeWidth={2.5} /></span><span>RTA<span className="landing-brand-dot">.</span></span></a><nav className={open ? "landing-nav-links is-open" : "landing-nav-links"} aria-label="Primary navigation"><a href="#ai-intelligence" onClick={close}>AI intelligence</a><a href="#inventory" onClick={close}>Inventory</a><a href="#operations" onClick={close}>Operations</a><a href="#pipeline" onClick={close}>Vehicle data</a><a href="#architecture" onClick={close}>Architecture</a><Link className="landing-nav-cta" to={landingLinks.dealership} onClick={close}>Explore live demo <ArrowUpRight size={15} /></Link></nav><button className="landing-menu-button" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={21} /> : <Menu size={21} />}</button></header>;
+  return <header className="landing-nav"><a className="landing-brand" href={browsePage ? "/" : "#top"} aria-label="RTA home"><span className="landing-brand-mark"><Car size={17} strokeWidth={2.5} /></span><span>RTA<span className="landing-brand-dot">.</span></span></a><nav className={open ? "landing-nav-links is-open" : "landing-nav-links"} aria-label="Primary navigation"><a href={section("ai-intelligence")} onClick={close}>AI intelligence</a><a href={section("inventory")} onClick={close}>Inventory</a><a href={section("operations")} onClick={close}>Operations</a><a href={section("pipeline")} onClick={close}>Vehicle data</a><a href={section("architecture")} onClick={close}>Architecture</a><Link className="landing-nav-cta" to={landingLinks.dealership} onClick={close}>Explore live demo <ArrowUpRight size={15} /></Link></nav><button className="landing-menu-button" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={21} /> : <Menu size={21} />}</button></header>;
 }
 
 function HeroSection() {
@@ -171,57 +148,28 @@ function AiIntelligenceSection() {
 }
 
 function InventorySection() {
-  const [selectedVehicle, setSelectedVehicle] = useState<PreviewVehicle | null>(null);
-
-  useEffect(() => {
-    if (!selectedVehicle) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedVehicle(null);
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [selectedVehicle]);
-
+  const inventory = useQuery({
+    queryKey: ["public-inventory", "featured"],
+    queryFn: () => api<PublicInventoryResponse>("/scraping-results/public?limit=8"),
+    staleTime: 60_000,
+  });
+  const vehicles = inventory.data?.data.items ?? [];
   return <section className="landing-section landing-inventory" id="inventory">
     <div className="landing-section-frame">
       <div className="landing-section-heading">
         <div><p className="landing-eyebrow">INVENTORY + MARKET INTELLIGENCE</p><h2>Find the right<br /><span>vehicle signal.</span></h2></div>
-        <p>Searchable vehicle records sit next to recommendations, saved vehicles, comparisons and market-price explanations. These demo cards use public Canadian listing snapshots; full inventory remains workspace-scoped.</p>
-      </div>
-      <div className="landing-inventory-search" aria-label="Inventory filter preview">
-        <div><small>MAKE</small><span>Volkswagen</span></div><div><small>MODEL</small><span>Tiguan</span></div><div><small>YEAR</small><span>Any year</span></div><div><small>PRICE RANGE</small><span>Any price</span></div><div><small>MILEAGE</small><span>Any mileage</span></div><div><small>SOURCE</small><span>All sources</span></div><button type="button" aria-label="Preview search"><Search size={18} /></button>
+        <p>Browse real, recently collected listings from Romans International, Tom Hartley and Redline Specialist Cars. Search and filters are open to everyone; comparing vehicles requires an account.</p>
       </div>
       <div className="landing-inventory-head">
-        <div><p className="landing-eyebrow">SANITIZED PREVIEW DATA</p><h3>Featured vehicles</h3></div>
-        <span>Public Canadian price snapshots · demo only <ArrowRight size={14} /></span>
+        <div><p className="landing-eyebrow">LIVE SCRAPED INVENTORY</p><h3>Featured vehicles</h3></div>
+        <Link className="landing-text-link" to="/inventory">View more vehicles <ArrowRight size={14} /></Link>
       </div>
-      <div className="landing-vehicle-cards">
-        {previewVehicles.map((vehicle) => <button className="landing-vehicle-card" key={vehicle.title} type="button" onClick={() => setSelectedVehicle(vehicle)} aria-label={`View details for ${vehicle.title}`}>
-          <div className={`landing-vehicle-card-image landing-vehicle-card-image--${vehicle.tone}`}><img src={vehicle.image} alt={`${vehicle.title} preview`} loading="lazy" /><span className="landing-vehicle-badge">{vehicle.source.split(" · ")[0]}</span><span className="landing-vehicle-year">{vehicle.year}</span></div>
-          <div className="landing-vehicle-card-copy"><small>{vehicle.source}</small><h4>{vehicle.title}</h4><div><strong>{vehicle.price}</strong><span>{vehicle.mileage}</span></div><span className="landing-vehicle-card-link">View vehicle details <ChevronRight size={14} /></span></div>
-        </button>)}
-      </div>
-      <div className="landing-inventory-cta"><span><Car size={17} /> Vehicle fields are drawn from the project listing contract.</span><button type="button" className="landing-text-link landing-inline-button" onClick={() => openRtaAssistant("Recommend active vehicles from the current inventory.")}>Ask RTA AI for a recommendation <MessageSquare size={14} /></button></div>
+      {vehicles.length > 0 && <div className="landing-vehicle-cards">{vehicles.map((vehicle) => <PublicVehicleCard key={vehicle.id} item={vehicle} />)}</div>}
+      {inventory.isLoading && <div className="public-inventory-state">Loading current listings…</div>}
+      {inventory.isError && <div className="public-inventory-state" role="alert">Live listings are temporarily unavailable. <Link to="/inventory">Try the full inventory page</Link>.</div>}
+      {!inventory.isLoading && !inventory.isError && vehicles.length === 0 && <div className="public-inventory-state">No live vehicle listings are available yet. Check back after the next source run.</div>}
+      <div className="landing-inventory-cta"><span><Car size={17} /> Showing {vehicles.length} current listings from the live sources.</span><Link className="landing-text-link" to="/inventory">Browse and filter all vehicles <ArrowRight size={14} /></Link></div>
     </div>
-    {selectedVehicle && <div className="landing-vehicle-detail-backdrop" role="presentation" onMouseDown={() => setSelectedVehicle(null)}>
-      <section className="landing-vehicle-detail-panel" role="dialog" aria-modal="true" aria-labelledby="landing-vehicle-detail-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className={`landing-vehicle-detail-visual landing-vehicle-card-image--${selectedVehicle.tone}`}><img src={selectedVehicle.image} alt={`${selectedVehicle.title} preview`} /><span className="landing-vehicle-badge">{selectedVehicle.source.split(" · ")[0]}</span><span className="landing-vehicle-detail-status"><CheckCircle2 size={13} /> Active preview listing</span></div>
-        <div className="landing-vehicle-detail-content">
-          <button className="landing-vehicle-detail-close" type="button" onClick={() => setSelectedVehicle(null)} aria-label="Close vehicle details"><X size={18} /></button>
-          <p className="landing-eyebrow">NORMALIZED VEHICLE RECORD</p>
-          <h3 id="landing-vehicle-detail-title">{selectedVehicle.title}</h3>
-          <p className="landing-vehicle-detail-summary">{selectedVehicle.summary}</p>
-          <div className="landing-vehicle-detail-facts"><span><small>Price</small><strong>{selectedVehicle.price}</strong></span><span><small>Mileage</small><strong>{selectedVehicle.mileage}</strong></span><span><small>Body style</small><strong>{selectedVehicle.bodyStyle}</strong></span><span><small>Source</small><strong>{selectedVehicle.source.split(" · ")[0]}</strong></span></div>
-          <div className="landing-vehicle-detail-specs"><span><small>Transmission</small><strong>{selectedVehicle.transmission}</strong></span><span><small>Drivetrain</small><strong>{selectedVehicle.drivetrain}</strong></span><span><small>Market signal</small><strong>{selectedVehicle.marketNote}</strong></span></div>
-          <div className="landing-vehicle-detail-actions"><Link className="landing-button landing-button--primary" to={landingLinks.dealership}>Open live inventory <ArrowRight size={15} /></Link><button className="landing-button landing-button--outline" type="button" onClick={() => openRtaAssistant(`Explain the market position of the ${selectedVehicle.title}.`)}>Ask RTA AI <MessageSquare size={14} /></button></div>
-          <small className="landing-vehicle-detail-note"><ShieldCheck size={13} /> Public listing snapshot · <a href={selectedVehicle.sourceUrl} target="_blank" rel="noreferrer">View source</a>. Full offers and provenance are available inside the authenticated workspace.</small>
-        </div>
-      </section>
-    </div>}
   </section>;
 }
 
@@ -296,8 +244,9 @@ function ProductSplitCta() {
   return <section className="landing-product-split"><div className="landing-product-split-card"><span className="landing-split-number">01</span><p className="landing-eyebrow">DEALERSHIP OPERATIONS + AI</p><h2>Run the floor<br /><span>with confidence.</span></h2><div><span>Leads</span><span>Sales</span><span>Targets</span><span>AI insights</span><span>Team</span><span>Documents</span><span>Audit</span><span>Inventory</span></div><Link to={landingLinks.dealership} className="landing-button landing-button--light">Explore live demo <ArrowRight size={16} /></Link></div><div className="landing-product-split-card landing-product-split-card--dark"><span className="landing-split-number">02</span><p className="landing-eyebrow">VEHICLE DATA + MARKET INTELLIGENCE</p><h2>Power inventory<br /><span>with better signals.</span></h2><div><span>Recommendations</span><span>Comparison</span><span>Market price</span><span>Sources</span><span>Scrape diagnostics</span></div><button type="button" className="landing-button landing-button--outline-light" onClick={() => openRtaAssistant("Find the most useful vehicle intelligence on this page.")}>Ask RTA AI <MessageSquare size={15} /></button></div></section>;
 }
 
-function LandingFooter() {
-  return <footer className="landing-footer"><div className="landing-section-frame"><div className="landing-footer-main"><div><a className="landing-brand" href="#top"><span className="landing-brand-mark"><Car size={17} strokeWidth={2.5} /></span><span>RTA<span className="landing-brand-dot">.</span></span></a><p>AI-powered dealership operations and vehicle intelligence, connected with intent.</p></div><div className="landing-footer-links"><a href="#ai-intelligence">AI intelligence</a><a href="#inventory">Inventory</a><a href="#operations">Operations</a><a href="#pipeline">Vehicle data</a><a href={landingLinks.github} target="_blank" rel="noreferrer">GitHub <ExternalLink size={13} /></a><Link to={landingLinks.dealership}>Sign in <ArrowUpRight size={13} /></Link></div></div><div className="landing-footer-bottom"><span>© 2026 RTA platform</span><span>Portfolio project · Product first, engineering underneath.</span></div></div></footer>;
+export function LandingFooter({ browsePage = false }: { browsePage?: boolean }) {
+  const section = (id: string) => browsePage ? `/#${id}` : `#${id}`;
+  return <footer className="landing-footer"><div className="landing-section-frame"><div className="landing-footer-main"><div><a className="landing-brand" href={browsePage ? "/" : "#top"}><span className="landing-brand-mark"><Car size={17} strokeWidth={2.5} /></span><span>RTA<span className="landing-brand-dot">.</span></span></a><p>AI-powered dealership operations and vehicle intelligence, connected with intent.</p></div><div className="landing-footer-links"><a href={section("ai-intelligence")}>AI intelligence</a><a href={section("inventory")}>Inventory</a><a href={section("operations")}>Operations</a><a href={section("pipeline")}>Vehicle data</a><a href={landingLinks.github} target="_blank" rel="noreferrer">GitHub <ExternalLink size={13} /></a><Link to={landingLinks.dealership}>Sign in <ArrowUpRight size={13} /></Link></div></div><div className="landing-footer-bottom"><span>© 2026 RTA platform</span><span>Portfolio project · Product first, engineering underneath.</span></div></div></footer>;
 }
 
 export function LandingPage() {
