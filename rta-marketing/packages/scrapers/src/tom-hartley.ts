@@ -15,10 +15,10 @@ import {
   type ScraperOptions,
 } from "./common.js";
 
-const DETAIL_PATH = /^\/used-car-details\/(?:[^/?#]+\/?)?$/i;
+const DETAIL_PATH = /^\/used-car-details\/[^?#]+\/?$/i;
 const ANTI_BOT_MARKERS = ["captcha", "access denied", "verify you are human", "cloudflare", "akamai", "bot detected", "just a moment"];
-const MAX_SITEMAP_DOCUMENTS = 5;
-const MAX_DETAIL_URLS = 100;
+const INVENTORY_CARD_SELECTOR = ".used-list-vehicle-wrap";
+const INVENTORY_DETAIL_LINK_SELECTOR = 'a[href*="/used-car-details/"]';
 
 export interface TomHartleyDiagnostics {
   source: string;
@@ -45,6 +45,59 @@ function detailUrl(value: string | undefined, site: SiteConfig): string | null {
   return parsed.origin === new URL(site.baseUrl).origin && DETAIL_PATH.test(parsed.pathname) ? url : null;
 }
 
+function visibleBodyText($: CheerioAPI): string {
+  const body = $("body").clone();
+  body.find("script, style, noscript, template").remove();
+  return cleanText(body.text()) ?? "";
+}
+
+function hasExplicitEmptyInventory(text: string): boolean {
+  return /(?:no|zero)\s+(?:vehicles|cars|stock|listings|results)|(?:vehicles|cars|stock|listings)\s+(?:not|currently not)\s+available|nothing\s+found/i.test(text);
+}
+
+export interface TomHartleyInventoryDiscovery {
+  detailUrls: string[];
+  diagnostics: TomHartleyDiagnostics;
+}
+
+export function parseTomHartleyInventoryHtml(
+  html: string,
+  site: SiteConfig,
+  sourceUrl: string,
+  context: { finalUrl?: string; statusCode?: number; onDiagnostics?: (value: TomHartleyDiagnostics) => void } = {},
+): TomHartleyInventoryDiscovery {
+  const startedAt = Date.now();
+  const $ = load(html);
+  const visibleText = visibleBodyText($);
+  const urls = new Set<string>();
+  const cards = $(INVENTORY_CARD_SELECTOR).filter((_index, element) => $(element).find(INVENTORY_DETAIL_LINK_SELECTOR).length > 0);
+  cards.find(INVENTORY_DETAIL_LINK_SELECTOR).each((_index, element) => {
+    const parsed = detailUrl($(element).attr("href"), site);
+    if (parsed) urls.add(parsed);
+  });
+  const diagnostics: TomHartleyDiagnostics = {
+    source: sourceUrl,
+    finalUrl: context.finalUrl ?? sourceUrl,
+    statusCode: context.statusCode ?? null,
+    pageTitle: cleanText($("title").first().text())?.slice(0, 200) ?? "",
+    matchedCardCount: cards.length,
+    detailUrlCount: urls.size,
+    validEmptyState: hasExplicitEmptyInventory(visibleText),
+    elapsedMs: Date.now() - startedAt,
+  };
+  context.onDiagnostics?.(diagnostics);
+  if (ANTI_BOT_MARKERS.some((marker) => visibleText.toLowerCase().includes(marker))) {
+    throw new TomHartleySourceContractError("Tom Hartley inventory contract not detected: anti-bot or interstitial page", diagnostics);
+  }
+  if (diagnostics.statusCode !== null && diagnostics.statusCode >= 400) {
+    throw new TomHartleySourceContractError(`Tom Hartley inventory contract not detected: HTTP ${diagnostics.statusCode}`, diagnostics);
+  }
+  if (urls.size === 0 && !diagnostics.validEmptyState) {
+    throw new TomHartleySourceContractError("Tom Hartley inventory contract not detected: no vehicle-detail URLs", diagnostics);
+  }
+  return { detailUrls: [...urls], diagnostics };
+}
+
 export function isTomHartleyVehicleDetailUrl(value: string, baseUrl = "https://www.tomhartley.com/"): boolean {
   return detailUrl(value, { baseUrl, key: "tom-hartley", name: "Tom Hartley", engine: "cheerio", delayMs: 0, maxConcurrency: 1 } as SiteConfig) !== null;
 }
@@ -68,7 +121,7 @@ export function parseTomHartleySitemap(html: string, site: SiteConfig, sourceUrl
       validEmptyState: false,
     });
   }
-  return [...urls].slice(0, MAX_DETAIL_URLS);
+  return [...urls];
 }
 
 function jsonLdObjects($: CheerioAPI): Record<string, unknown>[] {
@@ -129,7 +182,7 @@ export function parseTomHartleyDetailHtml(
 ): ScrapedItem {
   const startedAt = Date.now();
   const $ = load(html);
-  const bodyText = cleanText($("body").text()) ?? "";
+  const bodyText = visibleBodyText($);
   const json = jsonLdVehicle($, site);
   const diagnostics: TomHartleyDiagnostics = {
     source: sourceUrl,
@@ -153,10 +206,14 @@ export function parseTomHartleyDetailHtml(
   const title = stringValue(json?.name) ?? textFrom($, "h1");
   const listingUrl = canonicalUrl(stringValue(json?.url) ?? sourceUrl, site.baseUrl);
   const image = jsonLdImage(json?.image, site.baseUrl) ?? imageUrlFromCandidates([
-    $("meta[property='og:image']").attr("content"), $("img").first().attr("src"), $("img").first().attr("srcset"), $("img").first().attr("data-src"),
+    $("meta[property='og:image']").attr("content"),
+    $("img").first().attr("src"),
+    $("img").first().attr("srcset"),
+    $("img").first().attr("data-src"),
+    $("img").first().attr("data-srcset"),
   ], site.baseUrl);
-  const price = jsonLdPrice(json ?? {}) ?? labeledValue($, ["price", "our price", "sale price"]);
-  const year = stringValue(json?.productionDate) ?? stringValue(json?.vehicleModelDate) ?? stringValue(json?.year) ?? labeledValue($, ["year", "registration year"]);
+  const price = textFrom($, "h4.price, .used-details-title + .price") ?? jsonLdPrice(json ?? {}) ?? labeledValue($, ["price", "our price", "sale price"]);
+  const year = stringValue(json?.productionDate) ?? stringValue(json?.vehicleModelDate) ?? stringValue(json?.modelDate) ?? stringValue(json?.year) ?? labeledValue($, ["year", "registration year"]);
   const mileage = labeledValue($, ["mileage", "miles", "odometer"]) ?? stringValue(json?.mileageFromOdometer && typeof json.mileageFromOdometer === "object" ? (json.mileageFromOdometer as Record<string, unknown>).value : null);
   const city = labeledValue($, ["city", "location", "town"]);
   const model = stringValue(json?.model);
@@ -178,7 +235,7 @@ export function parseTomHartleyDetailHtml(
       source: sourceUrl,
       sourceKey: site.key,
       jsonLd: json ?? null,
-      make: brand,
+      make: brand ?? stringValue(json?.manufacturer),
       model,
       fuel,
       transmission,
@@ -203,33 +260,37 @@ export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions
   await reportScrapeStage(options, "configured-delay");
   await wait(options.delayMs);
   recordScrapeTiming(options, "configuredDelayMs", delayStartedAt);
-  const sitemapUrl = site.sitemapUrl ?? new URL("/sitemap.xml", site.baseUrl).href;
+  const inventoryUrl = new URL("/used/", site.baseUrl).href;
   const details: string[] = [];
   const seenDetails = new Set<string>();
   const items: ScrapedItem[] = [];
-  let sitemapDocuments = 0;
   let nextDetailIndex = 0;
   let processedDetailPages = 0;
   let validEmptyInventory = false;
+  let inventoryPageProcessed = 0;
+  let inventoryDiagnostics: TomHartleyDiagnostics | undefined;
   await reportScrapeStage(options, "loading-page");
   const navigationStartedAt = Date.now();
   try {
-    await (dependencies.crawl ?? crawlCheerioUrls)(site, options, [sitemapUrl], MAX_SITEMAP_DOCUMENTS + MAX_DETAIL_URLS, async (page: CheerioPage) => {
+    await (dependencies.crawl ?? crawlCheerioUrls)(site, options, [inventoryUrl], Math.max(1, options.limit + 1), async (page: CheerioPage) => {
       const extractionStartedAt = Date.now();
       await reportScrapeStage(options, "extracting");
-      const looksLikeSitemap = /<urlset|<sitemapindex|<url\b|<loc\b/i.test(page.body);
-      if (sitemapDocuments === 0 || looksLikeSitemap && details.length === 0) {
-        sitemapDocuments += 1;
-        const discovered = parseTomHartleySitemap(page.body, site, page.requestUrl);
-        logger.info({ site: site.key, sitemapUrl: page.requestUrl, discoveredDetailUrlCount: discovered.length, firstDiscoveredUrls: discovered.slice(0, 3) }, "Tom Hartley sitemap discovery completed");
-        for (const url of discovered) {
-          if (!seenDetails.has(url) && details.length < MAX_DETAIL_URLS) {
-            seenDetails.add(url);
-            details.push(url);
-          }
+      if (page.requestUrl === inventoryUrl && inventoryPageProcessed === 0) {
+        inventoryPageProcessed += 1;
+        const discovery = parseTomHartleyInventoryHtml(page.body, site, page.requestUrl, {
+          finalUrl: page.finalUrl,
+          statusCode: page.statusCode ?? undefined,
+          onDiagnostics: (diagnostics) => logger.info({ site: site.key, ...diagnostics }, "Tom Hartley inventory contract inspected"),
+        });
+        inventoryDiagnostics = discovery.diagnostics;
+        validEmptyInventory = discovery.diagnostics.validEmptyState;
+        logger.info({ site: site.key, inventoryUrl: page.requestUrl, discoveredDetailUrlCount: discovery.detailUrls.length, firstDiscoveredUrls: discovery.detailUrls.slice(0, 3) }, "Tom Hartley inventory discovery completed");
+        for (const url of discovery.detailUrls.slice(0, options.limit)) {
+          seenDetails.add(url);
+          details.push(url);
         }
         if (details.length > 0) await page.addUrl(details[nextDetailIndex++]!);
-      } else if (items.length < options.limit) {
+      } else if (items.length < options.limit && page.requestUrl !== inventoryUrl) {
         processedDetailPages += 1;
         logger.info({ site: site.key, detailPageUrl: page.requestUrl, processedDetailPageCount: processedDetailPages }, "Tom Hartley detail page processing");
         const item = parseTomHartleyDetailHtml(page.body, site, page.requestUrl, {
@@ -249,23 +310,26 @@ export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions
     recordScrapeTiming(options, "navigationMs", navigationStartedAt);
     recordScrapeTiming(options, "totalDurationMs", totalStartedAt);
   }
-  if (details.length > 0 && processedDetailPages === 0) {
-    throw new TomHartleySourceContractError("Tom Hartley discovery found detail URLs but no detail pages were processed", {
-      source: sitemapUrl,
-      finalUrl: sitemapUrl,
+  if (inventoryPageProcessed === 0) {
+    throw new TomHartleySourceContractError("Tom Hartley inventory URL was not processed", {
+      source: inventoryUrl,
+      finalUrl: inventoryUrl,
       statusCode: null,
       pageTitle: "",
       matchedCardCount: 0,
-      detailUrlCount: details.length,
+      detailUrlCount: 0,
       validEmptyState: false,
+    });
+  }
+  if (details.length > 0 && processedDetailPages === 0) {
+    throw new TomHartleySourceContractError("Tom Hartley discovery found detail URLs but no detail pages were processed", {
+      ...(inventoryDiagnostics ?? { source: inventoryUrl, finalUrl: inventoryUrl, statusCode: null, pageTitle: "", matchedCardCount: 0, detailUrlCount: details.length, validEmptyState: false }),
+      detailUrlCount: details.length,
     });
   }
   if (processedDetailPages > 0 && items.length === 0 && !validEmptyInventory) {
     throw new TomHartleySourceContractError("Tom Hartley detail pages were processed but no listings were extracted", {
-      source: sitemapUrl,
-      finalUrl: sitemapUrl,
-      statusCode: null,
-      pageTitle: "",
+      ...(inventoryDiagnostics ?? { source: inventoryUrl, finalUrl: inventoryUrl, statusCode: null, pageTitle: "", matchedCardCount: 0, detailUrlCount: details.length, validEmptyState: false }),
       matchedCardCount: processedDetailPages,
       detailUrlCount: details.length,
       validEmptyState: validEmptyInventory,
