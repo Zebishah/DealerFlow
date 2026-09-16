@@ -22,11 +22,20 @@ const liveSources: Record<ApifySiteKey, { baseUrl: string; imageHosts: readonly 
   },
 };
 
+// Exact hosts retained for image URLs already stored by historical/reference
+// scrapers. These are deliberately not wildcarded or inferred from DB rows.
+const legacyImageHosts = [
+  "pakwheels.com",
+  "images.olx.com.pk",
+  "collectorcarlist.com",
+] as const;
+
 function normalizedUrl(value: string): string | null {
   try {
     const url = new URL(value);
     url.hash = "";
     url.search = "";
+    url.hostname = normalizedHost(url.hostname);
     url.pathname = url.pathname.replace(/\/+$/, "") || "/";
     return url.href;
   } catch {
@@ -58,7 +67,8 @@ export function apifySiteKeyForBaseUrl(baseUrl: string): ApifySiteKey | null {
 
 export function isApprovedImageHost(hostname: string): boolean {
   const host = normalizedHost(hostname);
-  return Object.values(liveSources).some((source) => source.imageHosts.some((allowed) => normalizedHost(allowed) === host));
+  return [...Object.values(liveSources).flatMap((source) => source.imageHosts), ...legacyImageHosts]
+    .some((allowed) => normalizedHost(allowed) === host);
 }
 
 export function sourceImageHosts(): readonly string[] {
