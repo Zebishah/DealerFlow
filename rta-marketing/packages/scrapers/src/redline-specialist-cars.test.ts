@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import type { SiteConfig } from "@rta/shared";
-import { RedlineSourceContractError, isRedlineVehicleCategoryUrl, parseRedlineCategoryHtml, parseRedlineSitemap } from "./redline-specialist-cars.js";
+import type { CheerioPage } from "./cheerio-runtime.js";
+import type { ScraperOptions } from "./common.js";
+import { scrapeRedlineSpecialistCars, RedlineSourceContractError, isRedlineVehicleCategoryUrl, parseRedlineCategoryHtml, parseRedlineSitemap } from "./redline-specialist-cars.js";
 
 const site: SiteConfig = { key: "redline-specialist-cars", name: "Redline Specialist Cars", baseUrl: "https://redlinespecialistcars.co.uk/", engine: "cheerio", itemSelector: ".col-md-4[data-at-price][data-at-year][data-at-mileage]", titleSelector: ".product-content h4", priceSelector: ".price", linkSelector: ".item-link", delayMs: 0, maxConcurrency: 1 };
 const fixture = (name: string) => readFile(new URL(`./fixtures/redline-specialist-cars/${name}`, import.meta.url), "utf8");
@@ -31,4 +33,24 @@ test("Redline limit stops extraction and broken markup throws", async () => {
   assert.deepEqual(parseRedlineCategoryHtml(await fixture("empty.html"), site, "https://redlinespecialistcars.co.uk/ferrari-cars-for-sale/", 5), []);
   const unexpected = await fixture("unexpected.html");
   assert.throws(() => parseRedlineCategoryHtml(unexpected, site, "https://redlinespecialistcars.co.uk/ferrari-cars-for-sale/", 5), (error: unknown) => error instanceof RedlineSourceContractError);
+});
+
+test("Redline runtime processes discovered categories and stops at five", async () => {
+  const sitemapUrl = "https://fixture.test/sitemap.xml";
+  const sitemap = `<urlset>${Array.from({ length: 6 }, (_value, index) => `<url><loc>https://redlinespecialistcars.co.uk/brand-${index + 1}-cars-for-sale/</loc></url>`).join("")}</urlset>`;
+  const processedCategories: string[] = [];
+  const crawl = async (_site: SiteConfig, _options: ScraperOptions, initialUrls: string[], _maxRequests: number, onPage: (page: CheerioPage) => Promise<void>): Promise<void> => {
+    const pending = [...initialUrls];
+    while (pending.length > 0) {
+      const requestUrl = pending.shift()!;
+      const isSitemap = requestUrl === sitemapUrl;
+      if (!isSitemap) processedCategories.push(requestUrl);
+      const index = processedCategories.length;
+      const body = isSitemap ? sitemap : `<html><body><div class="col-md-4" data-at-price="£100,000" data-at-year="2022" data-at-mileage="1,000 miles"><div class="product-card"><a class="item-link" href="/cars/${index}/"><div class="product-content"><h4>Test Ferrari ${index}</h4><span class="price">£100,000</span></div><div class="product-card-img" style="background-image: url('/images/test.jpg')"></div></a></div></div></body></html>`;
+      await onPage({ body, requestUrl, finalUrl: requestUrl, statusCode: 200, addUrl: async (url) => { pending.push(url); } });
+    }
+  };
+  const items = await scrapeRedlineSpecialistCars({ ...site, sitemapUrl }, { userAgent: "RTA-Local-Redline/1.0", delayMs: 0, maxConcurrency: 1, limit: 5, crawleeMemoryMbytes: 128, navigationTimeoutMs: 10_000, selectorTimeoutMs: 2_000, jobTimeoutMs: 30_000 }, { crawl });
+  assert.equal(items.length, 5);
+  assert.equal(processedCategories.length, 5);
 });

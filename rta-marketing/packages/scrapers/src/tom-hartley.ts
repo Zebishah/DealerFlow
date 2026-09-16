@@ -196,7 +196,7 @@ export function parseTomHartleyDetailHtml(
   return item;
 }
 
-export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
+export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions, dependencies: { crawl?: typeof crawlCheerioUrls } = {}): Promise<ScrapedItem[]> {
   const totalStartedAt = Date.now();
   await reportScrapeStage(options, "checking-source");
   const delayStartedAt = Date.now();
@@ -209,16 +209,19 @@ export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions
   const items: ScrapedItem[] = [];
   let sitemapDocuments = 0;
   let nextDetailIndex = 0;
+  let processedDetailPages = 0;
+  let validEmptyInventory = false;
   await reportScrapeStage(options, "loading-page");
   const navigationStartedAt = Date.now();
   try {
-    await crawlCheerioUrls(site, options, [sitemapUrl], MAX_SITEMAP_DOCUMENTS + MAX_DETAIL_URLS, async (page: CheerioPage) => {
+    await (dependencies.crawl ?? crawlCheerioUrls)(site, options, [sitemapUrl], MAX_SITEMAP_DOCUMENTS + MAX_DETAIL_URLS, async (page: CheerioPage) => {
       const extractionStartedAt = Date.now();
       await reportScrapeStage(options, "extracting");
       const looksLikeSitemap = /<urlset|<sitemapindex|<url\b|<loc\b/i.test(page.body);
       if (sitemapDocuments === 0 || looksLikeSitemap && details.length === 0) {
         sitemapDocuments += 1;
         const discovered = parseTomHartleySitemap(page.body, site, page.requestUrl);
+        logger.info({ site: site.key, sitemapUrl: page.requestUrl, discoveredDetailUrlCount: discovered.length, firstDiscoveredUrls: discovered.slice(0, 3) }, "Tom Hartley sitemap discovery completed");
         for (const url of discovered) {
           if (!seenDetails.has(url) && details.length < MAX_DETAIL_URLS) {
             seenDetails.add(url);
@@ -227,12 +230,15 @@ export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions
         }
         if (details.length > 0) await page.addUrl(details[nextDetailIndex++]!);
       } else if (items.length < options.limit) {
+        processedDetailPages += 1;
+        logger.info({ site: site.key, detailPageUrl: page.requestUrl, processedDetailPageCount: processedDetailPages }, "Tom Hartley detail page processing");
         const item = parseTomHartleyDetailHtml(page.body, site, page.requestUrl, {
           finalUrl: page.finalUrl,
           statusCode: page.statusCode ?? undefined,
           onDiagnostics: (diagnostics) => logger.info({ site: site.key, ...diagnostics }, "Tom Hartley source contract inspected"),
         });
         if (!items.some((existing) => existing.listingUrl === item.listingUrl)) items.push(item);
+        logger.info({ site: site.key, detailPageUrl: page.requestUrl, extractedItemCount: items.length }, "Tom Hartley detail extraction completed");
         if (items.length < options.limit && nextDetailIndex < details.length) {
           await page.addUrl(details[nextDetailIndex++]!);
         }
@@ -242,6 +248,28 @@ export async function scrapeTomHartley(site: SiteConfig, options: ScraperOptions
   } finally {
     recordScrapeTiming(options, "navigationMs", navigationStartedAt);
     recordScrapeTiming(options, "totalDurationMs", totalStartedAt);
+  }
+  if (details.length > 0 && processedDetailPages === 0) {
+    throw new TomHartleySourceContractError("Tom Hartley discovery found detail URLs but no detail pages were processed", {
+      source: sitemapUrl,
+      finalUrl: sitemapUrl,
+      statusCode: null,
+      pageTitle: "",
+      matchedCardCount: 0,
+      detailUrlCount: details.length,
+      validEmptyState: false,
+    });
+  }
+  if (processedDetailPages > 0 && items.length === 0 && !validEmptyInventory) {
+    throw new TomHartleySourceContractError("Tom Hartley detail pages were processed but no listings were extracted", {
+      source: sitemapUrl,
+      finalUrl: sitemapUrl,
+      statusCode: null,
+      pageTitle: "",
+      matchedCardCount: processedDetailPages,
+      detailUrlCount: details.length,
+      validEmptyState: validEmptyInventory,
+    });
   }
   return items.slice(0, options.limit);
 }

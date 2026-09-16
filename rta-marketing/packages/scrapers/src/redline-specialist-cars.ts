@@ -157,7 +157,7 @@ export function parseRedlineCategoryHtml(
   return items;
 }
 
-export async function scrapeRedlineSpecialistCars(site: SiteConfig, options: ScraperOptions): Promise<ScrapedItem[]> {
+export async function scrapeRedlineSpecialistCars(site: SiteConfig, options: ScraperOptions, dependencies: { crawl?: typeof crawlCheerioUrls } = {}): Promise<ScrapedItem[]> {
   const totalStartedAt = Date.now();
   await reportScrapeStage(options, "checking-source");
   const delayStartedAt = Date.now();
@@ -171,15 +171,18 @@ export async function scrapeRedlineSpecialistCars(site: SiteConfig, options: Scr
   const seenItems = new Set<string>();
   let sitemapDocuments = 0;
   let nextCategoryIndex = 0;
+  let processedCategoryPages = 0;
+  let validEmptyInventory = false;
   await reportScrapeStage(options, "loading-page");
   const navigationStartedAt = Date.now();
   try {
-    await crawlCheerioUrls(site, options, [sitemapUrl], MAX_SITEMAP_DOCUMENTS + MAX_CATEGORY_URLS, async (page: CheerioPage) => {
+    await (dependencies.crawl ?? crawlCheerioUrls)(site, options, [sitemapUrl], MAX_SITEMAP_DOCUMENTS + MAX_CATEGORY_URLS, async (page: CheerioPage) => {
       const extractionStartedAt = Date.now();
       await reportScrapeStage(options, "extracting");
       if (sitemapDocuments === 0 && /<urlset|<sitemapindex|<loc\b/i.test(page.body)) {
         sitemapDocuments += 1;
         const discovered = parseRedlineSitemap(page.body, site, page.requestUrl);
+        logger.info({ site: site.key, sitemapUrl: page.requestUrl, categoryUrlCount: discovered.length, firstDiscoveredCategories: discovered.slice(0, 3) }, "Redline category discovery completed");
         for (const url of discovered) {
           if (!seenCategories.has(url)) {
             seenCategories.add(url);
@@ -188,16 +191,20 @@ export async function scrapeRedlineSpecialistCars(site: SiteConfig, options: Scr
         }
         if (categories.length > 0) await page.addUrl(categories[nextCategoryIndex++]!);
       } else if (items.length < options.limit) {
+        processedCategoryPages += 1;
+        logger.info({ site: site.key, categoryPageUrl: page.requestUrl, processedCategoryPageCount: processedCategoryPages }, "Redline category page processing");
         const parsed = parseRedlineCategoryHtml(page.body, site, page.requestUrl, options.limit - items.length, {
           finalUrl: page.finalUrl,
           statusCode: page.statusCode ?? undefined,
           onDiagnostics: (value) => logger.info({ site: site.key, ...value }, "Redline Specialist Cars source contract inspected"),
         });
+        if (parsed.length === 0) validEmptyInventory = true;
         for (const item of parsed) {
           if (items.length >= options.limit || seenItems.has(item.listingUrl)) continue;
           seenItems.add(item.listingUrl);
           items.push(item);
         }
+        logger.info({ site: site.key, categoryPageUrl: page.requestUrl, matchedCardCount: parsed.length, extractedItemCount: items.length }, "Redline category extraction completed");
         if (items.length < options.limit && nextCategoryIndex < categories.length) {
           await page.addUrl(categories[nextCategoryIndex++]!);
         }
@@ -207,6 +214,28 @@ export async function scrapeRedlineSpecialistCars(site: SiteConfig, options: Scr
   } finally {
     recordScrapeTiming(options, "navigationMs", navigationStartedAt);
     recordScrapeTiming(options, "totalDurationMs", totalStartedAt);
+  }
+  if (categories.length > 0 && processedCategoryPages === 0) {
+    throw new RedlineSourceContractError("Redline discovery found categories but no category pages were processed", {
+      source: sitemapUrl,
+      finalUrl: sitemapUrl,
+      statusCode: null,
+      pageTitle: "",
+      matchedCardCount: 0,
+      categoryUrlCount: categories.length,
+      validEmptyState: false,
+    });
+  }
+  if (processedCategoryPages > 0 && items.length === 0 && !validEmptyInventory) {
+    throw new RedlineSourceContractError("Redline category pages were processed but no listings were extracted", {
+      source: sitemapUrl,
+      finalUrl: sitemapUrl,
+      statusCode: null,
+      pageTitle: "",
+      matchedCardCount: 0,
+      categoryUrlCount: categories.length,
+      validEmptyState: validEmptyInventory,
+    });
   }
   return items.slice(0, options.limit);
 }

@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import type { SiteConfig } from "@rta/shared";
-import { TomHartleySourceContractError, isTomHartleyVehicleDetailUrl, parseTomHartleyDetailHtml, parseTomHartleySitemap } from "./tom-hartley.js";
+import type { CheerioPage } from "./cheerio-runtime.js";
+import type { ScraperOptions } from "./common.js";
+import { scrapeTomHartley, TomHartleySourceContractError, isTomHartleyVehicleDetailUrl, parseTomHartleyDetailHtml, parseTomHartleySitemap } from "./tom-hartley.js";
 
 const site: SiteConfig = { key: "tom-hartley", name: "Tom Hartley", baseUrl: "https://www.tomhartley.com/", engine: "cheerio", itemSelector: "body", titleSelector: "h1", priceSelector: ".price", linkSelector: 'a[href*="/used-car-details/"]', delayMs: 0, maxConcurrency: 1 };
 const fixture = (name: string) => readFile(new URL(`./fixtures/tom-hartley/${name}`, import.meta.url), "utf8");
@@ -36,4 +38,24 @@ test("Tom Hartley prefers valid JSON-LD and falls back to labeled HTML", async (
 
 test("Tom Hartley rejects a broken detail contract", async () => {
   await assert.rejects(async () => parseTomHartleyDetailHtml(await fixture("unexpected.html"), site, "https://www.tomhartley.com/used-car-details/missing/"), (error: unknown) => error instanceof TomHartleySourceContractError);
+});
+
+test("Tom Hartley runtime processes discovered detail pages and stops at five", async () => {
+  const sitemapUrl = "https://fixture.test/sitemap.xml";
+  const sitemap = `<urlset>${Array.from({ length: 6 }, (_value, index) => `<url><loc>https://www.tomhartley.com/used-car-details/car-${index + 1}/</loc></url>`).join("")}</urlset>`;
+  const detailTemplate = await fixture("detail.html");
+  const processedDetails: string[] = [];
+  const crawl = async (_site: SiteConfig, _options: ScraperOptions, initialUrls: string[], _maxRequests: number, onPage: (page: CheerioPage) => Promise<void>): Promise<void> => {
+    const pending = [...initialUrls];
+    while (pending.length > 0) {
+      const requestUrl = pending.shift()!;
+      const isSitemap = requestUrl === sitemapUrl;
+      if (!isSitemap) processedDetails.push(requestUrl);
+      const body = isSitemap ? sitemap : detailTemplate.replace(/https:\/\/www\.tomhartley\.com\/used-car-details\/ferrari-roma-1\//g, requestUrl);
+      await onPage({ body, requestUrl, finalUrl: requestUrl, statusCode: 200, addUrl: async (url) => { pending.push(url); } });
+    }
+  };
+  const items = await scrapeTomHartley({ ...site, sitemapUrl }, { userAgent: "RTA-Local-Tom-Hartley/1.0", delayMs: 0, maxConcurrency: 1, limit: 5, crawleeMemoryMbytes: 128, navigationTimeoutMs: 10_000, selectorTimeoutMs: 2_000, jobTimeoutMs: 30_000 }, { crawl });
+  assert.equal(items.length, 5);
+  assert.equal(processedDetails.length, 5);
 });

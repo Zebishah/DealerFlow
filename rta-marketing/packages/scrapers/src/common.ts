@@ -28,12 +28,12 @@ export function recordScrapeTiming(options: ScraperOptions, key: ScrapeTimingKey
 }
 
 type TimeoutCapableCrawler = {
-  run: (requests: string[]) => Promise<unknown>;
+  run: (requests?: string[]) => Promise<unknown>;
   teardown: () => Promise<void>;
 };
 
 /** Run one crawler with an upper bound and force teardown on timeout/failure. */
-export async function runCrawlerWithTimeout(crawler: TimeoutCapableCrawler, url: string, timeoutMs: number): Promise<void> {
+export async function runCrawlerWithTimeout(crawler: TimeoutCapableCrawler, url: string | undefined, timeoutMs: number): Promise<void> {
   let timedOut = false;
   let timeoutHandle: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -44,7 +44,7 @@ export async function runCrawlerWithTimeout(crawler: TimeoutCapableCrawler, url:
   });
 
   try {
-    await Promise.race([crawler.run([url]), timeout]);
+    await Promise.race([url === undefined ? crawler.run() : crawler.run([url]), timeout]);
     if (timedOut) throw new Error(`scrape exceeded ${timeoutMs}ms`);
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);

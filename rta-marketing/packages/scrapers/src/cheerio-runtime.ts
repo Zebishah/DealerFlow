@@ -10,6 +10,25 @@ export interface CheerioPage {
   addUrl: (url: string) => Promise<void>;
 }
 
+export interface QueueRequest {
+  url: string;
+}
+
+export interface QueueLike {
+  addRequest: (request: QueueRequest) => Promise<unknown>;
+}
+
+export interface QueueBackedCrawler {
+  run: (requests?: string[]) => Promise<unknown>;
+  teardown: () => Promise<void>;
+}
+
+/** Seed and run a crawler exclusively from the queue it was configured with. */
+export async function runQueueBackedCrawler(crawler: QueueBackedCrawler, queue: QueueLike, initialUrls: string[], timeoutMs: number): Promise<void> {
+  for (const url of initialUrls) await queue.addRequest({ url });
+  await runCrawlerWithTimeout(crawler, undefined, timeoutMs);
+}
+
 /**
  * A single-threaded, bounded Cheerio crawl. Adapters decide which discovered
  * URLs to enqueue; this keeps pagination and discovery policies explicit.
@@ -53,7 +72,7 @@ export async function crawlCheerioUrls(
   });
 
   try {
-    await runCrawlerWithTimeout(crawler, initialUrls[0]!, options.jobTimeoutMs);
+    await runQueueBackedCrawler(crawler, requestQueue, initialUrls, options.jobTimeoutMs);
   } finally {
     await requestQueue.drop();
   }
