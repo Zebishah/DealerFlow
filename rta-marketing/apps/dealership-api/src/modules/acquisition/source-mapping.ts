@@ -10,7 +10,7 @@ export interface SourceExecutionMetadata {
 const liveSources: Record<ApifySiteKey, { baseUrl: string; imageHosts: readonly string[] }> = {
   "romans-international": {
     baseUrl: "https://www.romansinternational.com/used/cars/",
-    imageHosts: ["romansinternational.com", "images.67degreescdn.co.uk"],
+    imageHosts: ["romansinternational.com", "images.67degrees.co.uk", "images.67degreescdn.co.uk"],
   },
   "tom-hartley": {
     baseUrl: "https://www.tomhartley.com/used/",
@@ -69,6 +69,18 @@ export function isApprovedImageHost(hostname: string): boolean {
   const host = normalizedHost(hostname);
   return [...Object.values(liveSources).flatMap((source) => source.imageHosts), ...legacyImageHosts]
     .some((allowed) => normalizedHost(allowed) === host);
+}
+
+export function sourcePageRefererForImageHost(hostname: string, protocol = "https:"): string {
+  const host = normalizedHost(hostname);
+  const romans = liveSources["romans-international"];
+  if (romans.imageHosts.some((allowed) => normalizedHost(allowed) === host)) {
+    return "https://www.romansinternational.com/";
+  }
+  for (const source of Object.values(liveSources)) {
+    if (source.imageHosts.some((allowed) => normalizedHost(allowed) === host)) return source.baseUrl;
+  }
+  return `${protocol}//${hostname}/`;
 }
 
 export function sourceImageHosts(): readonly string[] {

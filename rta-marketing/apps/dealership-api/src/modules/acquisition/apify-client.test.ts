@@ -83,6 +83,8 @@ void test("source mapping exposes only live Apify sources and approved image hos
   assert.equal(sourceExecutionMetadata("https://www.collectorcarlist.com/").executionProvider, "reference");
   assert.equal(sourceExecutionMetadata("https://generated-inventory.invalid/").executionProvider, "reference");
   assert.equal(isApprovedImageHost("bluesky.cdn.imgeng.in"), true);
+  assert.equal(isApprovedImageHost("romansinternational.com"), true);
+  assert.equal(isApprovedImageHost("images.67degrees.co.uk"), true);
   assert.equal(isApprovedImageHost("images.67degreescdn.co.uk"), true);
   assert.equal(isApprovedImageHost("redline.drive-digital.co.uk"), true);
   assert.equal(isApprovedImageHost("www.tomhartley.com"), true);
@@ -90,6 +92,7 @@ void test("source mapping exposes only live Apify sources and approved image hos
   assert.equal(isApprovedImageHost("www.pakwheels.com"), true);
   assert.equal(isApprovedImageHost("www.collectorcarlist.com"), true);
   assert.equal(isApprovedImageHost("evil.example"), false);
+  assert.equal(isApprovedImageHost("images.67degrees.co.uk.attacker.com"), false);
   assert.equal(isApprovedImageHost("images.pakwheels.com.attacker.example"), false);
   assert.equal(isApprovedImageHost("images.synthetic.invalid"), false);
 });

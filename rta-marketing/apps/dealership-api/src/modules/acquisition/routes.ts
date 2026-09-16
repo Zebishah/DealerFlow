@@ -10,7 +10,8 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { ApifyClientError, mapApifyStatus, requireApifyClient, type ApifyRun } from "./apify-client.js";
-import { apifySiteKeyForBaseUrl, isApprovedImageHost, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
+import { apifySiteKeyForBaseUrl, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
+import { fetchApprovedSourceImage } from "./image-proxy.js";
 
 function isTransientDatabaseError(error: unknown): boolean {
   const candidate = error as { code?: string; cause?: { code?: string; message?: string } };
@@ -52,22 +53,7 @@ acquisitionRouter.get(
   "/image",
   asyncHandler(async (request, response) => {
     const rawUrl = z.string().url().max(2_000).parse(request.query.url);
-    const target = new URL(rawUrl);
-    if (!/^https?:$/.test(target.protocol)) throw new AppError(400, "INVALID_IMAGE_URL", "Only HTTP image URLs are supported");
-
-    if (!isApprovedImageHost(target.hostname)) throw new AppError(403, "IMAGE_HOST_NOT_ALLOWED", "This image host is not an approved inventory source");
-
-    const origin = `${target.protocol}//${target.host}/`;
-    const upstream = await fetch(target, {
-      headers: {
-        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        Referer: origin,
-        "User-Agent": "Mozilla/5.0 (compatible; RTA Inventory/1.0)",
-      },
-      redirect: "manual",
-      signal: AbortSignal.timeout(12_000),
-    }).catch(() => null);
-    if (!upstream?.ok) throw new AppError(404, "SOURCE_IMAGE_UNAVAILABLE", "The source image is no longer available");
+    const upstream = await fetchApprovedSourceImage(rawUrl);
 
     const contentType = upstream.headers.get("content-type")?.split(";", 1)[0] ?? "";
     if (!contentType.startsWith("image/")) throw new AppError(415, "SOURCE_IMAGE_INVALID", "The source did not return an image");
