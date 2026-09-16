@@ -5,7 +5,7 @@
   "schemaVersion": 1,
   "additionalProperties": false,
   "properties": {
-    "siteKey": { "title": "Approved source", "description": "The approved public source to scrape.", "type": "string", "enum": ["collector-car-list"], "default": "collector-car-list", "editor": "select" },
+    "siteKey": { "title": "Approved source", "description": "The approved public source to scrape.", "type": "string", "enum": ["romans-international", "tom-hartley", "redline-specialist-cars"], "default": "romans-international", "editor": "select" },
     "limit": { "title": "Maximum listings", "type": "integer", "description": "Maximum number of listings to discover; fewer is a successful result.", "minimum": 1, "maximum": 10, "default": 5 }
   },
   "required": ["siteKey"]
