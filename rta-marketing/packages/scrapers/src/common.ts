@@ -1,4 +1,5 @@
 import robotsParserModule from "robots-parser";
+import type { CheerioAPI } from "cheerio";
 import { logger, scrapedItemSchema, type ScrapedItem, type SiteConfig } from "@rta/shared";
 
 export interface ScraperOptions {
@@ -55,14 +56,14 @@ const robotsParser = robotsParserModule as unknown as (url: string, text: string
   isAllowed: (url: string, userAgent?: string) => boolean | undefined;
 };
 
-export async function assertRobotsAllowed(site: SiteConfig, userAgent: string): Promise<void> {
+export async function assertRobotsAllowed(site: SiteConfig, userAgent: string, targetUrl = site.baseUrl): Promise<void> {
   const robotsUrl = new URL("/robots.txt", site.baseUrl).href;
   const response = await fetch(robotsUrl, { headers: { "User-Agent": userAgent } });
   if (response.status === 404) return;
   if (!response.ok) throw new Error(`${site.name} robots.txt returned HTTP ${response.status}`);
   const robots = robotsParser(robotsUrl, await response.text());
-  if (robots.isAllowed(site.baseUrl, userAgent) === false) {
-    throw new Error(`${site.name} robots.txt disallows ${site.baseUrl}`);
+  if (robots.isAllowed(targetUrl, userAgent) === false) {
+    throw new Error(`${site.name} robots.txt disallows ${targetUrl}`);
   }
 }
 
@@ -77,6 +78,57 @@ export function absoluteUrl(value: string | undefined, baseUrl: string): string 
   } catch {
     return null;
   }
+}
+
+export function canonicalUrl(value: string | undefined, baseUrl: string): string | null {
+  const url = absoluteUrl(value, baseUrl);
+  if (!url) return null;
+  const parsed = new URL(url);
+  parsed.hash = "";
+  return parsed.href;
+}
+
+export function cleanText(value: string | undefined | null): string | null {
+  const cleaned = value?.replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
+export function textFrom($: CheerioAPI, selector: string): string | null {
+  return cleanText($(selector).first().text());
+}
+
+/** Read common label/value layouts without guessing a value from unrelated text. */
+export function labeledValue($: CheerioAPI, labels: string[], root?: ReturnType<CheerioAPI>): string | null {
+  const wanted = new Set(labels.map((label) => label.toLowerCase()));
+  let result: string | null = null;
+  const scope = root ?? $("body");
+  scope.find("dt, dd, th, td, li, div, p").each((_index, element) => {
+    if (result) return;
+    const node = $(element);
+    const children = node.children();
+    const firstChildText = cleanText(children.first().text());
+    if (children.length >= 2 && firstChildText && wanted.has(firstChildText.toLowerCase())) {
+      result = cleanText(children.eq(1).text());
+      return;
+    }
+    const label = cleanText(node.children().first().text()) ?? cleanText(node.clone().children().remove().end().text());
+    if (label && wanted.has(label.toLowerCase())) {
+      const sibling = node.nextAll("dd, td, span, strong, b, p").first();
+      result = cleanText(sibling.text());
+      return;
+    }
+    const directText = cleanText(node.text());
+    if (!directText) return;
+    for (const wantedLabel of wanted) {
+      const escapedLabel = wantedLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const match = directText.match(new RegExp(`^${escapedLabel}\\s*[:\\-]\\s*(.+)$`, "i"));
+      if (match?.[1]) {
+        result = cleanText(match[1]);
+        return;
+      }
+    }
+  });
+  return result;
 }
 
 /** Prefer a real lazy-loaded image over a transparent placeholder in src. */

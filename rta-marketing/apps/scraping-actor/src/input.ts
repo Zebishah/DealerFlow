@@ -1,6 +1,6 @@
 import { assertSingleSourcePayload, findConfiguredSite, parseScrapeLimit, type BaseScraperConfig } from "@rta/shared";
 
-export const APPROVED_APIFY_SITE_KEYS = ["collector-car-list"] as const;
+export const APPROVED_APIFY_SITE_KEYS = ["romans-international", "tom-hartley", "redline-specialist-cars"] as const;
 export type ApprovedApifySiteKey = (typeof APPROVED_APIFY_SITE_KEYS)[number];
 
 export interface ScrapingActorInput { siteKey?: unknown; limit?: unknown; }

@@ -18,12 +18,15 @@ did not explicitly prohibit the intended extraction.
 | [LuxuryPulse](https://luxurypulse.com/) | Public listings and pagination are visible. | Rejected: [terms](https://luxurypulse.com/terms) prohibit copying, extraction, and database reuse without permission. |
 | [Classics on Autotrader](https://classics.autotrader.com/) | Public SSR listings and pagination are visible, but direct crawler access returned Akamai HTTP 403. | Rejected: implementing it would depend on an anti-bot/WAF bypass, which is out of scope. |
 | [Classic Driver](https://www.classicdriver.com/) | Not audited for implementation. | Explicitly excluded by project requirements. |
-| [CollectorCarList](https://www.collectorcarlist.com/) | Public SSR listings, robots allows the public path, and no explicit automated-crawling prohibition was found in the terms audit. The non-www URL redirects to this canonical host. | **Approved replacement.** Uses Cheerio and a bounded one-page strategy. |
+| [Romans International](https://www.romansinternational.com/used/cars/) | Public server-rendered vehicle cards with verified pagination. | **Approved production source.** Uses Cheerio and sequential pagination. |
+| [Tom Hartley](https://www.tomhartley.com/) | Public sitemap exposes vehicle-detail URLs and detail pages are server-rendered. | **Approved production source.** Uses Cheerio, strict sitemap filtering, and bounded detail crawling. |
+| [Redline Specialist Cars](https://redlinespecialistcars.co.uk/) | Public category pages are server-rendered; the main `/cars/` route does not provide the listing contract. | **Approved production source.** Uses bounded sitemap-discovered vehicle categories. |
+| [CollectorCarList](https://www.collectorcarlist.com/) | Existing adapter and fixture tests are retained. | **Legacy/internal only.** Not available in the live Actor source set. |
 
-The target of three approved sources could not be met without implementing a
-source that failed the policy or anti-bot checks. CollectorCarList is the
-verified replacement implemented in this phase; rejected sources remain
-documented rather than silently treated as approved.
+The live Actor source set is intentionally limited to the three approved
+production sources above. PakWheels, OLX, and CollectorCarList remain in the
+repository for internal and legacy use; rejected sources remain documented
+rather than silently treated as approved.
 
 ## Two supported architectures
 
@@ -56,7 +59,7 @@ failures remain failures.
 Required environment variables:
 
 - `DATABASE_URL`
-- `SCRAPER_SITES_JSON` containing the approved `collector-car-list` site config
+- `SCRAPER_SITES_JSON` containing the three approved luxury source configs
 - `SCRAPER_USER_AGENT`
 
 Optional shared scraper settings include `SCRAPE_DEFAULT_LIMIT`,
@@ -73,7 +76,7 @@ not install a Playwright browser.
 The current Actor environment value is:
 
 ```text
-SCRAPER_SITES_JSON='[{"key":"collector-car-list","name":"CollectorCarList","baseUrl":"https://www.collectorcarlist.com/","engine":"cheerio","itemSelector":"a[href^=\"/listings/\"]","titleSelector":"h3","priceSelector":"div > p","linkSelector":"a[href^=\"/listings/\"]","delayMs":2500,"maxConcurrency":1}]'
+SCRAPER_SITES_JSON='[{"key":"romans-international","name":"Romans International","baseUrl":"https://www.romansinternational.com/used/cars/","engine":"cheerio","strategy":"cards","itemSelector":".vehicle--teaser[data-vehicle]","titleSelector":".vehicle__title","priceSelector":".vehicle__price","linkSelector":"a[href*=\"/used/cars/\"]","delayMs":2250,"maxConcurrency":1},{"key":"tom-hartley","name":"Tom Hartley","baseUrl":"https://www.tomhartley.com/","engine":"cheerio","strategy":"sitemap-details","sitemapUrl":"https://www.tomhartley.com/sitemap.xml","itemSelector":"body","titleSelector":"h1","priceSelector":".price","linkSelector":"a[href*=\"/used-car-details/\"]","delayMs":2250,"maxConcurrency":1},{"key":"redline-specialist-cars","name":"Redline Specialist Cars","baseUrl":"https://redlinespecialistcars.co.uk/","engine":"cheerio","strategy":"sitemap-categories","sitemapUrl":"https://redlinespecialistcars.co.uk/sitemap.xml","categoryPathPattern":"^/[a-z0-9][a-z0-9-]*-cars-for-sale/$","itemSelector":".col-md-4[data-at-price][data-at-year][data-at-mileage]","titleSelector":".product-content h4","priceSelector":".price","linkSelector":".item-link","delayMs":2250,"maxConcurrency":1}]'
 ```
 
 Keep the Actor private in Apify metadata and do not place database URLs,
@@ -82,21 +85,19 @@ Actor output.
 
 ## Parser behavior and limitations
 
-The CollectorCarList adapter uses one public page and stops at the requested
-maximum. It normalizes the existing `ScrapedItem` shape, deduplicates stable
-listing URLs, resolves relative links and image URLs, handles lazy/srcset
-images, preserves raw source fields, and keeps “Price on request” as source
-text. The live card contract is an anchor whose path begins with
-`/listings/`, with an `h3` title, labelled `Asking`, `Miles`, and `Location`
-value blocks, and a lazy-loaded image using `srcset`/Next image attributes. It
-skips malformed cards rather than manufacturing title, URL, mileage, image,
-or price values. A page with the explicit `0 cars available` and `No listings
-found` state is a valid empty inventory; an otherwise normal page with no
-listing contract raises a source-contract error.
+The live Actor uses Romans International cards, Tom Hartley sitemap-filtered
+vehicle detail pages, and Redline Specialist Cars sitemap-discovered category
+pages. Each adapter uses Cheerio, one request at a time, bounded discovery,
+stable URL deduplication, source-native text, lazy/srcset or background-image
+handling, robots checks, and explicit source-contract diagnostics. A valid
+empty inventory completes with zero items; malformed markup, interstitials,
+HTTP failures, and blocked paths remain technical failures. CollectorCarList,
+PakWheels, and OLX adapters remain available internally but are not live Actor
+choices.
 
-The source currently exposes a bounded public page rather than a verified
-pagination contract. Pagination should be audited separately before adding
-additional page requests.
+Romans follows its public page-number pagination until the requested maximum;
+Tom Hartley and Redline use bounded discovery queues and stop scheduling new
+detail/category pages as soon as the requested maximum is reached.
 
 ## Build and Docker context
 
