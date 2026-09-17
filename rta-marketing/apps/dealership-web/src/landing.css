@@ -64,6 +64,24 @@
 .public-vehicle-card-copy h4{min-height:38px}
 .public-vehicle-card-actions{border-top:1px solid #e7e9e3;display:flex;gap:12px;justify-content:space-between;margin-top:15px;padding-top:11px}
 .public-vehicle-card-actions .landing-vehicle-card-link{border:0;margin:0;padding:0}
+.public-vehicle-skeleton-grid{pointer-events:none}
+.public-vehicle-skeleton{background:#fff;border:1px solid #dde0d8;border-radius:5px;overflow:hidden}
+.public-vehicle-skeleton-image{aspect-ratio:3/2;background:linear-gradient(105deg,#e2e5e0 25%,#f2f3f0 45%,#e2e5e0 65%);background-size:220% 100%;animation:public-vehicle-shimmer 1.5s ease-in-out infinite}
+.public-vehicle-skeleton-image span{display:block;height:100%;background:linear-gradient(135deg,transparent 30%,#ffffff55 50%,transparent 70%)}
+.public-vehicle-skeleton-copy{display:grid;gap:12px;padding:17px}
+.public-vehicle-skeleton-line{display:block;border-radius:4px;background:linear-gradient(105deg,#e8eae6 25%,#f4f5f2 45%,#e8eae6 65%);background-size:220% 100%;animation:public-vehicle-shimmer 1.5s ease-in-out infinite}
+.public-vehicle-skeleton-line--source{height:9px;width:43%}
+.public-vehicle-skeleton-line--title{height:14px;margin-top:3px;width:82%}
+.public-vehicle-skeleton-line--title-short{height:14px;margin-top:-8px;width:55%}
+.public-vehicle-skeleton-copy>div{align-items:center;display:flex;justify-content:space-between;margin-top:3px}
+.public-vehicle-skeleton-line--price{height:16px;width:34%}
+.public-vehicle-skeleton-line--meta{height:10px;width:22%}
+.public-vehicle-skeleton-line--actions{border-top:1px solid #e7e9e3;height:29px;margin-top:2px}
+.public-inventory-refresh{align-items:center;color:#68766f;display:flex;font-size:11px;gap:7px;margin:0 0 12px}
+.public-inventory-hero-meta>span{min-height:17px}
+.public-inventory-state>svg{color:var(--landing-orange-dark)}
+.public-inventory-state button:disabled{cursor:wait;opacity:.65}
+@keyframes public-vehicle-shimmer{to{background-position:-220% 0}}
 .public-vehicle-compare-link{align-items:center;color:#53615a;display:inline-flex;font-size:9px;font-weight:800;gap:5px;white-space:nowrap}
 .public-vehicle-compare-link:hover{color:var(--landing-orange-dark)}
 .public-inventory-state{align-items:center;background:rgba(255,255,255,.72);border:1px solid #d9ddd4;border-radius:5px;color:#637169;display:flex;flex-direction:column;font-size:13px;gap:10px;margin:18px 0;padding:42px 20px;text-align:center}

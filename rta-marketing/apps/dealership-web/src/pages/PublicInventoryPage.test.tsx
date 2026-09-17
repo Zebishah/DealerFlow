@@ -52,6 +52,24 @@ afterEach(() => {
 });
 
 describe("public live inventory", () => {
+  it("shows featured vehicle-card loaders while landing inventory is loading", () => {
+    mocks.api.mockReturnValue(new Promise(() => undefined));
+    const { container, queryClient } = renderPage(<LandingPage />);
+
+    expect(screen.getByRole("status", { name: "Loading vehicle listings" })).toBeInTheDocument();
+    expect(container.querySelectorAll(".public-vehicle-skeleton")).toHaveLength(8);
+    queryClient.clear();
+  });
+
+  it("shows browse-card loaders while public inventory is loading", () => {
+    mocks.api.mockReturnValue(new Promise(() => undefined));
+    const { container, queryClient } = renderPage(<PublicInventoryPage />);
+
+    expect(screen.getByRole("status", { name: "Loading vehicle listings" })).toBeInTheDocument();
+    expect(container.querySelectorAll(".public-vehicle-skeleton")).toHaveLength(9);
+    queryClient.clear();
+  });
+
   it("shows real API listings and routes compare actions through sign-in", async () => {
     mocks.api.mockResolvedValue(response);
     const { queryClient } = renderPage(<PublicInventoryPage />);

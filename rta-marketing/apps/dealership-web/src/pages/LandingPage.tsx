@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertCircle,
   Activity,
   ArrowRight,
   ArrowUpRight,
@@ -14,6 +15,7 @@ import {
   FileText,
   GitBranch,
   Layers,
+  Loader2,
   Menu,
   MessageSquare,
   Search,
@@ -31,6 +33,7 @@ import { Link } from "../router/Navigation";
 import { openRtaAssistant } from "@rta/assistant-ui";
 import { api } from "../lib/api";
 import { PublicVehicleCard } from "../components/PublicVehicleCard";
+import { PublicVehicleGridSkeleton } from "../components/PublicVehicleGridSkeleton";
 import type { PublicInventoryResponse } from "../types/domain";
 import "../landing.css";
 
@@ -164,11 +167,12 @@ function InventorySection() {
         <div><p className="landing-eyebrow">LIVE SCRAPED INVENTORY</p><h3>Featured vehicles</h3></div>
         <Link className="landing-text-link" to="/inventory">View more vehicles <ArrowRight size={14} /></Link>
       </div>
-      {vehicles.length > 0 && <div className="landing-vehicle-cards">{vehicles.map((vehicle) => <PublicVehicleCard key={vehicle.id} item={vehicle} />)}</div>}
-      {inventory.isLoading && <div className="public-inventory-state">Loading current listings…</div>}
-      {inventory.isError && <div className="public-inventory-state" role="alert">Live listings are temporarily unavailable. <Link to="/inventory">Try the full inventory page</Link>.</div>}
-      {!inventory.isLoading && !inventory.isError && vehicles.length === 0 && <div className="public-inventory-state">No live vehicle listings are available yet. Check back after the next source run.</div>}
-      <div className="landing-inventory-cta"><span><Car size={17} /> Showing {vehicles.length} current listings from the live sources.</span><Link className="landing-text-link" to="/inventory">Browse and filter all vehicles <ArrowRight size={14} /></Link></div>
+      {vehicles.length > 0 && <div className="landing-vehicle-cards" aria-busy={inventory.isFetching}>{vehicles.map((vehicle) => <PublicVehicleCard key={vehicle.id} item={vehicle} />)}</div>}
+      {inventory.isFetching && !inventory.isLoading && <div className="public-inventory-refresh" role="status"><Loader2 size={14} className="spin" /> Refreshing featured vehicles…</div>}
+      {inventory.isLoading && <PublicVehicleGridSkeleton count={8} variant="featured" />}
+      {inventory.isError && <div className="public-inventory-state" role="alert"><AlertCircle size={24} /><strong>Live listings are temporarily unavailable.</strong><span>Please try again, or browse all inventory.</span><button type="button" disabled={inventory.isFetching} onClick={() => void inventory.refetch()}>{inventory.isFetching ? "Retrying…" : "Try again"}</button><Link to="/inventory">Open full inventory <ArrowRight size={14} /></Link></div>}
+      {!inventory.isLoading && !inventory.isError && vehicles.length === 0 && <div className="public-inventory-state"><Car size={25} /><strong>No live vehicles to show just yet.</strong><span>Listings will appear here when a live source has current inventory.</span><Link to="/inventory">Browse all inventory <ArrowRight size={14} /></Link></div>}
+      <div className="landing-inventory-cta"><span aria-live="polite">{inventory.isLoading ? <><Loader2 size={15} className="spin" /> Loading the latest source listings…</> : inventory.isError ? <><AlertCircle size={15} /> Listing count unavailable</> : vehicles.length === 0 ? <><Car size={17} /> No current listings</> : <><Car size={17} /> Showing {vehicles.length} current listings from the live sources.</>}</span><Link className="landing-text-link" to="/inventory">Browse and filter all vehicles <ArrowRight size={14} /></Link></div>
     </div>
   </section>;
 }

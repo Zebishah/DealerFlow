@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Car, ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
+import { AlertCircle, ArrowRight, Car, ChevronLeft, ChevronRight, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { PublicVehicleCard } from "../components/PublicVehicleCard";
+import { PublicVehicleGridSkeleton } from "../components/PublicVehicleGridSkeleton";
 import { api } from "../lib/api";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { Link } from "../router/Navigation";
@@ -49,7 +50,7 @@ export function PublicInventoryPage() {
         <p className="landing-eyebrow">REAL VEHICLES · LIVE SOURCE LISTINGS</p>
         <h1>Find your next<br /><span>vehicle signal.</span></h1>
         <p>Browse current vehicles collected from Romans International, Tom Hartley and Redline Specialist Cars. Open original listings freely; sign in to compare vehicles in RTA.</p>
-        <div className="public-inventory-hero-meta"><span><Car size={15} /> {total.toLocaleString()} matching listings</span><Link to="/login?next=%2Finventory">Sign in <ArrowRight size={14} /></Link></div>
+        <div className="public-inventory-hero-meta"><span aria-live="polite">{inventory.isLoading ? <><Loader2 size={15} className="spin" /> Loading matching listings</> : <><Car size={15} /> {total.toLocaleString()} matching listings</>}</span><Link to="/login?next=%2Finventory">Sign in <ArrowRight size={14} /></Link></div>
       </div>
     </section>
 
@@ -68,9 +69,12 @@ export function PublicInventoryPage() {
         </div>
         <p className="public-inventory-currency-note">Price filters use the numeric amount shown by each source; currencies are displayed as listed and are not converted.</p>
 
-        {inventory.isError && <div className="public-inventory-state" role="alert">We couldn’t load live inventory right now. Please try again in a moment.</div>}
-        {inventory.isLoading && <div className="public-inventory-state">Loading live listings…</div>}
-        {!inventory.isLoading && !inventory.isError && items.length > 0 && <div className="public-inventory-grid">{items.map((item) => <PublicVehicleCard item={item} key={item.id} />)}</div>}
+        {inventory.isError && <div className="public-inventory-state" role="alert"><AlertCircle size={24} /><strong>Inventory couldn’t be loaded.</strong><span>Check your connection and try again.</span><button type="button" disabled={inventory.isFetching} onClick={() => void inventory.refetch()}>{inventory.isFetching ? "Retrying…" : "Try again"}</button></div>}
+        {inventory.isLoading && <PublicVehicleGridSkeleton count={9} variant="browse" />}
+        {!inventory.isLoading && !inventory.isError && items.length > 0 && <>
+          {inventory.isFetching && <div className="public-inventory-refresh" role="status"><Loader2 size={14} className="spin" /> Updating results…</div>}
+          <div className="public-inventory-grid" aria-busy={inventory.isFetching}>{items.map((item) => <PublicVehicleCard item={item} key={item.id} />)}</div>
+        </>}
         {!inventory.isLoading && !inventory.isError && items.length === 0 && <div className="public-inventory-state"><Car size={25} /><strong>No vehicles match those filters.</strong><span>Try a broader search or clear your filters.</span><button type="button" onClick={clearFilters}>Clear filters</button></div>}
 
         {result && total > 0 && <div className="public-inventory-pagination"><span>Showing {offset + 1}–{Math.min(offset + items.length, total)} of {total.toLocaleString()}</span><div><button type="button" disabled={offset === 0 || inventory.isFetching} onClick={() => setOffset((current) => Math.max(0, current - pageSize))}><ChevronLeft size={16} /> Previous</button><button type="button" disabled={!result.page.hasMore || inventory.isFetching} onClick={() => setOffset((current) => current + pageSize)}>More vehicles <ChevronRight size={16} /></button></div></div>}
