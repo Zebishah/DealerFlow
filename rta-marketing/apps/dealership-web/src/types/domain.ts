@@ -54,6 +54,14 @@ export interface DealershipSummary {
   recentSales: Array<{ id: string; externalSaleId: string; customerName: string; vehicleDescription: string; status: string; salePriceCents: number; soldAt: string }>;
 }
 
+export interface DealershipAnalytics {
+  period: "last_6_months";
+  monthlySales: Array<{ month: string; fundedSales: number; revenueCents: number; grossProfitCents: number }>;
+  monthlyLeads: Array<{ month: string; total: number; converted: number }>;
+  leadPipeline: Array<{ status: "new" | "contacted" | "qualified" | "converted" | "lost"; count: number }>;
+  leadSources: Array<{ source: string; count: number }>;
+}
+
 export interface Lead {
   id: string;
   sourceId: string | null;

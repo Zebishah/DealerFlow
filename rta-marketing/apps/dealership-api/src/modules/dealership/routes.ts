@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, ilike, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import {
@@ -238,6 +238,66 @@ dealershipRouter.get(
         target: targetRows[0] ?? null,
         recentLeads: recentLeadRows,
         recentSales: recentSaleRows,
+      },
+    });
+  }),
+);
+
+dealershipRouter.get(
+  "/analytics",
+  requireRoles("admin", "employee", "recruiter"),
+  asyncHandler(async (request, response) => {
+    const workspaceId = requireWorkspace(request);
+    const now = new Date();
+    const rangeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+    const leadScope = visibleToUser(request.user!, workspaceId);
+    const saleScope = request.user!.role === "employee"
+      ? and(eq(sales.workspaceId, workspaceId), eq(sales.salespersonId, request.user!.id))!
+      : eq(sales.workspaceId, workspaceId);
+    const salesMonth = sql`date_trunc('month', ${sales.soldAt} AT TIME ZONE 'UTC')`;
+    const leadsMonth = sql`date_trunc('month', ${leads.createdAt} AT TIME ZONE 'UTC')`;
+    const leadSource = sql<string>`coalesce(${leadSources.name}, 'Unattributed')`;
+
+    const [monthlySales, monthlyLeads, leadPipeline, leadSourcesSummary] = await Promise.all([
+      db.select({
+        month: sql<string>`to_char(${salesMonth}, 'YYYY-MM')`,
+        fundedSales: sql<number>`count(*)::int`,
+        revenueCents: sql<number>`coalesce(sum(${sales.salePriceCents}), 0)::bigint`,
+        grossProfitCents: sql<number>`coalesce(sum(${sales.grossProfitCents}), 0)::bigint`,
+      }).from(sales).where(and(
+        saleScope,
+        eq(sales.status, "funded"),
+        gte(sales.soldAt, rangeStart),
+      )).groupBy(salesMonth).orderBy(salesMonth),
+      db.select({
+        month: sql<string>`to_char(${leadsMonth}, 'YYYY-MM')`,
+        total: sql<number>`count(*)::int`,
+        converted: sql<number>`count(*) filter (where ${leads.status} = 'converted')::int`,
+      }).from(leads).where(and(leadScope, gte(leads.createdAt, rangeStart)))
+        .groupBy(leadsMonth).orderBy(leadsMonth),
+      db.select({
+        status: leads.status,
+        count: sql<number>`count(*)::int`,
+      }).from(leads).where(leadScope).groupBy(leads.status),
+      db.select({
+        source: leadSource,
+        count: sql<number>`count(*)::int`,
+      }).from(leads).leftJoin(leadSources, eq(leads.sourceId, leadSources.id))
+        .where(and(leadScope, gte(leads.createdAt, rangeStart)))
+        .groupBy(leadSource).orderBy(desc(sql`count(*)`)).limit(6),
+    ]);
+
+    response.json({
+      data: {
+        period: "last_6_months",
+        monthlySales: monthlySales.map((month) => ({
+          ...month,
+          revenueCents: Number(month.revenueCents),
+          grossProfitCents: Number(month.grossProfitCents),
+        })),
+        monthlyLeads,
+        leadPipeline,
+        leadSources: leadSourcesSummary,
       },
     });
   }),

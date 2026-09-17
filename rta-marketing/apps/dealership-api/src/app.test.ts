@@ -137,6 +137,7 @@ void test("intelligence and acquisition endpoints reject unauthenticated access"
   await withServer(async ({ baseUrl }) => {
     const endpoints = [
       "/api/v1/dashboard/summary",
+      "/api/v1/dealership/analytics",
       "/api/v1/vehicles",
       "/api/v1/scrape-runs",
       "/api/v1/sources",

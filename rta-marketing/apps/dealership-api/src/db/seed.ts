@@ -219,16 +219,34 @@ async function seedDemoWorkspace(): Promise<void> {
   ]).onConflictDoNothing();
 
   const demoLeads = [
-    ["10100000-0000-4000-8000-000000000001", ids.webSource, "Amelia", "Martin", "qualified", "2023 Volkswagen Tiguan"],
-    ["10100000-0000-4000-8000-000000000002", ids.referralSource, "Liam", "Wilson", "contacted", "2022 Audi Q5"],
-    ["10100000-0000-4000-8000-000000000003", ids.walkInSource, "Noah", "Thompson", "new", "2024 Volkswagen Atlas"],
-    ["10100000-0000-4000-8000-000000000004", ids.webSource, "Olivia", "Singh", "converted", "2021 BMW X3"],
-    ["10100000-0000-4000-8000-000000000005", ids.webSource, "Ethan", "Brown", "qualified", "2023 Honda CR-V"],
-    ["10100000-0000-4000-8000-000000000006", ids.referralSource, "Sophia", "Garcia", "lost", "2020 Toyota RAV4"],
+    ["10100000-0000-4000-8000-000000000001", ids.webSource, "Amelia", "Martin", "qualified", "2023 Volkswagen Tiguan", 12],
+    ["10100000-0000-4000-8000-000000000002", ids.referralSource, "Liam", "Wilson", "contacted", "2022 Audi Q5", 10],
+    ["10100000-0000-4000-8000-000000000003", ids.walkInSource, "Noah", "Thompson", "new", "2024 Volkswagen Atlas", 8],
+    ["10100000-0000-4000-8000-000000000004", ids.webSource, "Olivia", "Singh", "converted", "2021 BMW X3", 6],
+    ["10100000-0000-4000-8000-000000000005", ids.webSource, "Ethan", "Brown", "qualified", "2023 Honda CR-V", 4],
+    ["10100000-0000-4000-8000-000000000006", ids.referralSource, "Sophia", "Garcia", "lost", "2020 Toyota RAV4", 2],
+    ["10100000-0000-4000-8000-000000000007", ids.walkInSource, "Isabella", "Reed", "contacted", "2024 BMW X5", 15],
+    ["10100000-0000-4000-8000-000000000008", ids.referralSource, "Mason", "Brooks", "new", "2022 Porsche Macan", 20],
+    ["10100000-0000-4000-8000-000000000009", ids.webSource, "Charlotte", "Price", "converted", "2021 Audi Q7", 25],
+    ["10100000-0000-4000-8000-000000000010", ids.webSource, "Benjamin", "Cox", "qualified", "2023 Mercedes-Benz GLC", 30],
+    ["10100000-0000-4000-8000-000000000011", ids.referralSource, "Amara", "Bennett", "lost", "2022 Lexus RX", 35],
+    ["10100000-0000-4000-8000-000000000012", ids.walkInSource, "Henry", "Ward", "new", "2024 Toyota Land Cruiser", 55],
+    ["10100000-0000-4000-8000-000000000013", ids.webSource, "Mia", "Foster", "contacted", "2021 Volvo XC90", 60],
+    ["10100000-0000-4000-8000-000000000014", ids.referralSource, "Elijah", "Gray", "converted", "2023 BMW 330i", 65],
+    ["10100000-0000-4000-8000-000000000015", ids.walkInSource, "Avery", "James", "qualified", "2022 Range Rover Sport", 85],
+    ["10100000-0000-4000-8000-000000000016", ids.webSource, "Lucas", "Hill", "new", "2020 Porsche Cayenne", 90],
+    ["10100000-0000-4000-8000-000000000017", ids.referralSource, "Ella", "Green", "lost", "2024 Audi Q5", 95],
+    ["10100000-0000-4000-8000-000000000018", ids.walkInSource, "James", "Adams", "contacted", "2021 Mercedes-Benz E-Class", 115],
+    ["10100000-0000-4000-8000-000000000019", ids.webSource, "Luna", "Nelson", "converted", "2023 Toyota Highlander", 120],
+    ["10100000-0000-4000-8000-000000000020", ids.referralSource, "Theodore", "Baker", "qualified", "2022 Genesis GV80", 125],
+    ["10100000-0000-4000-8000-000000000021", ids.walkInSource, "Nora", "Rivera", "new", "2024 Honda Pilot", 145],
+    ["10100000-0000-4000-8000-000000000022", ids.webSource, "Jack", "Campbell", "contacted", "2021 Acura MDX", 150],
+    ["10100000-0000-4000-8000-000000000023", ids.referralSource, "Zoe", "Mitchell", "converted", "2023 Volkswagen Golf R", 155],
+    ["10100000-0000-4000-8000-000000000024", ids.walkInSource, "Levi", "Roberts", "lost", "2020 BMW 540i", 160],
   ] as const;
 
   await db.insert(leads).values(
-    demoLeads.map(([id, sourceId, firstName, lastName, status, vehicleInterest], index) => ({
+    demoLeads.map(([id, sourceId, firstName, lastName, status, vehicleInterest, age], index) => ({
       id,
       workspaceId: ids.workspace,
       sourceId,
@@ -241,8 +259,10 @@ async function seedDemoWorkspace(): Promise<void> {
       phone: `+1 416 555 01${String(index + 1).padStart(2, "0")}`,
       vehicleInterest,
       status,
-      createdAt: daysAgo(12 - index * 2),
-      updatedAt: daysAgo(Math.max(0, 5 - index)),
+      contactedAt: status === "new" ? null : daysAgo(Math.max(age - 1, 0)),
+      convertedAt: status === "converted" ? daysAgo(Math.max(age - 2, 0)) : null,
+      createdAt: daysAgo(age),
+      updatedAt: daysAgo(Math.max(age - 2, 0)),
     })),
   ).onConflictDoNothing();
 
@@ -251,6 +271,24 @@ async function seedDemoWorkspace(): Promise<void> {
     ["10200000-0000-4000-8000-000000000002", "DEMO-SALE-1002", "Marcus Lee", "2023 Volkswagen Tiguan", 3_850_000, 420_000, 5],
     ["10200000-0000-4000-8000-000000000003", "DEMO-SALE-1003", "Ava Taylor", "2022 Audi Q5", 4_975_000, 510_000, 3],
     ["10200000-0000-4000-8000-000000000004", "DEMO-SALE-1004", "Lucas Moore", "2020 Toyota RAV4", 3_120_000, 365_000, 1],
+    ["10200000-0000-4000-8000-000000000005", "DEMO-SALE-1005", "Charlotte Price", "2021 Audi Q7", 5_890_000, 615_000, 10],
+    ["10200000-0000-4000-8000-000000000006", "DEMO-SALE-1006", "Benjamin Cox", "2023 Mercedes-Benz GLC", 6_250_000, 720_000, 15],
+    ["10200000-0000-4000-8000-000000000007", "DEMO-SALE-1007", "Mason Brooks", "2022 Porsche Macan", 7_450_000, 895_000, 20],
+    ["10200000-0000-4000-8000-000000000008", "DEMO-SALE-1008", "Amara Bennett", "2022 Lexus RX", 5_320_000, 545_000, 25],
+    ["10200000-0000-4000-8000-000000000009", "DEMO-SALE-1009", "Isabella Reed", "2024 BMW X5", 8_150_000, 935_000, 30],
+    ["10200000-0000-4000-8000-000000000010", "DEMO-SALE-1010", "Henry Ward", "2024 Toyota Land Cruiser", 9_250_000, 1_075_000, 35],
+    ["10200000-0000-4000-8000-000000000011", "DEMO-SALE-1011", "Elijah Gray", "2023 BMW 330i", 4_680_000, 585_000, 55],
+    ["10200000-0000-4000-8000-000000000012", "DEMO-SALE-1012", "Mia Foster", "2021 Volvo XC90", 6_730_000, 740_000, 60],
+    ["10200000-0000-4000-8000-000000000013", "DEMO-SALE-1013", "Avery James", "2022 Range Rover Sport", 10_250_000, 1_180_000, 65],
+    ["10200000-0000-4000-8000-000000000014", "DEMO-SALE-1014", "Lucas Hill", "2020 Porsche Cayenne", 7_180_000, 830_000, 85],
+    ["10200000-0000-4000-8000-000000000015", "DEMO-SALE-1015", "Ella Green", "2024 Audi Q5", 5_150_000, 570_000, 90],
+    ["10200000-0000-4000-8000-000000000016", "DEMO-SALE-1016", "James Adams", "2021 Mercedes-Benz E-Class", 5_780_000, 655_000, 95],
+    ["10200000-0000-4000-8000-000000000017", "DEMO-SALE-1017", "Luna Nelson", "2023 Toyota Highlander", 4_960_000, 520_000, 115],
+    ["10200000-0000-4000-8000-000000000018", "DEMO-SALE-1018", "Theodore Baker", "2022 Genesis GV80", 7_950_000, 910_000, 120],
+    ["10200000-0000-4000-8000-000000000019", "DEMO-SALE-1019", "Nora Rivera", "2024 Honda Pilot", 5_380_000, 605_000, 125],
+    ["10200000-0000-4000-8000-000000000020", "DEMO-SALE-1020", "Jack Campbell", "2021 Acura MDX", 5_690_000, 630_000, 145],
+    ["10200000-0000-4000-8000-000000000021", "DEMO-SALE-1021", "Zoe Mitchell", "2023 Volkswagen Golf R", 4_250_000, 485_000, 150],
+    ["10200000-0000-4000-8000-000000000022", "DEMO-SALE-1022", "Levi Roberts", "2020 BMW 540i", 4_890_000, 535_000, 155],
   ] as const;
 
   await db.insert(sales).values(

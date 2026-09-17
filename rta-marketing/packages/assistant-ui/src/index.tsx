@@ -29,13 +29,31 @@ export interface RtaAssistantProps {
 
 const maxHistory = 8;
 
-function readableAnswer(value: string): string {
+function markdownAsPlainText(value: string): string {
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/```[^\n]*\n?([\s\S]*?)```/g, (_match, code: string) => code.trimEnd())
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s*[-+*]\s+/gm, "• ")
+    .replace(/^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})\s*$/gm, "")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/_([^_\n]+)_/g, "$1")
+    .replace(/~~([^~\n]+)~~/g, "$1")
+    .replace(/\\([\\`*_{}\[\]()#+.!|>~-])/g, "$1");
+}
+
+export function formatAssistantAnswer(value: string): string {
+  let answer = value;
   try {
     const parsed = JSON.parse(value) as { answer?: unknown };
-    return typeof parsed.answer === "string" && parsed.answer.trim() ? parsed.answer : value;
-  } catch {
-    return value;
-  }
+    if (typeof parsed.answer === "string" && parsed.answer.trim()) answer = parsed.answer;
+  } catch { /* Model responses are normally plain text, not JSON. */ }
+  return markdownAsPlainText(answer);
 }
 
 function entityType(path: string): AssistantRequest["context"]["entityType"] {
@@ -82,7 +100,7 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
     try {
       const next = await request({ message: trimmed, history, context: { route: path, entityType: entityType(path) } });
       setAnswer(next);
-      setMessages((current) => [...current, { role: "assistant" as const, content: readableAnswer(next.answer) }].slice(-maxHistory));
+      setMessages((current) => [...current, { role: "assistant" as const, content: formatAssistantAnswer(next.answer) }].slice(-maxHistory));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The assistant is temporarily unavailable.");
     } finally {
