@@ -60,3 +60,13 @@ void test("image proxy rejects unapproved initial hosts before making a request"
   );
   assert.equal(requests, 0);
 });
+
+void test("image proxy reports the upstream status instead of disguising it as a missing URL", async () => {
+  await assert.rejects(
+    fetchApprovedSourceImage("https://images.67degreescdn.co.uk/car.jpg", async () => new Response("denied", { status: 403 })),
+    (error: unknown) => error instanceof AppError
+      && error.statusCode === 502
+      && error.code === "SOURCE_IMAGE_UPSTREAM_REJECTED"
+      && (error.details as { upstreamStatus?: number } | undefined)?.upstreamStatus === 403,
+  );
+});

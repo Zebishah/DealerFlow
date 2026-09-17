@@ -57,7 +57,7 @@ export function ScrapingResultsPage() {
   const activeJob = scrapeStatus.data?.data.activeJob ?? null;
   const scraperBusy = isActiveStatus(activeJob?.status);
   const trigger = useMutation({
-    mutationFn: (siteId: number) => api<{ data: { jobId: string; runId: string; siteName: string } }>(`/scraping-results/${siteId}/trigger`, { method: "POST", body: JSON.stringify({ limit: 5 }) }),
+    mutationFn: (siteId: number) => api<{ data: { jobId: string; runId: string; siteName: string } }>(`/scraping-results/${siteId}/trigger`, { method: "POST", body: JSON.stringify({ limit: 10 }) }),
     onSuccess: async (value) => {
       pendingRunId.current = value.data.runId || value.data.jobId;
       toast.success(`${displaySiteName(value.data.siteName)} queued`);

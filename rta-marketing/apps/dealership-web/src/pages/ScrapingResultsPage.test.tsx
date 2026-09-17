@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScrapingResultsPage } from "./ScrapingResultsPage";
 
@@ -56,6 +56,17 @@ describe("ScrapingResultsPage source capabilities", () => {
     for (const button of scrapeButtons) expect(button).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reference only" })).toBeDisabled();
     expect(screen.getByText("reference")).toBeInTheDocument();
+    queryClient.clear();
+  });
+
+  it("requests the full allowed ten vehicles when starting a scrape", async () => {
+    const { queryClient } = renderPage("admin");
+    const [romansButton] = await screen.findAllByRole("button", { name: "Scrape now" });
+    fireEvent.click(romansButton!);
+    await waitFor(() => expect(mocks.api).toHaveBeenCalledWith("/scraping-results/1/trigger", {
+      method: "POST",
+      body: JSON.stringify({ limit: 10 }),
+    }));
     queryClient.clear();
   });
 });

@@ -43,7 +43,12 @@ export async function fetchApprovedSourceImage(rawUrl: string, fetchImpl: typeof
     }
 
     if (!redirectStatuses.has(upstream.status)) {
-      if (!upstream.ok) throw new AppError(404, "SOURCE_IMAGE_UNAVAILABLE", "The source image is no longer available");
+      if (!upstream.ok) {
+        throw new AppError(502, "SOURCE_IMAGE_UPSTREAM_REJECTED", "The approved image host did not return the image.", {
+          hostname: target.hostname,
+          upstreamStatus: upstream.status,
+        });
+      }
       return upstream;
     }
     if (redirects === maxRedirects) throw new AppError(502, "SOURCE_IMAGE_REDIRECT_LIMIT", "The source image redirected too many times");

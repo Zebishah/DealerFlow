@@ -248,7 +248,7 @@ export function ScrapingResultsPage() {
     refetchInterval: 15_000,
   });
   const trigger = useMutation({
-    mutationFn: (siteId: number) => api(`/scraping-results/${siteId}/trigger`, { method: "POST" }),
+    mutationFn: (siteId: number) => api(`/scraping-results/${siteId}/trigger`, { method: "POST", body: JSON.stringify({ limit: 10 }) }),
     onMutate: (siteId) => setTriggeringSiteId(siteId),
     onSuccess: async (_data, siteId) => {
       toast.success("Scrape queued. New records will appear shortly.");

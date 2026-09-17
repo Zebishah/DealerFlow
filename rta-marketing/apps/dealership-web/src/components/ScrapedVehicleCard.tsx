@@ -1,6 +1,7 @@
 import { Car, ChevronRight, ExternalLink, Heart, ImageOff, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API_URL } from "../lib/api";
+import { isRomansImageUrl } from "../lib/vehicle-image-source";
 import { WorkflowModal } from "./WorkflowModal";
 import type { ScrapedListing } from "../types/domain";
 
@@ -15,42 +16,38 @@ function displaySiteName(name: string): string {
   return name.replace(/^Demo Source \(synthetic data\)$/i, "Generated inventory");
 }
 
+type ListingImageMode = "direct" | "proxy" | "representative" | "unavailable";
+
+function initialListingImageMode(thumbnailUrl: string | null): ListingImageMode {
+  if (!thumbnailUrl) return "representative";
+  return isRomansImageUrl(thumbnailUrl) ? "direct" : "proxy";
+}
+
 function ListingImage({ item }: { item: ScrapedListing }) {
   const thumbnailUrl = item.thumbnailUrl?.trim() || null;
-  const fallbackUrl = thumbnailUrl
-    ? null
-    : representativeVehicleImages[Math.abs(item.id) % representativeVehicleImages.length] ?? representativeVehicleImages[0];
-  const [sourceFailed, setSourceFailed] = useState(!thumbnailUrl);
-  const [fallbackFailed, setFallbackFailed] = useState(false);
-  const [sourceRetryCount, setSourceRetryCount] = useState(0);
+  const fallbackUrl = representativeVehicleImages[Math.abs(item.id) % representativeVehicleImages.length] ?? representativeVehicleImages[0];
+  const [imageMode, setImageMode] = useState<ListingImageMode>(() => initialListingImageMode(thumbnailUrl));
+  const [proxyRetryCount, setProxyRetryCount] = useState(0);
   const [loading, setLoading] = useState(Boolean(thumbnailUrl));
 
   useEffect(() => {
-    setSourceFailed(!thumbnailUrl);
-    setFallbackFailed(false);
-    setSourceRetryCount(0);
+    setImageMode(initialListingImageMode(thumbnailUrl));
+    setProxyRetryCount(0);
     setLoading(Boolean(thumbnailUrl));
   }, [item.id, thumbnailUrl]);
 
-  if (fallbackFailed) {
+  if (imageMode === "unavailable") {
     return <div className="vehicle-photo-placeholder" aria-label="Image unavailable">
       <ImageOff size={38} aria-hidden="true" />
       <span>Image unavailable</span>
     </div>;
   }
 
-  if (sourceFailed && !fallbackUrl) {
-    return <div className="vehicle-photo-placeholder" aria-label="Image unavailable">
-      <ImageOff size={38} aria-hidden="true" />
-      <span>Image unavailable</span>
-    </div>;
-  }
-
-  const imageSrc = sourceFailed
-    ? fallbackUrl!
-    : thumbnailUrl
-      ? `${API_URL}/scraping-results/image?url=${encodeURIComponent(thumbnailUrl)}&retry=${sourceRetryCount}`
-      : fallbackUrl ?? "";
+  const imageSrc = imageMode === "direct"
+    ? thumbnailUrl ?? ""
+    : imageMode === "proxy" && thumbnailUrl
+      ? `${API_URL}/scraping-results/image?url=${encodeURIComponent(thumbnailUrl)}&retry=${proxyRetryCount}`
+      : fallbackUrl;
   return <>
     <img
       key={imageSrc}
@@ -61,19 +58,21 @@ function ListingImage({ item }: { item: ScrapedListing }) {
       referrerPolicy="no-referrer"
       onLoad={() => setLoading(false)}
       onError={() => {
-        if (!sourceFailed && sourceRetryCount < 2) {
-          // A cold API instance or a transient source response should not
-          // immediately replace every real thumbnail with a dummy image.
-          setSourceRetryCount((count) => count + 1);
+        if (imageMode === "direct") {
+          setImageMode("proxy");
+          setLoading(true);
+          return;
+        }
+        if (imageMode === "proxy" && proxyRetryCount < 1) {
+          setProxyRetryCount((count) => count + 1);
           setLoading(true);
           return;
         }
         setLoading(false);
-        if (sourceFailed) setFallbackFailed(true);
-        else setSourceFailed(true);
+        setImageMode(imageMode === "representative" ? "unavailable" : "representative");
       }}
     />
-    {sourceFailed && <span className="vehicle-image-fallback-label">Representative image</span>}
+    {imageMode === "representative" && thumbnailUrl && <span className="vehicle-image-fallback-label">Representative image</span>}
     {loading && <div className="vehicle-image-loading" aria-label="Loading image"><Loader2 size={24} className="spin" /></div>}
   </>;
 }
