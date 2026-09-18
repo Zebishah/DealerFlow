@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { DealershipAnalytics } from "../types/domain";
 
 export type AnalyticsMonth = {
@@ -37,6 +38,11 @@ const money = (cents: number) => new Intl.NumberFormat("en-CA", {
   currency: "CAD",
   maximumFractionDigits: 0,
 }).format(cents / 100);
+const monthTitle = (point: AnalyticsMonth) => new Date(`${point.key}-01T00:00:00Z`).toLocaleDateString("en-CA", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
 function compactMoney(cents: number): string {
   const amount = cents / 100;
@@ -46,6 +52,7 @@ function compactMoney(cents: number): string {
 }
 
 export function RevenueTrendChart({ points }: { points: AnalyticsMonth[] }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const width = 760;
   const height = 280;
   const left = 63;
@@ -65,10 +72,11 @@ export function RevenueTrendChart({ points }: { points: AnalyticsMonth[] }) {
     .join(" ");
   const revenueArea = `${linePath("revenueCents")} L ${x(points.length - 1)} ${top + plotHeight} L ${x(0)} ${top + plotHeight} Z`;
   const hasSales = points.some((point) => point.revenueCents > 0);
+  const activePoint = activeIndex === null ? undefined : points[activeIndex];
 
   return <div className="analytics-chart-wrap">
     <div className="analytics-legend"><span><i className="analytics-legend-revenue" />Revenue</span><span><i className="analytics-legend-profit" />Gross profit</span></div>
-    <svg className="analytics-line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Monthly funded revenue and gross profit for the last six months">
+    <svg className="analytics-line-chart" viewBox={`0 0 ${width} ${height}`} role="group" aria-label="Monthly funded revenue and gross profit for the last six months">
       <defs><linearGradient id="analytics-revenue-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#635bdf" stopOpacity=".22" /><stop offset="100%" stopColor="#635bdf" stopOpacity="0" /></linearGradient></defs>
       {[0, 1, 2, 3].map((step) => {
         const value = chartMax * (1 - step / 3);
@@ -78,13 +86,28 @@ export function RevenueTrendChart({ points }: { points: AnalyticsMonth[] }) {
       <path d={revenueArea} fill="url(#analytics-revenue-area)" />
       <path d={linePath("revenueCents")} className="analytics-revenue-line" />
       <path d={linePath("grossProfitCents")} className="analytics-profit-line" />
-      {points.map((point, index) => <g key={point.key}>
-        <circle cx={x(index)} cy={y(point.revenueCents)} r="4.5" className="analytics-revenue-point"><title>{`${point.label}: revenue ${money(point.revenueCents)}`}</title></circle>
-        <circle cx={x(index)} cy={y(point.grossProfitCents)} r="4" className="analytics-profit-point"><title>{`${point.label}: gross profit ${money(point.grossProfitCents)}`}</title></circle>
+      {points.map((point, index) => <g
+        key={point.key}
+        className="analytics-line-month"
+        role="button"
+        tabIndex={0}
+        aria-label={`${point.label}: revenue ${money(point.revenueCents)}, gross profit ${money(point.grossProfitCents)}, ${point.fundedSales} funded deals`}
+        onMouseEnter={() => setActiveIndex(index)}
+        onMouseLeave={() => setActiveIndex(null)}
+        onFocus={() => setActiveIndex(index)}
+        onBlur={() => setActiveIndex(null)}
+      >
+        <circle cx={x(index)} cy={y(point.revenueCents)} r="12" className="analytics-point-hit-area" />
+        <circle cx={x(index)} cy={y(point.grossProfitCents)} r="12" className="analytics-point-hit-area" />
+        <circle cx={x(index)} cy={y(point.revenueCents)} r="4.5" className="analytics-revenue-point" />
+        <circle cx={x(index)} cy={y(point.grossProfitCents)} r="4" className="analytics-profit-point" />
         <text x={x(index)} y={height - 11} textAnchor="middle" className="analytics-axis-label">{point.label}</text>
       </g>)}
       {!hasSales && <text x={left + plotWidth / 2} y={top + plotHeight / 2} textAnchor="middle" className="analytics-empty-chart-label">No funded sales in this period yet</text>}
     </svg>
+    <div className="analytics-hover-stats" role="status" aria-live="polite">
+      {activePoint ? <><strong>{monthTitle(activePoint)}</strong><span>Revenue {money(activePoint.revenueCents)} · Gross profit {money(activePoint.grossProfitCents)} · {activePoint.fundedSales} funded deals</span></> : <><strong>Explore the trend</strong><span>Hover over or focus a month to inspect its figures.</span></>}
+    </div>
   </div>;
 }
 
@@ -97,51 +120,101 @@ const pipelineStages: Array<{ key: DealershipAnalytics["leadPipeline"][number]["
 ];
 
 export function LeadPipelineChart({ data }: { data: DealershipAnalytics["leadPipeline"] }) {
+  const [activeStage, setActiveStage] = useState<string | null>(null);
   const counts = new Map(data.map((item) => [item.status, item.count]));
   const total = data.reduce((sum, item) => sum + item.count, 0);
   const maximum = Math.max(...data.map((item) => item.count), 1);
 
-  return <div className="analytics-pipeline-list" aria-label="Lead pipeline by status">
+  return <div className="analytics-pipeline-list" role="group" aria-label="Lead pipeline by status">
     {pipelineStages.map((stage) => {
       const count = counts.get(stage.key) ?? 0;
       const percentage = total ? Math.round((count / total) * 100) : 0;
-      return <div className="analytics-pipeline-row" key={stage.key}>
+      return <div
+        className="analytics-pipeline-row"
+        key={stage.key}
+        role="group"
+        tabIndex={0}
+        aria-label={`${stage.label}: ${count} leads, ${percentage}% of pipeline`}
+        onMouseEnter={() => setActiveStage(stage.key)}
+        onMouseLeave={() => setActiveStage(null)}
+        onFocus={() => setActiveStage(stage.key)}
+        onBlur={() => setActiveStage(null)}
+      >
         <div className="analytics-pipeline-label"><span><i style={{ backgroundColor: stage.color }} />{stage.label}</span><strong>{count.toLocaleString()}<small>{percentage}%</small></strong></div>
         <div className="analytics-pipeline-track"><i style={{ width: `${(count / maximum) * 100}%`, backgroundColor: stage.color }} /></div>
       </div>;
     })}
+    <div className="analytics-hover-stats" role="status" aria-live="polite">
+      {activeStage === null ? <><strong>Explore the pipeline</strong><span>Hover over or focus a stage to inspect its share.</span></> : (() => {
+        const stage = pipelineStages.find((item) => item.key === activeStage);
+        const count = counts.get(activeStage as DealershipAnalytics["leadPipeline"][number]["status"]) ?? 0;
+        return <><strong>{stage?.label}</strong><span>{count.toLocaleString()} leads · {total ? Math.round((count / total) * 100) : 0}% of all pipeline records</span></>;
+      })()}
+    </div>
     <p className="analytics-chart-footnote">{total.toLocaleString()} leads across all pipeline stages</p>
   </div>;
 }
 
 export function LeadSourceChart({ data }: { data: DealershipAnalytics["leadSources"] }) {
+  const [activeSource, setActiveSource] = useState<string | null>(null);
+  const total = data.reduce((sum, item) => sum + item.count, 0);
   const maximum = Math.max(...data.map((item) => item.count), 1);
   if (!data.length) return <div className="analytics-empty-state">No lead source activity to report yet.</div>;
 
-  return <div className="analytics-source-list">
-    {data.map((item, index) => <div className="analytics-source-row" key={item.source}>
+  return <div className="analytics-source-list" role="group" aria-label="Lead acquisition sources">
+    {data.map((item, index) => <div
+      className="analytics-source-row"
+      key={item.source}
+      role="group"
+      tabIndex={0}
+      aria-label={`${item.source}: ${item.count} leads, ${total ? Math.round((item.count / total) * 100) : 0}% of sources`}
+      onMouseEnter={() => setActiveSource(item.source)}
+      onMouseLeave={() => setActiveSource(null)}
+      onFocus={() => setActiveSource(item.source)}
+      onBlur={() => setActiveSource(null)}
+    >
       <div><span><i className={`analytics-source-dot analytics-source-dot--${index % 4}`} />{item.source}</span><strong>{item.count.toLocaleString()}</strong></div>
       <div className="analytics-source-track"><i style={{ width: `${(item.count / maximum) * 100}%` }} /></div>
     </div>)}
+    <div className="analytics-hover-stats" role="status" aria-live="polite">
+      {activeSource === null ? <><strong>Explore acquisition mix</strong><span>Hover over or focus a source to inspect its share.</span></> : (() => {
+        const source = data.find((item) => item.source === activeSource);
+        return <><strong>{activeSource}</strong><span>{source?.count.toLocaleString() ?? 0} leads · {total ? Math.round(((source?.count ?? 0) / total) * 100) : 0}% of sources in this period</span></>;
+      })()}
+    </div>
     <p className="analytics-chart-footnote">Lead source for records created in the last six months</p>
   </div>;
 }
 
 export function MonthlyActivityChart({ points }: { points: AnalyticsMonth[] }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const maximum = Math.max(...points.flatMap((point) => [point.leads, point.fundedSales]), 1);
   const hasActivity = points.some((point) => point.leads || point.fundedSales);
+  const activePoint = activeIndex === null ? undefined : points[activeIndex];
 
   return <div className="analytics-activity-wrap">
     <div className="analytics-legend"><span><i className="analytics-legend-leads" />Leads</span><span><i className="analytics-legend-deals" />Funded deals</span></div>
-    <div className="analytics-activity-chart" role="img" aria-label="Monthly lead volume and funded deals for the last six months">
-      {points.map((point) => <div className="analytics-activity-month" key={point.key}>
+    <div className="analytics-activity-chart" role="group" aria-label="Monthly lead volume and funded deals for the last six months">
+      {points.map((point, index) => <button
+        type="button"
+        className="analytics-activity-month"
+        key={point.key}
+        aria-label={`${point.label}: ${point.leads} leads, ${point.convertedLeads} converted ${point.convertedLeads === 1 ? "lead" : "leads"}, ${point.fundedSales} funded deals`}
+        onMouseEnter={() => setActiveIndex(index)}
+        onMouseLeave={() => setActiveIndex(null)}
+        onFocus={() => setActiveIndex(index)}
+        onBlur={() => setActiveIndex(null)}
+      >
         <div className="analytics-activity-bars">
-          <i className="analytics-bar-leads" style={{ height: `${point.leads ? Math.max((point.leads / maximum) * 100, 4) : 0}%` }} title={`${point.leads} leads`} />
-          <i className="analytics-bar-deals" style={{ height: `${point.fundedSales ? Math.max((point.fundedSales / maximum) * 100, 4) : 0}%` }} title={`${point.fundedSales} funded deals`} />
+          <i className="analytics-bar-leads" style={{ height: `${point.leads ? Math.max((point.leads / maximum) * 100, 4) : 0}%` }} />
+          <i className="analytics-bar-deals" style={{ height: `${point.fundedSales ? Math.max((point.fundedSales / maximum) * 100, 4) : 0}%` }} />
         </div>
         <span>{point.label}</span>
-      </div>)}
+      </button>)}
       {!hasActivity && <p className="analytics-empty-chart-label">No activity in this period yet</p>}
+    </div>
+    <div className="analytics-hover-stats" role="status" aria-live="polite">
+      {activePoint ? <><strong>{monthTitle(activePoint)}</strong><span>{activePoint.leads} leads · {activePoint.convertedLeads} converted {activePoint.convertedLeads === 1 ? "lead" : "leads"} · {activePoint.fundedSales} funded deals · Revenue {money(activePoint.revenueCents)}</span></> : <><strong>Explore monthly activity</strong><span>Hover over or focus a month to inspect its figures.</span></>}
     </div>
   </div>;
 }

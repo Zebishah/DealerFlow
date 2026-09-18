@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnalyticsPage } from "./OperationsPages";
 
@@ -44,12 +44,28 @@ describe("performance analytics", () => {
 
     expect(await screen.findByText("Performance analytics")).toBeInTheDocument();
     expect(mocks.api).toHaveBeenCalledWith("/dealership/analytics");
-    expect(screen.getByRole("img", { name: /Monthly funded revenue and gross profit/ })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /Monthly lead volume and funded deals/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Monthly funded revenue and gross profit/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Monthly lead volume and funded deals/ })).toBeInTheDocument();
     expect(screen.getByText("Website")).toBeInTheDocument();
     expect(screen.getByText("Closed lost")).toBeInTheDocument();
     expect(document.querySelectorAll(".analytics-revenue-point")).toHaveLength(6);
     expect(document.querySelectorAll(".analytics-activity-month")).toHaveLength(6);
+
+    const revenueMonth = screen.getByRole("button", { name: /Apr: revenue.*2 funded deals/ });
+    fireEvent.mouseEnter(revenueMonth);
+    expect(within(revenueMonth.closest(".analytics-chart-wrap") as HTMLElement).getByRole("status")).toHaveTextContent(/April 2026.*Revenue.*100,000.*Gross profit.*12,000.*2 funded deals/);
+
+    const pipelineStage = screen.getByRole("group", { name: "Qualified: 3 leads, 17% of pipeline" });
+    fireEvent.mouseEnter(pipelineStage);
+    expect(within(pipelineStage.parentElement as HTMLElement).getByRole("status")).toHaveTextContent("3 leads · 17% of all pipeline records");
+
+    const leadSource = screen.getByRole("group", { name: "Website: 12 leads, 63% of sources" });
+    fireEvent.focus(leadSource);
+    expect(within(leadSource.parentElement as HTMLElement).getByRole("status")).toHaveTextContent("12 leads · 63% of sources in this period");
+
+    const activityMonth = screen.getByRole("button", { name: /Apr: 5 leads, 1 converted lead, 2 funded deals/ });
+    fireEvent.focus(activityMonth);
+    expect(within(activityMonth.parentElement?.parentElement as HTMLElement).getByRole("status")).toHaveTextContent(/April 2026.*5 leads.*1 converted lead.*2 funded deals.*100,000/);
     queryClient.clear();
   });
 });
