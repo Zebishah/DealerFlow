@@ -80,6 +80,58 @@ async function mockEmployeeApi(page: Page) {
   });
 }
 
+type CustomerOperationsFixture = {
+  role: "virtual_assistant" | "admin";
+  followUpStatus: "pending" | "completed";
+  appointments: Array<Record<string, unknown>>;
+  handoff: { id: string; workspaceId: string; subject: string; leadId: string | null; createdByUserId: string; assignedToUserId: string | null; priority: string; status: string; resolvedAt: string | null; version: number; leadName: string | null; creatorName: string } | null;
+  messages: Array<Record<string, unknown>>;
+};
+
+function vaUser(role: CustomerOperationsFixture["role"]) {
+  return role === "virtual_assistant"
+    ? { id: "va-1", workspaceId: "demo-workspace", email: "assistant@rta.demo", firstName: "Priya", lastName: "Shah", role, mustChangePassword: false, temporaryPasswordExpiresAt: null, emailVerifiedAt: "2026-01-01T00:00:00.000Z", isDemoRecruiter: false }
+    : { id: "admin-1", workspaceId: "demo-workspace", email: "admin@rta.demo", firstName: "Sales", lastName: "Manager", role, mustChangePassword: false, temporaryPasswordExpiresAt: null, emailVerifiedAt: "2026-01-01T00:00:00.000Z", isDemoRecruiter: false };
+}
+
+function createCustomerOperationsFixture(): CustomerOperationsFixture {
+  return {
+    role: "virtual_assistant",
+    followUpStatus: "pending",
+    appointments: [],
+    handoff: null,
+    messages: [],
+  };
+}
+
+async function mockVAOperationsApi(page: Page, fixture: CustomerOperationsFixture) {
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const currentUser = vaUser(fixture.role);
+    const lead = { id: "lead-1", sourceId: null, assignedToUserId: "va-1", externalReference: "VA-QUALIFIED-1", firstName: "Ethan", lastName: "Brown", email: "ethan@example.com", phone: "+441234567890", vehicleInterest: "2023 Honda CR-V", status: "qualified", notes: "Test-drive interest", version: 1, createdAt: "2026-09-20T08:00:00.000Z", updatedAt: "2026-09-20T08:30:00.000Z" };
+    const currentFollowUp = { id: "follow-up-1", workspaceId: "demo-workspace", leadId: lead.id, assignedToUserId: "va-1", createdByUserId: "va-1", dueAt: "2026-09-20T10:00:00.000Z", type: "call", status: fixture.followUpStatus, priority: "high", note: "Confirm test-drive timing", completedAt: fixture.followUpStatus === "completed" ? "2026-09-20T09:30:00.000Z" : null, version: fixture.followUpStatus === "completed" ? 2 : 1, leadName: "Ethan Brown", assignedName: "Priya Shah" };
+    const team = [currentUser, { id: "admin-1", firstName: "Sales", lastName: "Manager", email: "admin@rta.demo", role: "admin", isActive: true }, { id: "employee-1", firstName: "Daniel", lastName: "Brooks", email: "daniel@rta.demo", role: "employee", isActive: true }];
+    if (path.endsWith("/auth/session")) return route.fulfill({ json: { data: { user: currentUser, csrfToken: "test-csrf" } } });
+    if (path.endsWith("/dealership/bootstrap")) return route.fulfill({ json: { data: { workspace: { id: "demo-workspace", name: "RTA Demo Workspace", mode: "demo" }, user: currentUser, team, leadSources: [], financeProviders: [] } } });
+    if (path.includes("/dealership/leads")) return route.fulfill({ json: { data: [lead] } });
+    if (path.endsWith("/dealership/summary")) return route.fulfill({ json: { data: summary } });
+    if (path.endsWith("/customer-operations/notifications")) return route.fulfill({ json: { data: { unreadCount: 0, items: [] } } });
+    if (path.endsWith("/customer-operations/my-day")) return route.fulfill({ json: { data: { counts: { newLeads: 1, dueToday: fixture.followUpStatus === "pending" ? 1 : 0, overdue: 0, appointmentsToday: fixture.appointments.length, confirmations: 0, escalations: fixture.handoff?.status === "open" ? 1 : 0 }, priority: fixture.followUpStatus === "pending" ? [{ id: "follow-up-1", leadId: lead.id, firstName: lead.firstName, lastName: lead.lastName, status: "qualified", dueAt: currentFollowUp.dueAt, priority: currentFollowUp.priority, note: currentFollowUp.note }] : [] } } });
+    if (path.endsWith("/customer-operations/follow-ups/follow-up-1") && route.request().method() === "PATCH") { fixture.followUpStatus = "completed"; return route.fulfill({ json: { data: { ...currentFollowUp, status: "completed", version: 2, completedAt: "2026-09-20T09:30:00.000Z" } } }); }
+    if (path.endsWith("/customer-operations/follow-ups")) return route.fulfill({ json: { data: [currentFollowUp] } });
+    if (path.endsWith("/customer-operations/appointments") && route.request().method() === "POST") { const appointment = { id: "appointment-1", workspaceId: "demo-workspace", leadId: lead.id, assignedUserId: "va-1", salespersonId: null, createdByUserId: "va-1", scheduledAt: "2026-09-21T14:30:00.000Z", type: "test_drive", status: "scheduled", notes: "Bring vehicle history", version: 1, leadName: "Ethan Brown", assignedName: "Priya Shah" }; fixture.appointments = [appointment]; return route.fulfill({ status: 201, json: { data: appointment } }); }
+    if (path.endsWith("/customer-operations/appointments")) return route.fulfill({ json: { data: fixture.appointments } });
+    if (path.endsWith("/customer-operations/leads/lead-1/activities")) return route.fulfill({ json: { data: [] } });
+    if (path.endsWith("/customer-operations/inbox") && route.request().method() === "POST") { fixture.handoff = { id: "thread-1", workspaceId: "demo-workspace", subject: "trade_in_review: Ethan Brown needs appraisal", leadId: lead.id, createdByUserId: "va-1", assignedToUserId: "admin-1", priority: "high", status: "open", resolvedAt: null, version: 1, leadName: "Ethan Brown", creatorName: "Priya Shah" }; fixture.messages = [{ id: "message-1", threadId: "thread-1", authorUserId: "va-1", body: "Customer needs a trade estimate before proceeding.", createdAt: "2026-09-20T10:00:00.000Z", authorName: "Priya Shah" }]; return route.fulfill({ status: 201, json: { data: fixture.handoff } }); }
+    if (path.endsWith("/customer-operations/inbox")) return route.fulfill({ json: { data: fixture.handoff ? [fixture.handoff] : [] } });
+    if (path.endsWith("/customer-operations/inbox/thread-1/messages") && route.request().method() === "POST") { fixture.messages.push({ id: "message-2", threadId: "thread-1", authorUserId: "admin-1", body: "Please bring the appraisal to the sales desk.", createdAt: "2026-09-20T10:05:00.000Z", authorName: "Sales Manager" }); fixture.handoff = fixture.handoff ? { ...fixture.handoff, status: "waiting", version: fixture.handoff.version + 1 } : fixture.handoff; return route.fulfill({ status: 201, json: { data: fixture.messages.at(-1) } }); }
+    if (path.endsWith("/customer-operations/inbox/thread-1") && route.request().method() === "GET") return route.fulfill({ json: { data: { thread: fixture.handoff, messages: fixture.messages } } });
+    if (path.endsWith("/customer-operations/inbox/thread-1") && route.request().method() === "PATCH") { fixture.handoff = fixture.handoff ? { ...fixture.handoff, status: "resolved", resolvedAt: "2026-09-20T10:10:00.000Z", version: fixture.handoff.version + 1 } : fixture.handoff; return route.fulfill({ json: { data: fixture.handoff } }); }
+    if (path.endsWith("/customer-operations/performance")) return route.fulfill({ json: { data: { userId: currentUser.id, leadsAssigned: 2, leadsContacted: 2, followUpsCompleted: fixture.followUpStatus === "completed" ? 1 : 0, overdueFollowUps: 0, appointmentsBooked: fixture.appointments.length, appointmentsConfirmed: 0, appointmentsCompleted: 0, noShows: 0 } } });
+    return route.fulfill({ json: { data: [] } });
+  });
+}
+
 test("recruiter can move from dashboard to analytics and live inventory", async ({ page }) => {
   await mockRecruiterApi(page);
   await page.goto("/app/overview");
@@ -123,5 +175,74 @@ test("employee sees today operations and can accept a VA handoff", async ({ page
   await page.getByRole("button", { name: /trade_in_review: Ethan Brown/ }).click();
   await expect(page.getByRole("button", { name: "Accept handoff" })).toBeVisible();
   await page.getByRole("button", { name: "Accept handoff" }).click();
-  await expect(page.getByText("waiting")).toBeVisible();
+  await expect(page.locator(".status-chip.waiting")).toBeVisible();
+});
+
+test("virtual assistant completes a follow-up and books the next customer appointment", async ({ page }) => {
+  const fixture = createCustomerOperationsFixture();
+  await mockVAOperationsApi(page, fixture);
+  await page.goto("/app/my-day");
+  await expect(page.getByRole("heading", { name: "My day, clearly prioritized." })).toBeVisible();
+  await expect(page.getByText("Confirm test-drive timing")).toBeVisible();
+  await page.getByRole("link", { name: "Open follow-ups" }).click();
+  await expect(page.getByText("1 follow-ups")).toBeVisible();
+  await page.getByRole("button", { name: "Complete" }).click();
+  await expect(page.getByText("completed")).toBeVisible();
+  await page.getByRole("link", { name: "Appointments" }).click();
+  await page.getByRole("button", { name: "New appointment" }).click();
+  await page.getByLabel("Lead").selectOption("lead-1");
+  await page.getByLabel("Type").selectOption("test_drive");
+  await page.getByLabel("Notes").fill("Bring vehicle history");
+  await page.getByRole("button", { name: "Save appointment" }).click();
+  await expect(page.getByText("1 appointments")).toBeVisible();
+  await expect(page.getByText("test drive · Priya Shah")).toBeVisible();
+});
+
+test("virtual assistant creates a handoff and admin replies and resolves it", async ({ page }) => {
+  const fixture = createCustomerOperationsFixture();
+  await mockVAOperationsApi(page, fixture);
+  await page.goto("/app/leads");
+  await expect(page.getByText("Ethan Brown")).toBeVisible();
+  await page.getByRole("button", { name: "Activity" }).click();
+  await expect(page.getByRole("heading", { name: "Ethan Brown" })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("link", { name: "Operations inbox" }).click();
+  await page.getByRole("button", { name: "New handoff" }).click();
+  await page.getByLabel("Subject").fill("Ethan Brown needs appraisal");
+  await page.getByLabel("Priority").selectOption("high");
+  await page.getByLabel("Assign to").selectOption("admin-1");
+  await page.getByLabel("Message").fill("Customer needs a trade estimate before proceeding.");
+  await page.getByRole("button", { name: "Send handoff" }).click();
+  await expect(page.getByText("trade_in_review: Ethan Brown needs appraisal")).toBeVisible();
+
+  await page.reload();
+  fixture.role = "admin";
+  await page.goto("/app/inbox");
+  await page.getByRole("button", { name: /trade_in_review: Ethan Brown/ }).click();
+  await page.getByPlaceholder("Reply to this handoff…").fill("Please bring the appraisal to the sales desk.");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("Please bring the appraisal to the sales desk.")).toBeVisible();
+  const statusSelect = page.locator(".thread-admin-controls select").first();
+  await statusSelect.selectOption("resolved");
+  await expect(page.locator(".status-chip.resolved")).toBeVisible();
+
+  fixture.role = "virtual_assistant";
+  await page.reload();
+  await page.goto("/app/inbox");
+  await page.getByRole("button", { name: /trade_in_review: Ethan Brown/ }).click();
+  await expect(page.getByText("Please bring the appraisal to the sales desk.")).toBeVisible();
+  await expect(page.locator(".status-chip.resolved")).toBeVisible();
+});
+
+test("virtual assistant is redirected from every admin-only route", async ({ page }) => {
+  const fixture = createCustomerOperationsFixture();
+  await mockVAOperationsApi(page, fixture);
+  for (const restrictedPath of ["/app/configuration", "/app/source-control", "/app/access-requests", "/app/team", "/app/audit"]) {
+    await page.goto(restrictedPath);
+    await expect(page).toHaveURL(/\/app\/overview$/);
+    await expect(page.getByRole("link", { name: "Configuration" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Source controls" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Access requests" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Workspace configuration|Source controls|Access requests|Team operations|Audit history/ })).toHaveCount(0);
+  }
 });

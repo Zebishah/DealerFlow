@@ -88,7 +88,7 @@
 .public-vehicle-skeleton-line--price{height:16px;width:34%}
 .public-vehicle-skeleton-line--meta{height:10px;width:22%}
 .public-vehicle-skeleton-line--actions{border-top:1px solid #e7e9e3;height:29px;margin-top:2px}
-.public-inventory-refresh{align-items:center;color:#68766f;display:flex;font-size:11px;gap:7px;margin:0 0 12px}
+.public-inventory-refresh{align-items:center;color:#58665f;display:flex;font-size:11px;gap:7px;margin:0 0 12px}
 .public-inventory-hero-meta>span{min-height:17px}
 .public-inventory-state>svg{color:var(--landing-orange-dark)}
 .public-inventory-state button:disabled{cursor:wait;opacity:.65}

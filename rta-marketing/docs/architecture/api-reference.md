@@ -89,10 +89,12 @@ activity only; they do not send SMS, email, or external chat messages.
 | PATCH | `/customer-operations/follow-ups/:id` | Admin, employee, assistant | Complete or transition a follow-up with version protection |
 | GET/POST | `/customer-operations/leads/:leadId/activities` | Workspace roles / write-capable roles | Read or record contact notes and lead timeline activity |
 | GET/POST | `/customer-operations/inbox` | Admin, employee, assistant, recruiter | Read or create internal operational handoffs |
-| GET/POST | `/customer-operations/inbox/:id` | Thread participants/admin | Read a thread or add a reply |
+| GET | `/customer-operations/inbox/:id` | Thread participants/admin | Read a thread and its internal messages |
+| POST | `/customer-operations/inbox/:id/accept` | Assigned employee/assistant | Accept an assigned handoff and record the timeline event |
+| POST | `/customer-operations/inbox/:id/messages` | Thread participants/admin | Add an internal operational reply |
 | PATCH | `/customer-operations/inbox/:id` | Admin | Assign, reprioritize, resolve, or reopen a handoff |
-| GET | `/customer-operations/performance` | Admin, assistant, recruiter | Real customer-engagement activity metrics |
-| GET | `/customer-operations/admin-overview` | Admin, recruiter | Workspace VA workload and operational totals |
+| GET | `/customer-operations/performance` | Admin, employee, assistant, recruiter | Real customer-engagement activity metrics; employee/assistant scope is self-only |
+| GET | `/customer-operations/admin-overview` | Admin, recruiter | Workspace employee and VA workload and operational totals |
 | GET | `/customer-operations/notifications` | Workspace roles | Derived overdue, appointment, and handoff notifications |
 
 ## Private employee documents

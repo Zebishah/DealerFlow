@@ -43,3 +43,39 @@ test("login page has no serious accessibility violations", async ({ page }) => {
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
 });
+
+async function mockVAOperationsPages(page: import("@playwright/test").Page) {
+  const va = { id: "va-1", workspaceId: "demo-workspace", email: "assistant@rta.demo", firstName: "Priya", lastName: "Shah", role: "virtual_assistant", mustChangePassword: false, temporaryPasswordExpiresAt: null, emailVerifiedAt: "2026-01-01T00:00:00.000Z", isDemoRecruiter: false };
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/session")) return route.fulfill({ json: { data: { user: va, csrfToken: "test-csrf" } } });
+    if (path.endsWith("/dealership/bootstrap")) return route.fulfill({ json: { data: { workspace: { id: "demo-workspace", name: "RTA Demo Workspace", mode: "demo" }, user: va, team: [va], leadSources: [], financeProviders: [] } } });
+    if (path.endsWith("/dealership/summary")) return route.fulfill({ json: { data: { period: "2026-09", leads: { total: 2, new: 1, qualified: 1, converted: 0 }, sales: { total: 0, funded: 0, revenueCents: 0, grossProfitCents: 0, commissionCents: 0 }, target: null, recentLeads: [], recentSales: [] } } });
+    if (path.endsWith("/customer-operations/my-day")) return route.fulfill({ json: { data: { counts: { newLeads: 1, dueToday: 1, overdue: 0, appointmentsToday: 0, confirmations: 0, escalations: 0 }, priority: [] } } });
+    if (path.endsWith("/customer-operations/notifications")) return route.fulfill({ json: { data: { unreadCount: 0, items: [] } } });
+    if (path.endsWith("/customer-operations/performance")) return route.fulfill({ json: { data: { userId: va.id, leadsAssigned: 2, leadsContacted: 1, followUpsCompleted: 1, overdueFollowUps: 0, appointmentsBooked: 1, appointmentsConfirmed: 1, appointmentsCompleted: 0, noShows: 0 } } });
+    if (path.endsWith("/customer-operations/appointments") || path.endsWith("/customer-operations/follow-ups") || path.endsWith("/customer-operations/inbox")) return route.fulfill({ json: { data: [] } });
+    return route.fulfill({ json: { data: [] } });
+  });
+}
+
+test.describe("virtual assistant customer-operations accessibility", () => {
+  const pages = [
+    ["/app/my-day", "My day, clearly prioritized."],
+    ["/app/appointments", "Appointments that convert."],
+    ["/app/follow-ups", "Follow-ups without dropped threads."],
+    ["/app/inbox", "Handoffs that stay visible."],
+    ["/app/my-performance", "Measure the work behind the conversion."],
+    ["/app/performance-board", "Lead momentum, visible at a glance."],
+  ] as const;
+
+  for (const [path, heading] of pages) {
+    test(`${path} has no serious or critical axe findings`, async ({ page }) => {
+      await mockVAOperationsPages(page);
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
+    });
+  }
+});
