@@ -1,5 +1,4 @@
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
-import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { Router } from "express";
 import { z } from "zod";
 import { requireCsrf, requirePermission, requireRoles, requireSession } from "../../auth/session.js";
@@ -8,10 +7,12 @@ import { db } from "../../db/client.js";
 import { scrapeActorRuns, scrapedItems, scrapingSites } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
-import { logger } from "../../lib/logger.js";
-import { ApifyClientError, mapApifyStatus, requireApifyClient, type ApifyRun } from "./apify-client.js";
+import { ApifyClientError, mapApifyStatus, requireApifyClient } from "./apify-client.js";
 import { APPROVED_APIFY_SITE_KEYS, apifySiteKeyForBaseUrl, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
 import { fetchApprovedSourceImage } from "./image-proxy.js";
+import { createRateLimiter } from "../../infra/rate-limit.js";
+import { cacheAside, cacheScope } from "../../infra/cache.js";
+import { reconcileActorRun, terminalActorStatuses } from "./reconciliation.js";
 
 function isTransientDatabaseError(error: unknown): boolean {
   const candidate = error as { code?: string; cause?: { code?: string; message?: string } };
@@ -84,62 +85,71 @@ acquisitionRouter.get(
   "/public",
   asyncHandler(async (request, response) => {
     const query = publicInventoryQuerySchema.parse(request.query);
-    const siteRows = await db.select({ id: scrapingSites.id, name: scrapingSites.name, baseUrl: scrapingSites.baseUrl })
-      .from(scrapingSites)
-      .orderBy(scrapingSites.id);
-    const liveSites = siteRows
-      .map((site) => ({ ...site, siteKey: apifySiteKeyForBaseUrl(site.baseUrl) }))
-      .filter((site): site is typeof site & { siteKey: ApifySiteKey } => site.siteKey !== null);
-    const selectedSites = query.siteKey
-      ? liveSites.filter((site) => site.siteKey === query.siteKey)
-      : liveSites;
-    const sources = liveSites.map(({ id, name, siteKey }) => ({ id, name, siteKey }));
-    const siteIds = selectedSites.map((site) => site.id);
+    const payload = await cacheAside({
+      namespace: "scraped-inventory",
+      scope: "public",
+      filters: query,
+      ttlSeconds: 30,
+      load: async () => {
+        const siteRows = await db.select({ id: scrapingSites.id, name: scrapingSites.name, baseUrl: scrapingSites.baseUrl })
+          .from(scrapingSites)
+          .orderBy(scrapingSites.id);
+        const liveSites = siteRows
+          .map((site) => ({ ...site, siteKey: apifySiteKeyForBaseUrl(site.baseUrl) }))
+          .filter((site): site is typeof site & { siteKey: ApifySiteKey } => site.siteKey !== null);
+        const selectedSites = query.siteKey
+          ? liveSites.filter((site) => site.siteKey === query.siteKey)
+          : liveSites;
+        const sources = liveSites.map(({ id, name, siteKey }) => ({ id, name, siteKey }));
+        const siteIds = selectedSites.map((site) => site.id);
 
-    if (siteIds.length === 0) {
-      return response.json({ data: { items: [], sources }, page: { limit: query.limit, offset: query.offset, total: 0, hasMore: false } });
-    }
+        if (siteIds.length === 0) {
+          return { data: { items: [], sources }, page: { limit: query.limit, offset: query.offset, total: 0, hasMore: false } };
+        }
 
-    const conditions: SQL[] = [inArray(scrapedItems.siteId, siteIds)];
-    if (query.q) {
-      const search = `%${query.q}%`;
-      conditions.push(or(ilike(scrapedItems.title, search), ilike(scrapedItems.city, search))!);
-    }
-    const listedYear = sql`NULLIF(substring(${scrapedItems.year} from '[0-9]{4}'), '')::int`;
-    const listedPrice = sql`NULLIF(replace(substring(${scrapedItems.price} from '[0-9][0-9,.]*'), ',', ''), '')::numeric`;
-    const listedMileage = sql`NULLIF(replace(substring(${scrapedItems.mileage} from '[0-9][0-9,.]*'), ',', ''), '')::numeric`;
-    if (query.minYear) conditions.push(sql`${listedYear} >= ${query.minYear}`);
-    if (query.maxYear) conditions.push(sql`${listedYear} <= ${query.maxYear}`);
-    if (query.minPrice !== undefined) conditions.push(sql`${listedPrice} >= ${query.minPrice}`);
-    if (query.maxPrice !== undefined) conditions.push(sql`${listedPrice} <= ${query.maxPrice}`);
-    if (query.maxMileage !== undefined) conditions.push(sql`${listedMileage} <= ${query.maxMileage}`);
-    const where = and(...conditions);
-    const [items, totalRows] = await Promise.all([
-      db.select({
-        id: scrapedItems.id,
-        siteId: scrapedItems.siteId,
-        siteName: scrapingSites.name,
-        title: scrapedItems.title,
-        price: scrapedItems.price,
-        year: scrapedItems.year,
-        mileage: scrapedItems.mileage,
-        city: scrapedItems.city,
-        listingUrl: scrapedItems.listingUrl,
-        thumbnailUrl: scrapedItems.thumbnailUrl,
-        scrapedAt: scrapedItems.scrapedAt,
-      })
-        .from(scrapedItems)
-        .innerJoin(scrapingSites, eq(scrapedItems.siteId, scrapingSites.id))
-        .where(where)
-        .orderBy(desc(scrapedItems.scrapedAt), desc(scrapedItems.id))
-        .limit(query.limit)
-        .offset(query.offset),
-      db.select({ count: count(scrapedItems.id) })
-        .from(scrapedItems)
-        .where(where),
-    ]);
-    const total = Number(totalRows[0]?.count ?? 0);
-    response.json({ data: { items, sources }, page: { limit: query.limit, offset: query.offset, total, hasMore: query.offset + items.length < total } });
+        const conditions: SQL[] = [inArray(scrapedItems.siteId, siteIds)];
+        if (query.q) {
+          const search = `%${query.q}%`;
+          conditions.push(or(ilike(scrapedItems.title, search), ilike(scrapedItems.city, search))!);
+        }
+        const listedYear = sql`NULLIF(substring(${scrapedItems.year} from '[0-9]{4}'), '')::int`;
+        const listedPrice = sql`NULLIF(replace(substring(${scrapedItems.price} from '[0-9][0-9,.]*'), ',', ''), '')::numeric`;
+        const listedMileage = sql`NULLIF(replace(substring(${scrapedItems.mileage} from '[0-9][0-9,.]*'), ',', ''), '')::numeric`;
+        if (query.minYear) conditions.push(sql`${listedYear} >= ${query.minYear}`);
+        if (query.maxYear) conditions.push(sql`${listedYear} <= ${query.maxYear}`);
+        if (query.minPrice !== undefined) conditions.push(sql`${listedPrice} >= ${query.minPrice}`);
+        if (query.maxPrice !== undefined) conditions.push(sql`${listedPrice} <= ${query.maxPrice}`);
+        if (query.maxMileage !== undefined) conditions.push(sql`${listedMileage} <= ${query.maxMileage}`);
+        const where = and(...conditions);
+        const [items, totalRows] = await Promise.all([
+          db.select({
+            id: scrapedItems.id,
+            siteId: scrapedItems.siteId,
+            siteName: scrapingSites.name,
+            title: scrapedItems.title,
+            price: scrapedItems.price,
+            year: scrapedItems.year,
+            mileage: scrapedItems.mileage,
+            city: scrapedItems.city,
+            listingUrl: scrapedItems.listingUrl,
+            thumbnailUrl: scrapedItems.thumbnailUrl,
+            scrapedAt: scrapedItems.scrapedAt,
+          })
+            .from(scrapedItems)
+            .innerJoin(scrapingSites, eq(scrapedItems.siteId, scrapingSites.id))
+            .where(where)
+            .orderBy(desc(scrapedItems.scrapedAt), desc(scrapedItems.id))
+            .limit(query.limit)
+            .offset(query.offset),
+          db.select({ count: count(scrapedItems.id) })
+            .from(scrapedItems)
+            .where(where),
+        ]);
+        const total = Number(totalRows[0]?.count ?? 0);
+        return { data: { items, sources }, page: { limit: query.limit, offset: query.offset, total, hasMore: query.offset + items.length < total } };
+      },
+    });
+    response.json(payload);
   }),
 );
 
@@ -150,31 +160,36 @@ acquisitionRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const query = querySchema.parse(request.query);
-    const conditions: SQL[] = [];
-    if (query.q) {
-      const search = `%${query.q}%`;
-      conditions.push(or(ilike(scrapedItems.title, search), ilike(scrapedItems.city, search))!);
-    }
-    if (query.siteId) conditions.push(eq(scrapedItems.siteId, query.siteId));
-    if (query.minYear) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.year}, '[^0-9]', '', 'g'), '')::int >= ${query.minYear}`);
-    if (query.maxYear) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.year}, '[^0-9]', '', 'g'), '')::int <= ${query.maxYear}`);
-    if (query.maxPrice !== undefined) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.price}, '[^0-9.]', '', 'g'), '')::numeric <= ${query.maxPrice}`);
-    if (query.maxMileage !== undefined) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.mileage}, '[^0-9.]', '', 'g'), '')::numeric <= ${query.maxMileage}`);
-
-    const where = conditions.length ? and(...conditions) : undefined;
-    let result: Awaited<ReturnType<typeof loadScrapingResults>>;
-    try {
-      result = await retryTransientDatabase(() => loadScrapingResults(where, query.limit, query.offset));
-    } catch (error) {
-      if (isTransientDatabaseError(error)) {
-        throw new AppError(503, "SCRAPING_RESULTS_DATABASE_UNAVAILABLE", "Neon database is temporarily unreachable. Please retry in a few seconds.");
-      }
-      throw error;
-    }
-    const [items, totalRows, siteRows] = result;
-    const sites = siteRows.map((site) => ({ ...site, ...sourceExecutionMetadata(site.baseUrl) }));
-
-    response.json({ data: { items, sites }, page: { limit: query.limit, offset: query.offset, total: totalRows[0]?.count ?? 0, hasMore: query.offset + items.length < Number(totalRows[0]?.count ?? 0) } });
+    const payload = await cacheAside({
+      namespace: "scraped-inventory",
+      scope: cacheScope(request.user?.workspaceId, request.user?.role ?? "unknown"),
+      filters: query,
+      ttlSeconds: 30,
+      load: async () => {
+        const conditions: SQL[] = [];
+        if (query.q) {
+          const search = `%${query.q}%`;
+          conditions.push(or(ilike(scrapedItems.title, search), ilike(scrapedItems.city, search))!);
+        }
+        if (query.siteId) conditions.push(eq(scrapedItems.siteId, query.siteId));
+        if (query.minYear) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.year}, '[^0-9]', '', 'g'), '')::int >= ${query.minYear}`);
+        if (query.maxYear) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.year}, '[^0-9]', '', 'g'), '')::int <= ${query.maxYear}`);
+        if (query.maxPrice !== undefined) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.price}, '[^0-9.]', '', 'g'), '')::numeric <= ${query.maxPrice}`);
+        if (query.maxMileage !== undefined) conditions.push(sql`NULLIF(regexp_replace(${scrapedItems.mileage}, '[^0-9.]', '', 'g'), '')::numeric <= ${query.maxMileage}`);
+        const where = conditions.length ? and(...conditions) : undefined;
+        try {
+          const [items, totalRows, siteRows] = await retryTransientDatabase(() => loadScrapingResults(where, query.limit, query.offset));
+          const sites = siteRows.map((site) => ({ ...site, ...sourceExecutionMetadata(site.baseUrl) }));
+          return { data: { items, sites }, page: { limit: query.limit, offset: query.offset, total: totalRows[0]?.count ?? 0, hasMore: query.offset + items.length < Number(totalRows[0]?.count ?? 0) } };
+        } catch (error) {
+          if (isTransientDatabaseError(error)) {
+            throw new AppError(503, "SCRAPING_RESULTS_DATABASE_UNAVAILABLE", "Neon database is temporarily unreachable. Please retry in a few seconds.");
+          }
+          throw error;
+        }
+      },
+    });
+    response.json(payload);
   }),
 );
 
@@ -217,19 +232,12 @@ function loadScrapingResults(where: SQL | undefined, limit: number, offset: numb
 }
 
 const triggerBodySchema = z.object({ limit: z.coerce.number().int().min(1).max(10).optional(), siteKey: z.string().optional() }).strict();
-const terminalActorStatuses = ["completed", "failed", "cancelled"] as const;
-
 function apifyErrorToAppError(error: ApifyClientError): AppError {
   if (error.kind === "credentials") return new AppError(502, "SCRAPER_CREDENTIAL_REJECTED", "The Apify integration rejected its server credential.", { serviceStatus: "credential-rejected" });
   if (error.kind === "not-found") return new AppError(502, "SCRAPER_ACTOR_NOT_FOUND", "The configured Apify Actor or run was not found.", { serviceStatus: "upstream-error" });
   if (error.kind === "rate-limited") return new AppError(429, "SCRAPER_RATE_LIMITED", "Apify is rate limiting scrape requests. Please try again shortly.", { serviceStatus: "upstream-error" });
   if (error.kind === "malformed") return new AppError(502, "SCRAPER_UPSTREAM_INVALID_RESPONSE", "Apify returned an invalid response.", { serviceStatus: "upstream-error" });
   return new AppError(503, "SCRAPER_UPSTREAM_UNAVAILABLE", "The Apify scraping service is temporarily unavailable.", { serviceStatus: "upstream-error" });
-}
-
-function safeRunError(run: ApifyRun): string | null {
-  const status = mapApifyStatus(run.status);
-  return status === "failed" ? "The Apify Actor run failed." : null;
 }
 
 function publicActorRun(row: typeof scrapeActorRuns.$inferSelect) {
@@ -247,37 +255,6 @@ function publicActorRun(row: typeof scrapeActorRuns.$inferSelect) {
     durationMs: row.durationMs,
     failedReason: row.lastError,
   };
-}
-
-async function reconcileActorRun(row: typeof scrapeActorRuns.$inferSelect): Promise<typeof scrapeActorRuns.$inferSelect> {
-  if (terminalActorStatuses.includes(row.status as (typeof terminalActorStatuses)[number])) return row;
-  const key = row.siteKey as ApifySiteKey;
-  const client = requireApifyClient();
-  const remote = await client.getRun(row.apifyRunId, key);
-  const status = mapApifyStatus(remote.status);
-  const finishedAt = status === "completed" || status === "failed" || status === "cancelled" ? (remote.finishedAt ? new Date(remote.finishedAt) : new Date()) : null;
-  let output: Awaited<ReturnType<typeof client.getOutput>> | undefined;
-  if (status === "completed") {
-    try {
-      output = await client.getOutput(remote, key);
-    } catch (error) {
-      logger.warn({ siteKey: key, runId: row.apifyRunId, errorKind: error instanceof ApifyClientError ? error.kind : "unknown" }, "Apify run completed but output metadata was unavailable");
-    }
-  }
-  const startedAt = remote.startedAt ? new Date(remote.startedAt) : row.startedAt;
-  const durationMs = output?.durationMs ?? (finishedAt && startedAt ? Math.max(0, finishedAt.getTime() - startedAt.getTime()) : row.durationMs);
-  const [updated] = await db.update(scrapeActorRuns).set({
-    status,
-    foundCount: output?.foundCount ?? row.foundCount,
-    durationMs,
-    timings: output?.timings ?? row.timings,
-    startedAt,
-    finishedAt,
-    lastError: safeRunError(remote),
-    updatedAt: new Date(),
-  }).where(eq(scrapeActorRuns.id, row.id)).returning();
-  if (!updated) throw new Error("Apify run reconciliation failed");
-  return updated;
 }
 
 acquisitionRouter.get(
@@ -299,7 +276,7 @@ acquisitionRouter.get(
 
 acquisitionRouter.post(
   "/:siteId/trigger",
-  rateLimit({ windowMs: env.SCRAPE_RATE_LIMIT_WINDOW_MS, limit: env.SCRAPE_RATE_LIMIT_MAX, standardHeaders: "draft-8", legacyHeaders: false, keyGenerator: (request) => request.user?.id ?? ipKeyGenerator(request.ip ?? "unknown"), handler: (_request, response) => response.status(429).json({ error: { code: "SCRAPER_RATE_LIMITED", message: "Scraping was recently started. Please wait before trying again." } }) }),
+  createRateLimiter({ namespace: "scrape:trigger", windowMs: env.SCRAPE_RATE_LIMIT_WINDOW_MS, limit: env.SCRAPE_RATE_LIMIT_MAX, standardHeaders: "draft-8", legacyHeaders: false, identityMode: "user-or-ip", handler: (_request, response) => response.status(429).json({ error: { code: "SCRAPER_RATE_LIMITED", message: "Scraping was recently started. Please wait before trying again." } }) }),
   requireRoles("admin", "operator", "recruiter"),
   requirePermission("scraping.jobs.trigger"),
   requireCsrf,

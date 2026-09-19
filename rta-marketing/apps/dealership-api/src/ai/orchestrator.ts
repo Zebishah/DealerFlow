@@ -7,6 +7,7 @@ import { getAiProvider, type AiChatMessage } from "./provider.js";
 import { availableAssistantTools, getAssistantTool, type AssistantToolContext } from "./tools.js";
 import { isAssistantToolAllowed } from "./policy.js";
 import { logger } from "../lib/logger.js";
+import { incrementMetric } from "../infra/metrics.js";
 
 const safeRoutes = new Set([
   "/",
@@ -275,6 +276,7 @@ function parseProviderText(text: string, sources: AssistantAnswer["sources"], co
 }
 
 export async function answerAssistantRequest(input: unknown, user?: AuthenticatedUser, requestId?: string): Promise<AssistantAnswer> {
+  incrementMetric("ai_requests");
   const request = assistantRequestSchema.parse(input);
   if (request.message.length > env.AI_MAX_INPUT_CHARS) throw new AppError(400, "AI_INPUT_TOO_LARGE", `Assistant messages are limited to ${env.AI_MAX_INPUT_CHARS} characters`);
   const context = safeContext(request.context);

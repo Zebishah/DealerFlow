@@ -26,7 +26,7 @@
     "test": "npm run test:dealership-api && npm run test:dealership-web && npm run test:scraping",
     "test:dealership-api": "npm run test --workspace=@rta/dealership-api",
     "test:dealership-web": "npm run test --workspace=@rta/dealership-web",
-    "test:scraping": "tsx --test tests/*.test.ts && npm run test --workspace=@rta/scrapers && npm run test --workspace=@rta/scraping-actor",
+  "test:scraping": "tsx --test tests/*.test.ts && npm run test --workspace=@rta/shared && npm run test --workspace=@rta/scrapers && npm run test --workspace=@rta/scraping-actor",
     "benchmark:ai": "node scripts/ai-live-benchmark.mjs",
     "lint": "npm run lint --workspace=@rta/dealership-api && npm run lint --workspace=@rta/dealership-web",
     "db:migrate:scraping": "drizzle-kit migrate --config packages/db/drizzle.config.ts",

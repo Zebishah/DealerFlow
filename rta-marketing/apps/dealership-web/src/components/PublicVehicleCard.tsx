@@ -29,7 +29,7 @@ export function PublicVehicleCard({ item }: { item: ScrapedListing }) {
           referrerPolicy="no-referrer"
           onError={() => setImageMode(imageMode === "direct" ? "proxy" : "unavailable")}
         />
-        : <div className="public-vehicle-image-empty" aria-label="Vehicle image unavailable"><Car size={42} /><ImageOff size={16} /></div>}
+        : <div className="public-vehicle-image-empty" role="img" aria-label="Vehicle image unavailable"><Car size={42} /><ImageOff size={16} /></div>}
       <span className="landing-vehicle-badge">{item.siteName}</span>
       {item.year && <span className="landing-vehicle-year">{item.year}</span>}
     </div>

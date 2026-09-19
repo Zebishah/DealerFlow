@@ -20,6 +20,11 @@ export const SCRAPE_JOB_ATTEMPTS = 2;
 export const SCRAPE_RETRY_BACKOFF_MS = 5_000;
 export const SCRAPE_LOCK_SAFETY_MARGIN_MS = 10_000;
 
+const optionalBooleanString = z.preprocess(
+  (value) => value === undefined ? false : value,
+  z.union([z.boolean(), z.enum(["true", "false"]).transform((entry) => entry === "true")]),
+);
+
 export const siteConfigSchema = z.object({
   key: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
@@ -66,6 +71,8 @@ export const appConfigSchema = z.object({
   SCRAPE_MAX_LIMIT: z.coerce.number().int().min(1).max(10).default(10),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(1).default(1),
   MANUAL_SCRAPING_ONLY: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  ENABLE_LEGACY_WORKER: optionalBooleanString.default(false),
+  ALLOW_LEGACY_PRODUCTION_WRITES: optionalBooleanString.default(false),
   SCRAPE_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(20_000),
   SCRAPE_SELECTOR_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(8_000),
   SCRAPE_JOB_TIMEOUT_MS: z.coerce.number().int().min(30_000).max(300_000).default(60_000),
@@ -81,6 +88,12 @@ export const appConfigSchema = z.object({
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type ScrapedItem = z.infer<typeof scrapedItemSchema>;
 export type AppConfig = z.infer<typeof appConfigSchema>;
+
+export function legacyWorkerWriteGuard(config: Pick<AppConfig, "ENABLE_LEGACY_WORKER" | "ALLOW_LEGACY_PRODUCTION_WRITES" | "NODE_ENV">): { allowed: boolean; exitCode: 0 | 1; reason: "disabled" | "production-writes-not-approved" | "allowed" } {
+  if (!config.ENABLE_LEGACY_WORKER) return { allowed: false, exitCode: 0, reason: "disabled" };
+  if (config.NODE_ENV === "production" && !config.ALLOW_LEGACY_PRODUCTION_WRITES) return { allowed: false, exitCode: 1, reason: "production-writes-not-approved" };
+  return { allowed: true, exitCode: 0, reason: "allowed" };
+}
 
 export const baseScraperConfigSchema = appConfigSchema.pick({
   NODE_ENV: true,

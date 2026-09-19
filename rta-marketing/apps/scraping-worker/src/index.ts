@@ -2,10 +2,15 @@ import { rm, writeFile } from "node:fs/promises";
 import { Queue, UnrecoverableError, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { closeDatabase, persistScrapedItems, verifyDatabase } from "@rta/db";
-import { buildSuccessfulScrapeResult, createRedisConnectionConfig, isTerminalScrapeAttempt, loadConfig, logger, parseScrapeLimit, SCRAPE_JOB_ATTEMPTS, SCRAPE_LOCK_KEY, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT, SCRAPE_RETRY_BACKOFF_MS } from "@rta/shared";
+import { buildSuccessfulScrapeResult, createRedisConnectionConfig, isTerminalScrapeAttempt, legacyWorkerWriteGuard, loadConfig, logger, parseScrapeLimit, SCRAPE_JOB_ATTEMPTS, SCRAPE_LOCK_KEY, SCRAPE_LOCK_REFRESH_SCRIPT, SCRAPE_LOCK_RELEASE_SCRIPT, SCRAPE_RETRY_BACKOFF_MS } from "@rta/shared";
 import { scrapeSite, type ScrapeStage, type ScrapeTimings, type ScraperOptions } from "@rta/scrapers";
 
 const config = loadConfig();
+const legacyWorkerGuard = legacyWorkerWriteGuard(config);
+if (!legacyWorkerGuard.allowed) {
+  logger.warn({ event: "legacy_worker_disabled", reason: legacyWorkerGuard.reason }, "Legacy scraper worker is disabled; no production writes will be attempted");
+  process.exit(legacyWorkerGuard.exitCode);
+}
 const connection = createRedisConnectionConfig(config);
 const queue = new Queue("vehicle-scrape", { connection, defaultJobOptions: { attempts: SCRAPE_JOB_ATTEMPTS, backoff: { type: "exponential", delay: SCRAPE_RETRY_BACKOFF_MS }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } } });
 

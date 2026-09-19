@@ -25,14 +25,14 @@ export const knowledgeEntries: readonly KnowledgeEntry[] = [
     id: "architecture",
     topic: "architecture",
     title: "Application architecture",
-    content: "The main dealership web app calls an Express dealership API backed by Neon PostgreSQL. The separate scraping web app calls a scraping API backed by BullMQ and private Redis; a worker on Azure uses Cheerio or Playwright and persists normalized listings to Neon. AWS SQS and Lambda remain an isolated reference path disabled by default.",
+    content: "The dealership web app calls an Express API backed by Neon PostgreSQL, the durable source of truth. Approved vehicle scraping runs on demand in ephemeral Apify Actors. Upstash Redis is an API-side ephemeral layer for distributed rate limits, atomic AI quotas, and short-lived read caches; it does not run jobs. Older BullMQ/Azure scraper and AWS SQS/Lambda paths remain isolated reference architectures.",
     keywords: ["architecture", "technology", "stack", "postgres", "neon", "aws", "lambda", "sqs", "redis", "bullmq", "cloud"],
   },
   {
     id: "scraping",
     topic: "scraping",
     title: "Vehicle scraping workflow",
-    content: "Scraping is manual-only by default. Requests are authenticated, limited to an allowlisted source, bounded by vehicle limits, protected by a global one-job lock, and processed with one worker concurrency slot. Results are validated, normalized, deduplicated, and persisted. Live scraping has separate API and worker kill switches.",
+    content: "Live vehicle scraping is started on demand from the authenticated dealership dashboard through an allowlisted Apify Actor input. Each run is bounded by the requested vehicle limit, validates and normalizes source output, deduplicates records, and persists them to Neon. Upstash Redis protects API requests and quotas but does not run scraping jobs. The older manual-only API/worker path remains isolated reference architecture.",
     keywords: ["scrape", "scraping", "crawler", "source", "job", "pipeline", "duplicate", "deduplicate", "manual"],
   },
   {

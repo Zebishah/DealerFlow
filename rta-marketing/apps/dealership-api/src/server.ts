@@ -5,6 +5,7 @@ import { closeDatabase } from "./db/client.js";
 import { closeQueueClient } from "./queue/sqs.js";
 import { startOutboxDispatcher } from "./queue/outbox.js";
 import { logger } from "./lib/logger.js";
+import { closeRedis } from "./infra/redis.js";
 
 const server = createServer(createApp());
 const stopOutboxDispatcher = env.SQS_INTEGRATION_ENABLED
@@ -24,6 +25,7 @@ async function shutdown(signal: string): Promise<void> {
   setTimeout(() => process.exit(1), 30_000).unref();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   closeQueueClient();
+  await closeRedis();
   await closeDatabase();
   process.exit(0);
 }

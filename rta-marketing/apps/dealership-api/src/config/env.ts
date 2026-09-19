@@ -38,6 +38,7 @@ const envSchema = z
       .int()
       .min(1_000)
       .default(5_000),
+    REDIS_URL: z.string().url().optional().refine((value) => value === undefined || ["redis:", "rediss:"].includes(new URL(value).protocol), "REDIS_URL must use redis:// or rediss://"),
     QUEUE_PROVIDER: z.literal("sqs").default("sqs"),
     SQS_INTEGRATION_ENABLED: optionalBooleanString.default(false),
     AWS_REGION: z.string().min(1),
@@ -54,6 +55,8 @@ const envSchema = z
     APIFY_ACTOR_ID: optionalSecret,
     APIFY_API_BASE_URL: z.string().url().default("https://api.apify.com/v2"),
     APIFY_RUN_TIMEOUT_SECONDS: z.coerce.number().int().min(5).max(3_600).default(120),
+    APIFY_RECONCILIATION_STALE_MS: z.coerce.number().int().min(30_000).max(86_400_000).default(300_000),
+    APIFY_RECONCILIATION_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(25),
     APIFY_DEFAULT_SCRAPE_LIMIT: z.coerce.number().int().min(1).max(10).default(5),
     APIFY_MAX_SCRAPE_LIMIT: z.coerce.number().int().min(1).max(10).default(10),
     S3_DOCUMENT_BUCKET: z.string().min(3).max(63).optional(),

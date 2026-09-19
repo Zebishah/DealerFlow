@@ -1,6 +1,7 @@
 # Docker deployment
 
-The repository includes reproducible images for every active service:
+The repository includes reproducible images for the active API/web applications
+and retained legacy scraping components:
 
 | Service | Image base | Dockerfile |
 | --- | --- | --- |
@@ -49,8 +50,11 @@ Docker support does not replace the current production services:
 
 ```text
 dealership-web  → Vercel → dealership-api on Render → Apify Actor → Neon
+```
 
 ## Preserved legacy scraping deployment
+
+```text
 scraping-web    → Vercel
 scraping-api    → Render
 scraping-worker → Azure

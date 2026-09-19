@@ -8,14 +8,16 @@ inspection and legacy operation.
 ## Production topology
 
 ```text
-dealership-web  → dealership-api → Apify Actor → approved sources
-                    └────────────→ Neon
+dealership-web  → dealership-api → Apify Actor (on-demand) → approved sources
+                    ├────────────→ Neon PostgreSQL (durable data)
+                    └────────────↔ Upstash Redis (limits, quotas, read cache)
+```
 
+Preserved legacy/reference topology; not used by the current Apify dashboard:
+
+```text
 scraping-web    → scraping-api → Northflank Redis → scraping-worker on Azure
                                   └───────────────→ Neon
-
-legacy dealership worker path remains in the repository and is not called by
-the live dealership scraping dashboard
 ```
 
 ## Main dealership application
@@ -43,9 +45,10 @@ out of every normal dealership API startup.
 Follow [the scraping deployment guide](scraping.md) for the exact Vercel,
 Render, Northflank, Azure, Neon, GHCR, and environment configuration.
 
-The scraping worker is manual-only, limited to one active job, and runs with
-the configured five-vehicle default and ten-vehicle maximum. Do not enable an
-automatic schedule for the portfolio deployment.
+Current dealership scrapes run as ephemeral Apify Actor jobs on demand; there
+is no continuously running scraper worker or Redis job queue in that path. The
+older scraping stack remains a separate reference topology and should stay
+stopped unless deliberately reactivated.
 
 ## Secrets and cost controls
 

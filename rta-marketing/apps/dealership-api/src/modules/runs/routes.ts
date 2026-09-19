@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { createScrapeRunSchema } from "../../contracts/scrape.js";
@@ -8,11 +7,13 @@ import { assertOperator, requireCsrf, requireOperator, requirePermission, requir
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { cancelScrapeRun, createScrapeRun, getScrapeRun, listScrapeRuns, replaySourceRun } from "./run.service.js";
+import { createRateLimiter } from "../../infra/rate-limit.js";
 
 const idSchema = z.string().uuid();
 const listSchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) });
 
-const scrapeLimiter = rateLimit({
+const scrapeLimiter = createRateLimiter({
+  namespace: "scrape:legacy-trigger",
   windowMs: env.SCRAPE_RATE_LIMIT_WINDOW_MS,
   limit: env.SCRAPE_RATE_LIMIT_MAX,
   standardHeaders: "draft-8",

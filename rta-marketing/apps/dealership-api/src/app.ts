@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { optionalSession, requirePasswordChange } from "./auth/session.js";
@@ -21,6 +20,11 @@ import { sourcesRouter } from "./modules/sources/routes.js";
 import { acquisitionRouter } from "./modules/acquisition/routes.js";
 import { publicAccessRequestRouter } from "./modules/access-requests/routes.js";
 import { assistantRouter } from "./modules/assistant/routes.js";
+import { operationsRouter } from "./modules/operations/routes.js";
+import { cacheInvalidationMiddleware } from "./infra/cache.js";
+import { createRateLimiter } from "./infra/rate-limit.js";
+import { redisHealth } from "./infra/redis.js";
+import { requestMetricsMiddleware } from "./infra/metrics.js";
 
 export function createApp() {
   const app = express();
@@ -39,6 +43,7 @@ export function createApp() {
       redact: ["req.headers.authorization", "req.headers.cookie", "req.body.password"],
     }),
   );
+  app.use(requestMetricsMiddleware());
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(
     cors({
@@ -59,15 +64,15 @@ export function createApp() {
   );
   app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }));
   app.use(cookieParser());
-  app.use(
-    rateLimit({
-      windowMs: env.API_RATE_LIMIT_WINDOW_MS,
-      limit: env.API_RATE_LIMIT_MAX,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      skip: (request) => request.path.startsWith("/health/"),
-    }),
-  );
+  app.use(createRateLimiter({
+    namespace: "api",
+    windowMs: env.API_RATE_LIMIT_WINDOW_MS,
+    limit: env.API_RATE_LIMIT_MAX,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skip: (request) => request.path.startsWith("/health/"),
+  }));
+  app.use(cacheInvalidationMiddleware());
   app.use(optionalSession);
   app.use("/api/v1", requirePasswordChange);
 
@@ -75,31 +80,29 @@ export function createApp() {
   app.get("/health/ready", async (_request, response, next) => {
     try {
       await verifyDatabaseConnection();
-      response.json({ status: "ready" });
+      response.json({ status: "ready", dependencies: { database: { reachable: true }, redis: await redisHealth() } });
     } catch (error) {
       next(error);
     }
   });
 
-  app.use(
-    "/api/v1/auth/login",
-    rateLimit({
-      windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
-      limit: env.AUTH_RATE_LIMIT_MAX,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      skipSuccessfulRequests: true,
-      handler: (request, response) => {
-        response.status(429).json({
-          error: {
-            code: "LOGIN_RATE_LIMITED",
-            message: "Too many failed login attempts. Try again later.",
-            requestId: request.id,
-          },
-        });
-      },
-    }),
-  );
+  app.use("/api/v1/auth/login", createRateLimiter({
+    namespace: "auth:login",
+    windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+    limit: env.AUTH_RATE_LIMIT_MAX,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    handler: (request, response) => {
+      response.status(429).json({
+        error: {
+          code: "LOGIN_RATE_LIMITED",
+          message: "Too many failed login attempts. Try again later.",
+          requestId: request.id,
+        },
+      });
+    },
+  }));
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/access-requests", publicAccessRequestRouter);
   app.use("/api/v1/dashboard", dashboardRouter);
@@ -110,6 +113,7 @@ export function createApp() {
   app.use("/api/v1/sources", sourcesRouter);
   app.use("/api/v1/scraping-results", acquisitionRouter);
   app.use("/api/v1/assistant", assistantRouter);
+  app.use("/api/v1/operations", operationsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

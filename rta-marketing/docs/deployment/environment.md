@@ -25,7 +25,7 @@ only for `DATABASE_MIGRATION_URL` and migrations.
 
 ## Required attributes
 
-### Primary RTA API (SQS reference path)
+### Primary RTA API (Render; Apify scraping path)
 
 | Variable | Production value |
 |---|---|
@@ -36,19 +36,20 @@ only for `DATABASE_MIGRATION_URL` and migrations.
 | `PUBLIC_APP_URL` | Exact Vercel frontend URL |
 | `CORS_ORIGINS` | Exact frontend URL, comma-separated if more than one |
 | `DATABASE_URL` | Neon pooled connection URL |
-| `AWS_REGION` | Queue region, e.g. `ap-south-1` |
-| `SQS_INTEGRATION_ENABLED` | `false` for the portfolio runtime; set `true` only for an intentional AWS showcase run |
-| `SQS_SCRAPE_QUEUE_URL` | Main queue URL, required only when SQS integration is enabled |
-| `SCRAPING_STACK_API_URL` | HTTPS URL of the deployed scraping API |
-| `SCRAPING_STACK_API_TOKEN` | Same secret as the scraping API's `SCRAPE_TRIGGER_TOKEN`; server-only |
-| `QUEUE_OUTBOX_POLL_MS` / `QUEUE_OUTBOX_BATCH_SIZE` | `5000` / `10` |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dedicated API producer IAM user keys |
+| `REDIS_URL` | Upstash Redis TLS URL (`rediss://...`); shared by Render API instances |
+| `AWS_REGION` | Required config value, e.g. `ap-south-1`; SQS stays disabled in the live path |
+| `SQS_INTEGRATION_ENABLED` | `false`; set `true` only for an intentional AWS reference-path deployment |
 | `SESSION_SECRET` / `CSRF_SECRET` | Two independent 48+ character secrets |
 | `SESSION_COOKIE_SECURE` | `true` |
 | `SESSION_COOKIE_SAME_SITE` | `none` when frontend/API use different origins |
 | `DEMO_MODE` | `true` |
 | `DEFAULT_SCRAPE_MODE` | `fixture` |
 | `ALLOW_LIVE_SCRAPING` | `false` until live adapters are verified |
+
+`REDIS_URL` is server-only. The live Apify routes do not use the legacy SQS
+queue or scraping-stack API URL/token. `ALLOW_LIVE_SCRAPING` and
+`DEFAULT_SCRAPE_MODE` govern the retained `/scrape-runs` reference path; they do
+not disable `/scraping-results/:siteId/trigger`, the Apify route.
 
 Do not add `AWS_PROFILE` to a deployed service. Remove `SEED_OPERATOR_PASSWORD` after running the explicit seed command.
 
@@ -147,6 +148,11 @@ APIFY_RUN_TIMEOUT_SECONDS=120
 APIFY_DEFAULT_SCRAPE_LIMIT=5
 APIFY_MAX_SCRAPE_LIMIT=10
 ```
+
+Set the same Upstash `REDIS_URL` on the Render dealership API. It is used for
+cross-instance rate limiting, UTC-day AI quota counters, and expiring API
+caches—not scraping jobs. Keep the Upstash database private and use its TLS
+`rediss://` connection string.
 
 The Vercel dealership web app needs only its browser-safe API URL:
 

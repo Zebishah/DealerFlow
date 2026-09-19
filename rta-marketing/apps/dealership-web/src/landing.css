@@ -64,6 +64,15 @@
 .public-vehicle-card-copy h4{min-height:38px}
 .public-vehicle-card-actions{border-top:1px solid #e7e9e3;display:flex;gap:12px;justify-content:space-between;margin-top:15px;padding-top:11px}
 .public-vehicle-card-actions .landing-vehicle-card-link{border:0;margin:0;padding:0}
+.public-inventory-content .landing-eyebrow{color:#a43e2a}
+.public-inventory-title>span{color:#58665f}
+.public-inventory-currency-note{color:#58665f}
+.public-inventory-pagination{color:#58665f}
+.public-vehicle-card .landing-vehicle-card-copy>small{color:#5d655f}
+.public-vehicle-card .landing-vehicle-card-copy>div span{color:#58665f}
+.public-inventory-login-cta .landing-eyebrow{color:#ffd4c8}
+.public-inventory-login-cta .landing-button--primary{background:#b8422d}
+.public-inventory-login-cta .landing-eyebrow{color:#ffd4c8;font-size:8px}
 .public-vehicle-skeleton-grid{pointer-events:none}
 .public-vehicle-skeleton{background:#fff;border:1px solid #dde0d8;border-radius:5px;overflow:hidden}
 .public-vehicle-skeleton-image{aspect-ratio:3/2;background:linear-gradient(105deg,#e2e5e0 25%,#f2f3f0 45%,#e2e5e0 65%);background-size:220% 100%;animation:public-vehicle-shimmer 1.5s ease-in-out infinite}
@@ -266,3 +275,13 @@
 
 .landing-performance-cta{align-items:center;background:var(--landing-orange);border:0;border-radius:3px;color:#fff;cursor:pointer;display:inline-flex;font-size:10px;font-weight:800;gap:8px;margin-top:25px;padding:12px 14px}.landing-performance-cta:hover{background:var(--landing-orange-dark);transform:translateY(-1px)}
 .landing-vehicle-detail-note a{color:var(--landing-orange-dark);font-weight:800;text-decoration:underline;text-underline-offset:2px}
+
+/* Public inventory controls and metadata meet the WCAG AA contrast target. */
+.public-inventory-content .landing-eyebrow{color:#a43e2a}
+.public-inventory-title>span{color:#58665f}
+.public-inventory-currency-note{color:#58665f}
+.public-inventory-pagination{color:#58665f}
+.public-vehicle-card-copy>small{color:#5d655f}
+.public-vehicle-card-copy>div span{color:#58665f}
+.public-inventory-login-cta .landing-button--primary{background:#b8422d}
+.public-inventory-content .public-inventory-login-cta>div>.landing-eyebrow{color:#ffd4c8;font-size:8px}

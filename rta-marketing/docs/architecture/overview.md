@@ -4,18 +4,14 @@ This document records design choices implemented in the portfolio branch. It avo
 
 ## System boundary
 
-RTA is a modular monolith with a separately deployed ingestion worker. The API
-owns authentication, catalog queries, and persistence-facing commands. The
-repository also retains an isolated SQS/Lambda ingestion reference path for
-portfolio showcase; it is disabled by default. The separate scraping worker
-owns source acquisition, validation, normalization, identity resolution, and
-persistence.
-
-The scraping stack is intentionally isolated from the primary RTA API. It is a
-small Docker Compose application on Oracle containing the scraping API, a
-BullMQ worker, and private Redis. The primary RTA API retains an AWS
-SQS/Lambda reference path, but its dispatcher and Lambda event mappings are
-disabled by default for the portfolio runtime.
+RTA's current production application is a modular API and web frontend. Neon
+PostgreSQL is the durable source of truth. Approved vehicle scraping is
+executed by short-lived Apify Actor runs started on demand; no permanent scraper
+worker is required. Upstash Redis is an ephemeral API-side layer for
+distributed rate limits, atomic AI quotas, and short-lived read caches. The
+repository retains older BullMQ/Azure and SQS/Lambda ingestion paths for
+reference; they are separate from the active Apify flow and disabled unless
+explicitly deployed/configured.
 
 ## Reliable job creation
 
@@ -63,14 +59,14 @@ The DLQ isolates repeatedly failing messages. A dedicated reconciliation Lambda 
   portfolio runtime does not call AWS SQS. The scraping API uses its private
   Compose Redis connection and does not expose Redis publicly.
 
-## Caching and performance
+## Redis and caching
 
-The primary RTA API does not use Redis for browser-query caching. TanStack Query
-provides browser-side request deduplication, stale-data caching, and background
-refresh. The separate scraping stack uses Redis only as BullMQ's internal job
-backend; it is not exposed as a public cache or data API.
-
-If production measurements later show repeated expensive aggregate queries, add a short-lived server cache only for those measured endpoints, with explicit invalidation and hit-rate telemetry.
+The dealership API connects to Upstash via `REDIS_URL`. Redis is not a durable
+database or task queue: it backs distributed rate-limit counters, UTC-day AI
+quota counters, and short-lived cache-aside entries for dashboard summaries,
+source status, and scraped inventory. PostgreSQL remains authoritative; cache
+failures fall back to PostgreSQL. The legacy scraping stack's queue Redis is a
+separate retained reference component and is not used by Apify.
 
 ## Frontend organization
 

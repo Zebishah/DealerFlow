@@ -1,30 +1,36 @@
 import { Router } from "express";
-import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { assertCsrf, optionalSession } from "../../auth/session.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { answerAssistantRequest } from "../../ai/orchestrator.js";
+import { createRateLimiter } from "../../infra/rate-limit.js";
+import type { Store } from "express-rate-limit";
 
-export function createAssistantRouter(options?: { rateLimitMax?: number; dailyQuota?: number }) {
-  const assistantLimiter = rateLimit({
+export function createAssistantRouter(options?: { rateLimitMax?: number; dailyQuota?: number; rateLimitStore?: Store; dailyQuotaStore?: Store }) {
+  const assistantLimiter = createRateLimiter({
+    namespace: "ai:requests",
     windowMs: env.AI_RATE_LIMIT_WINDOW_MS,
     limit: options?.rateLimitMax ?? env.AI_RATE_LIMIT_MAX,
     standardHeaders: "draft-8",
     legacyHeaders: false,
-    keyGenerator: (request) => request.user?.id ?? ipKeyGenerator(request.ip ?? "anonymous"),
+    identityMode: "user-or-ip",
+    ...(options?.rateLimitStore ? { store: options.rateLimitStore } : {}),
     handler: (_request, response) => {
       response.status(429).json({ error: { code: "AI_RATE_LIMITED", message: "Assistant request limit reached. Please try again shortly." } });
     },
   });
 
-  const assistantDailyLimiter = rateLimit({
+  const assistantDailyLimiter = createRateLimiter({
+    namespace: "ai:daily",
     windowMs: 86_400_000,
     limit: options?.dailyQuota ?? env.AI_DAILY_QUOTA,
     standardHeaders: "draft-8",
     legacyHeaders: false,
-    keyGenerator: (request) => request.user?.id ?? ipKeyGenerator(request.ip ?? "anonymous"),
+    identityMode: "user-or-ip",
+    dailyUtc: true,
+    ...(options?.dailyQuotaStore ? { store: options.dailyQuotaStore } : {}),
     handler: (_request, response) => {
       response.status(429).json({ error: { code: "AI_DAILY_QUOTA_EXCEEDED", message: "The assistant daily quota has been reached. Please try again tomorrow." } });
     },

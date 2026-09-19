@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { ZodError } from "zod";
 import { isAppError } from "../lib/errors.js";
+import { incrementMetric } from "../infra/metrics.js";
 
 export const notFound: RequestHandler = (request, response) => {
   response.status(404).json({
@@ -29,6 +30,8 @@ export const errorHandler: ErrorRequestHandler = (error, request, response, _nex
     return;
   }
 
+  const errorText = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  if (/postgres|database|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENETUNREACH/i.test(errorText)) incrementMetric("db_errors");
   request.log.error({ err: error }, "Unhandled request error");
   response.status(500).json({
     error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred", requestId: request.id },

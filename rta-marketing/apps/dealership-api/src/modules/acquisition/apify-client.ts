@@ -1,5 +1,7 @@
 import { env } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
+import { incrementMetric } from "../../infra/metrics.js";
+import { isTransientHttpStatus, isTransientNetworkError, retryWithBackoff } from "../../infra/resilience.js";
 import type { ApifySiteKey } from "./source-mapping.js";
 
 export type ApifyErrorKind = "timeout" | "network" | "credentials" | "not-found" | "rate-limited" | "upstream" | "malformed";
@@ -32,6 +34,12 @@ export class ApifyClientError extends Error {
     super(message);
     this.name = "ApifyClientError";
   }
+}
+
+function isRetryableApifyError(error: unknown): boolean {
+  if (!(error instanceof ApifyClientError)) return isTransientNetworkError(error);
+  return error.kind === "timeout" || error.kind === "network" || error.kind === "rate-limited"
+    || (error.kind === "upstream" && error.statusCode !== undefined && isTransientHttpStatus(error.statusCode));
 }
 
 interface ApifyClientOptions {
@@ -95,7 +103,7 @@ export class ApifyClient {
     this.timeoutMs = options.timeoutMs ?? env.APIFY_RUN_TIMEOUT_SECONDS * 1_000;
   }
 
-  private async request(path: string, init: RequestInit, operation: string, siteKey?: ApifySiteKey): Promise<unknown> {
+  private async requestOnce(path: string, init: RequestInit, operation: string, siteKey?: ApifySiteKey): Promise<unknown> {
     const startedAt = Date.now();
     let response: Response;
     try {
@@ -117,10 +125,32 @@ export class ApifyClient {
     return payload;
   }
 
+  private async request(path: string, init: RequestInit, operation: string, siteKey?: ApifySiteKey): Promise<unknown> {
+    // GET status/output calls are safe to retry. A POST run creation is deliberately
+    // single-attempt because a timeout leaves its remote outcome uncertain.
+    const retryable = init.method?.toUpperCase() === "GET";
+    return retryWithBackoff(
+      () => this.requestOnce(path, init, operation, siteKey),
+      {
+        maxAttempts: retryable ? 3 : 1,
+        baseDelayMs: 150,
+        maxDelayMs: 1_000,
+        shouldRetry: isRetryableApifyError,
+      },
+    );
+  }
+
   async startRun(siteKey: ApifySiteKey, limit: number): Promise<ApifyRun> {
+    incrementMetric("apify_dispatch_attempts");
     const actorId = encodeURIComponent(this.options.actorId);
-    const payload = await this.request(`/acts/${actorId}/runs`, { method: "POST", body: JSON.stringify({ siteKey, limit }) }, "start-run", siteKey);
-    return runFromPayload(payload, "start-run");
+    try {
+      const payload = await this.request(`/acts/${actorId}/runs`, { method: "POST", body: JSON.stringify({ siteKey, limit }) }, "start-run", siteKey);
+      const run = runFromPayload(payload, "start-run");
+      return run;
+    } catch (error) {
+      incrementMetric("apify_dispatch_failures");
+      throw error;
+    }
   }
 
   async getRun(runId: string, siteKey?: ApifySiteKey): Promise<ApifyRun> {

@@ -1,10 +1,11 @@
 # Apify scraping runtime
 
-The Apify Actor is the live execution target for the dealership dashboard's
-approved public vehicle sources. The existing BullMQ/Redis queue, scraping API,
-scraping worker, Azure VM deployment, GitHub worker CI, retry/backoff,
-distributed locking, stale-job recovery, and observability paths remain in the
-repository as reference architecture.
+The Apify Actor is the live on-demand scraping worker for the dealership
+dashboard's approved public vehicle sources. The API uses Upstash Redis only
+for distributed request limits, atomic AI quota counters, and short-lived
+read-through caches. The older BullMQ/Redis scraping API and Azure worker remain
+in the repository as a separate legacy reference architecture; they are not
+used by the live Apify flow.
 
 ## Source audit
 
@@ -31,14 +32,17 @@ rather than silently treated as approved.
 
 ## Two supported architectures
 
-### Existing queue runtime
+### Retained legacy queue runtime
 
-The existing production path remains:
+The older, separately deployed queue path is retained for reference and is not
+the current production dashboard scraping path:
 
 `scraping-api -> BullMQ/Redis -> scraping-worker -> @rta/scrapers -> @rta/db`
 
-It continues to own manual triggers, queue retries, distributed scrape locks,
-stale-job recovery, status updates, and the existing PakWheels/OLX adapters.
+When intentionally operated, it owns its legacy manual triggers, queue retries,
+distributed scrape locks, stale-job recovery, status updates, and PakWheels/OLX
+adapters. Its Redis instance is queue-specific and distinct from the current
+dealership API's Upstash Redis usage.
 
 ### Current dealership dashboard runtime
 
@@ -46,8 +50,10 @@ The live dealership flow is:
 
 `dealership-web -> dealership-api -> Apify Actor -> approved sources -> Neon`
 
-The API stores only Apify run metadata. The Actor remains the sole writer of
-scraped vehicle records, preventing duplicate persistence.
+The API stores Apify run metadata and uses Upstash Redis for ephemeral API
+state. The Actor remains the sole writer of scraped vehicle records, preventing
+duplicate persistence. Apify starts an ephemeral Actor run only after a
+dashboard trigger; there is no always-running scraper worker in this flow.
 
 ### Apify runtime
 
@@ -58,6 +64,28 @@ The Actor path is:
 The Actor validates `{ siteKey, limit }`, verifies the database, invokes the
 shared adapter, persists normalized items, writes `OUTPUT`, and exits. It has
 no BullMQ or Redis dependency and cannot select rejected or legacy sources.
+
+### Current API Redis responsibilities
+
+`REDIS_URL` points to Upstash Redis using `rediss://`. PostgreSQL remains the
+durable source of truth; Redis holds only expiring counters and cache entries:
+
+- Distributed API, auth, scrape-trigger, and assistant rate limits use atomic
+  namespaced counters with TTLs. Identifiers are HMAC-hashed before storage.
+- The assistant daily quota uses one atomic counter per UTC date and hashed
+  user/IP principal; it expires at the next UTC midnight.
+- Dashboard summary (45 seconds), source status (20 seconds), and catalog plus
+  scraped-inventory list/search responses (30 seconds) use cache-aside entries.
+- Cache keys include a hashed workspace/visibility scope and a hash of
+  canonicalized filters. Version keys invalidate result families without Redis
+  `KEYS` or scanning.
+- When the API observes a completed Apify run, after the Actor has persisted
+  its output, it bumps dashboard/source/inventory cache versions. Cache failures
+  fall back to PostgreSQL; rate-limit and quota Redis failures fail closed with
+  a safe 503.
+
+Without `REDIS_URL`, local and test API runs use the in-memory rate-limit store
+and bypass server caching. Production instances should share one Upstash URL.
 
 The `limit` is a maximum, not a minimum. For example, `Requested: 5, Found: 3,
 Status: completed` is successful. A normally loaded page with zero valid

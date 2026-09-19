@@ -1,10 +1,11 @@
 # RTA — AI-Powered Automotive Dealership Operations & Vehicle Intelligence
 
-RTA is a portfolio-grade dealership operations platform with on-demand vehicle
-intelligence. The live dealership dashboard runs approved international
-scrapes through Apify and persists Actor output into Neon. The previous
-BullMQ/Redis/Azure implementation remains in the repository as an isolated
-reference architecture.
+RTA is a dealership operations platform with on-demand vehicle intelligence.
+The live dashboard runs approved vehicle scrapes through ephemeral Apify Actor
+runs and persists results into Neon. Upstash Redis is an ephemeral API layer for
+distributed request limits, AI quotas, and short-lived read caches; it is not a
+job queue or worker backend. The previous BullMQ/Redis/Azure implementation
+remains as a separate legacy reference architecture.
 
 The product includes a site-wide, read-only RTA Assistant. It combines curated
 product knowledge with role- and workspace-authorized tools for natural-language
@@ -20,9 +21,9 @@ or start scraping jobs. Public/demo conversations use sanitized context.
 |---|---|---|
 | `apps/dealership-web` | Main dealership dashboard for leads, sales, documents, targets, commissions, team, audit, and vehicle intelligence | Vercel or static hosting |
 | `apps/dealership-api` | Main authenticated RTA API, PostgreSQL domain, S3 documents, and Apify dashboard integration | Render |
-| `apps/scraping-web` | Legacy/reference scraping dashboard and persisted vehicle search | Vercel |
-| `apps/scraping-api` | Authenticated BullMQ job producer and scraping API | Render |
-| `apps/scraping-worker` | Cheerio/Playwright worker with Chromium | Azure VM |
+| `apps/scraping-web` | Legacy/reference scraping dashboard and persisted vehicle search | Vercel (legacy) |
+| `apps/scraping-api` | Legacy BullMQ job producer and scraping API | Render (legacy) |
+| `apps/scraping-worker` | Legacy Cheerio/Playwright queue consumer | Azure VM (not part of current Apify flow) |
 
 ## Shared packages
 
@@ -36,19 +37,22 @@ because it has a different deployment and data responsibility.
 ## Live production architecture
 
 The live flow is `dealership-web → dealership-api → Apify Actor → approved
-international sources → Neon → dashboard refresh`. The dealership API starts
-an asynchronous Apify run, persists only run metadata, and the Actor remains
-the sole writer of scraped vehicle records.
+international sources → Neon → dashboard refresh`. Upstash Redis sits beside
+the API for distributed limits/quotas and short-lived caches. The dealership
+API starts an on-demand Apify run and persists run metadata; the Actor remains
+the sole writer of scraped vehicle records. This flow needs no permanent
+scraper worker or Redis-backed job queue.
 
 ## Legacy/reference architecture
 
 ```mermaid
 flowchart LR
   DW[dealership-web] --> DA[dealership-api]
+  DA <--> UR[Upstash Redis\nrate limits · AI quotas · cache]
   DA --> AWS[AWS SQS + Lambda reference path\n(disabled by default)]
   DA --> N[Neon PostgreSQL]
   SW[scraping-web] --> SA[scraping-api]
-  SA --> R[Northflank Redis]
+  SA --> R[Legacy Redis/BullMQ]
   R --> WK[scraping-worker on Azure]
   WK --> N
   SA --> N

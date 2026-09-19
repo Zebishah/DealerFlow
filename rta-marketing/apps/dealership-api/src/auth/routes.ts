@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Response } from "express";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { createOpaqueToken, hashOpaqueToken, RESET_TOKEN_TTL_MINUTES, splitFullName, tokenExpiry, VERIFICATION_TOKEN_TTL_MINUTES } from "./tokens.js";
 import { env } from "../config/env.js";
@@ -13,6 +12,7 @@ import { addressEmail, sendEmailSafely } from "../services/email/email.service.j
 import { verificationEmail, passwordResetEmail } from "../services/email/templates.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createSession, requireCsrf, requireSession, rotateCsrfToken, sessionCookieOptions } from "./session.js";
+import { createRateLimiter } from "../infra/rate-limit.js";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -112,9 +112,9 @@ function authResponse(response: Response, user: NonNullable<Awaited<ReturnType<t
   });
 }
 
-const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
-const verificationLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
-const passwordResetLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
+const signupLimiter = createRateLimiter({ namespace: "auth:signup", windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
+const verificationLimiter = createRateLimiter({ namespace: "auth:verification", windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
+const passwordResetLimiter = createRateLimiter({ namespace: "auth:password-reset", windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
 
 function publicUrl(path: string): string {
   return `${(env.DEALERSHIP_WEB_URL ?? env.PUBLIC_APP_URL).replace(/\/$/, "")}${path}`;

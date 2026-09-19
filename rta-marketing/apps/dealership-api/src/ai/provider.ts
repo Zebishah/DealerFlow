@@ -1,5 +1,7 @@
 import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
+import { observeAiProvider, incrementMetric } from "../infra/metrics.js";
+import { isTransientNetworkError, isTransientHttpStatus } from "../infra/resilience.js";
 
 export type AiChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -29,6 +31,78 @@ export interface AiProvider {
 }
 
 export type ProviderName = "gemini" | "groq" | "openrouter" | "openai-compatible";
+
+export class ProviderCircuitOpenError extends Error {
+  constructor(readonly provider: ProviderName) {
+    super(`${provider} provider is temporarily unavailable`);
+    this.name = "ProviderCircuitOpenError";
+  }
+}
+
+interface CircuitState {
+  failures: number;
+  openUntil: number;
+  probeInFlight: boolean;
+}
+
+const providerCircuits = new Map<ProviderName, CircuitState>();
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+const CIRCUIT_COOLDOWN_MS = 30_000;
+
+function circuitState(provider: ProviderName): CircuitState {
+  const existing = providerCircuits.get(provider);
+  if (existing) return existing;
+  const created = { failures: 0, openUntil: 0, probeInFlight: false };
+  providerCircuits.set(provider, created);
+  return created;
+}
+
+function transientProviderFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const statusMatch = message.match(/HTTP (\d{3})/i);
+  return isTransientNetworkError(error) || (statusMatch ? isTransientHttpStatus(Number(statusMatch[1])) : false);
+}
+
+export function resetProviderCircuitsForTests(): void {
+  providerCircuits.clear();
+}
+
+class CircuitBreakerProvider implements AiProvider {
+  readonly provider: ProviderName;
+
+  constructor(private readonly delegate: AiProvider) {
+    this.provider = delegate.provider;
+  }
+
+  async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean; requestId?: string }): Promise<AiCompletion> {
+    const state = circuitState(this.provider);
+    const now = Date.now();
+    if (state.openUntil > now) throw new ProviderCircuitOpenError(this.provider);
+    const probing = state.openUntil > 0;
+    if (probing && state.probeInFlight) throw new ProviderCircuitOpenError(this.provider);
+    if (probing) state.probeInFlight = true;
+    try {
+      const completion = await this.delegate.complete(input);
+      state.failures = 0;
+      state.openUntil = 0;
+      observeAiProvider(this.provider, "success");
+      return completion;
+    } catch (error) {
+      const transient = transientProviderFailure(error);
+      observeAiProvider(this.provider, transient ? "failure" : "failure");
+      if (transient) {
+        state.failures += 1;
+        if (state.failures >= CIRCUIT_FAILURE_THRESHOLD) {
+          state.openUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
+          state.probeInFlight = false;
+        }
+      }
+      throw error;
+    } finally {
+      if (probing) state.probeInFlight = false;
+    }
+  }
+}
 
 const assistantAnswerJsonSchema: Record<string, unknown> = {
   type: "OBJECT",
@@ -137,9 +211,10 @@ class FallbackProvider implements AiProvider {
 
   async complete(input: { messages: AiChatMessage[]; tools: AiToolDefinition[]; structuredOutput?: boolean; requestId?: string }): Promise<AiCompletion> {
     let lastError: unknown;
-    for (const provider of this.providers) {
+    for (const [index, provider] of this.providers.entries()) {
       try { return await provider.complete(input); } catch (error) {
         lastError = error;
+        if (index < this.providers.length - 1) incrementMetric("ai_fallbacks");
         logger.warn({ event: "assistant_provider_failure", requestId: input.requestId, provider: provider.provider }, "Assistant provider failed; trying the next configured provider");
       }
     }
@@ -172,7 +247,7 @@ function createProvider(provider: ProviderName, primary: boolean): AiProvider | 
 export function getAiProvider(): AiProvider | null {
   if (!env.AI_ENABLED || env.AI_PROVIDER === "none") return null;
   const configured = [env.AI_PROVIDER, ...env.AI_FALLBACK_PROVIDERS.split(",").map((value) => value.trim()).filter(Boolean)] as ProviderName[];
-  const providers = configured.filter((provider, index, all) => all.indexOf(provider) === index).map((provider, index) => createProvider(provider, index === 0)).filter((provider): provider is AiProvider => Boolean(provider));
+  const providers = configured.filter((provider, index, all) => all.indexOf(provider) === index).map((provider, index) => createProvider(provider, index === 0)).filter((provider): provider is AiProvider => Boolean(provider)).map((provider) => new CircuitBreakerProvider(provider));
   if (!providers.length) return null;
   return providers.length === 1 ? providers[0]! : new FallbackProvider(providers);
 }

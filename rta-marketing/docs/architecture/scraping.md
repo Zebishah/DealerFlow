@@ -1,4 +1,8 @@
-# Scraping subsystem architecture
+# Legacy scraping subsystem architecture (reference only)
+
+This BullMQ/Redis/Azure flow is retained for historical/portfolio reference. It
+is not the current production scraping path; the dealership dashboard starts
+on-demand Apify Actor runs instead.
 
 ```text
 scraping-web (Vercel)

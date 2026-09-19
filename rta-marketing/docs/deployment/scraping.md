@@ -1,4 +1,8 @@
-# Scraping deployment
+# Legacy scraping deployment (reference only)
+
+These instructions deploy the retired BullMQ/Redis/Azure scraping stack. The
+current dealership scraping dashboard uses Apify Actors and does not require
+this API, queue, or worker.
 
 The scraping production path is:
 

@@ -1,7 +1,9 @@
 import { Queue } from "bullmq";
-import { createRedisConnectionConfig, loadConfig, manualScrapeJobId, parseScrapeLimit, SCRAPE_JOB_ATTEMPTS, SCRAPE_RETRY_BACKOFF_MS } from "@rta/shared";
+import { createRedisConnectionConfig, legacyWorkerWriteGuard, loadConfig, manualScrapeJobId, parseScrapeLimit, SCRAPE_JOB_ATTEMPTS, SCRAPE_RETRY_BACKOFF_MS } from "@rta/shared";
 
 const config = loadConfig();
+const legacyWorkerGuard = legacyWorkerWriteGuard(config);
+if (!legacyWorkerGuard.allowed) throw new Error(`Legacy worker is not enabled (${legacyWorkerGuard.reason}); set ENABLE_LEGACY_WORKER=true explicitly for reference operation`);
 const requestedSite = process.argv.slice(2).find((argument) => argument.startsWith("--site="))?.slice("--site=".length);
 const requestedLimitValue = process.argv.slice(2).find((argument) => argument.startsWith("--limit="))?.slice("--limit=".length);
 const requestedLimit = parseScrapeLimit(requestedLimitValue === undefined ? undefined : Number(requestedLimitValue), config.SCRAPE_DEFAULT_LIMIT, config.SCRAPE_MAX_LIMIT);

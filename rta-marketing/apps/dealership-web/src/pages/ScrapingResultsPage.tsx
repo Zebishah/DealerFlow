@@ -9,6 +9,9 @@ import { useDebouncedValue } from "../lib/useDebouncedValue";
 import type { ScrapedListing, ScrapingResultsResponse, ScrapingSite, ScrapingStatusResponse } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
+type SourceHealthStatus = "healthy" | "degraded" | "failing" | "unknown";
+type OperationalSourceHealth = { source: string; status: SourceHealthStatus; consecutiveFailures: number; lastDurationMs: number | null };
+
 function displaySiteName(name: string): string {
   return name.replace(/^Demo Source \(synthetic data\)$/i, "Generated inventory");
 }
@@ -28,6 +31,13 @@ function isActiveStatus(status: string | undefined): boolean {
 export function ScrapingResultsPage() {
   const { user } = useAuth();
   const canTrigger = user?.role === "admin" || user?.role === "operator" || user?.role === "recruiter";
+  const sourceHealth = useQuery({
+    queryKey: ["operations", "source-health"],
+    queryFn: () => api<{ data: OperationalSourceHealth[] }>("/operations/source-health"),
+    enabled: Boolean(canTrigger),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
   const [filters, setFilters] = useState({ q: "", siteId: "", minYear: "", maxYear: "", maxPrice: "", maxMileage: "" });
   const [selectedItem, setSelectedItem] = useState<ScrapedListing | null>(null);
   const appliedFilters = useDebouncedValue(filters);
@@ -83,6 +93,8 @@ export function ScrapingResultsPage() {
   if (results.isError || !results.data) return <ErrorState message={results.error instanceof Error ? results.error.message : "Scraping results are unavailable."} />;
 
   const { items, sites } = results.data.data;
+  const healthRows = Array.isArray(sourceHealth.data?.data) ? sourceHealth.data.data : [];
+  const healthBySource = new Map(healthRows.map((health) => [health.source, health]));
   const total = results.data.page.total;
   const clearFilters = () => setFilters({ q: "", siteId: "", minYear: "", maxYear: "", maxPrice: "", maxMileage: "" });
   const statusError = scrapeStatus.error instanceof ApiError ? `${scrapeStatus.error.code}: ${scrapeStatus.error.message}` : scrapeStatus.error instanceof Error ? scrapeStatus.error.message : null;
@@ -109,7 +121,7 @@ export function ScrapingResultsPage() {
     </section>
 
     <section className="operations-grid scraping-log-grid">
-      <article className="surface"><div className="surface-head"><div><span>SOURCE HEALTH</span><h3>Scraping sites</h3></div><RefreshCw size={16} className={results.isFetching ? "spin" : ""} /></div><div className="source-list">{sites.map((site) => <SourceRow key={site.id} site={site} activeJob={activeJob} canTrigger={Boolean(canTrigger)} busy={scraperBusy || trigger.isPending} onTrigger={() => trigger.mutate(site.id)} />)}</div></article>
+      <article className="surface"><div className="surface-head"><div><span>SOURCE HEALTH</span><h3>Scraping sites</h3></div><RefreshCw size={16} className={results.isFetching || sourceHealth.isFetching ? "spin" : ""} /></div><div className="source-list">{sites.map((site) => <SourceRow key={site.id} site={site} health={site.siteKey ? healthBySource.get(site.siteKey) : undefined} activeJob={activeJob} canTrigger={Boolean(canTrigger)} busy={scraperBusy || trigger.isPending} onTrigger={() => trigger.mutate(site.id)} />)}</div></article>
       <article className="surface"><div className="surface-head"><div><span>PIPELINE STATUS</span><h3>Recent scraper activity</h3></div><button className="filter-button" type="button" onClick={() => results.refetch()}>Refresh</button></div><div className="scraping-activity-list">{sites.map((site) => <div className="scraping-activity-row" key={site.id}><div><strong>{displaySiteName(site.name)}</strong><small>{site.lastScrapedAt ? new Date(site.lastScrapedAt).toLocaleString("en-CA") : "Waiting for first run"}</small></div><b>{site.itemCount}</b><span>records</span></div>)}</div></article>
     </section>
 
@@ -118,10 +130,13 @@ export function ScrapingResultsPage() {
   </div>;
 }
 
-function SourceRow({ site, activeJob, canTrigger, busy, onTrigger }: { site: ScrapingSite; activeJob: ScrapingStatusResponse["data"]["activeJob"]; canTrigger: boolean; busy: boolean; onTrigger: () => void }) {
+function SourceRow({ site, health, activeJob, canTrigger, busy, onTrigger }: { site: ScrapingSite; health?: OperationalSourceHealth; activeJob: ScrapingStatusResponse["data"]["activeJob"]; canTrigger: boolean; busy: boolean; onTrigger: () => void }) {
   const live = site.executionProvider === "apify" && site.triggerable;
   const active = live && activeJob?.siteKey === site.siteKey && isActiveStatus(activeJob.status);
   const terminalStatus = live && activeJob?.siteKey === site.siteKey && !isActiveStatus(activeJob.status) ? activeStatusLabel(activeJob.status) : null;
-  const status = active ? activeStatusLabel(activeJob!.status) : terminalStatus ?? (live ? "connected" : "reference");
-  return <div className="source-item"><span className="source-monogram">{displaySiteName(site.name).slice(0, 2).toUpperCase()}</span><div><strong>{displaySiteName(site.name)}</strong><small>{site.itemCount.toLocaleString()} stored listings{site.lastScrapedAt ? ` · last run ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : " · not run yet"}</small></div><span className={`status-chip ${active ? "queued" : live ? "completed" : ""}`}>{status}</span><button className="scrape-now-button" type="button" disabled={!canTrigger || !live || busy} onClick={onTrigger}>{active ? status : live ? "Scrape now" : "Reference only"}</button></div>;
+  const healthLabel = health?.status === "healthy" ? "Healthy" : health?.status === "degraded" ? "Degraded" : health?.status === "failing" ? "Failing" : health?.status === "unknown" ? "Unknown" : null;
+  const status = active ? activeStatusLabel(activeJob!.status) : terminalStatus ?? (live ? healthLabel ?? "connected" : "reference");
+  const statusClass = active ? "queued" : live && health ? health.status : live ? "completed" : "";
+  const diagnostic = health?.consecutiveFailures ? ` · ${health.consecutiveFailures} consecutive failures` : health?.lastDurationMs ? ` · ${Math.round(health.lastDurationMs / 1000)}s last run` : "";
+  return <div className="source-item"><span className="source-monogram">{displaySiteName(site.name).slice(0, 2).toUpperCase()}</span><div><strong>{displaySiteName(site.name)}</strong><small>{site.itemCount.toLocaleString()} stored listings{site.lastScrapedAt ? ` · last run ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : " · not run yet"}{diagnostic}</small></div><span className={`status-chip ${statusClass}`}>{status}</span><button className="scrape-now-button" type="button" disabled={!canTrigger || !live || busy} onClick={onTrigger}>{active ? status : live ? "Scrape now" : "Reference only"}</button></div>;
 }

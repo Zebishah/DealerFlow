@@ -5,6 +5,7 @@ import { requireCsrf, requireOperator, requireRoles, requireSession } from "../.
 import { db } from "../../db/client.js";
 import { sources } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
+import { cacheAside, cacheScope } from "../../infra/cache.js";
 
 export const sourcesRouter = Router();
 
@@ -19,9 +20,15 @@ sourcesRouter.get(
   "/",
   requireSession,
   requireRoles("admin", "operator", "recruiter"),
-  asyncHandler(async (_request, response) => {
-    const rows = await db.select().from(sources).orderBy(asc(sources.name));
-    response.json({ data: rows });
+  asyncHandler(async (request, response) => {
+    const data = await cacheAside({
+      namespace: "source-health",
+      scope: cacheScope(request.user?.workspaceId, request.user?.role ?? "unknown"),
+      filters: { list: "all-sources" },
+      ttlSeconds: 20,
+      load: () => db.select().from(sources).orderBy(asc(sources.name)),
+    });
+    response.json({ data });
   }),
 );
 

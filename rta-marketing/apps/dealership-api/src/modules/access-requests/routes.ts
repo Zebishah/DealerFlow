@@ -1,6 +1,5 @@
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { Router } from "express";
-import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { createOpaqueToken, hashOpaqueToken, hoursFromNow, splitFullName, ACCESS_INVITE_TOKEN_TTL_HOURS } from "../../auth/tokens.js";
 import { hashPassword } from "../../auth/password.js";
@@ -12,6 +11,7 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { addressEmail, sendEmailSafely } from "../../services/email/email.service.js";
 import { accessApprovedEmail, accessDecisionEmail, accessRequestAdminEmail, accessRequestReceivedEmail } from "../../services/email/templates.js";
+import { createRateLimiter } from "../../infra/rate-limit.js";
 
 const platformSchema = z.enum(["dealership", "scraping"]);
 const permissionSchema = z.enum([
@@ -72,7 +72,7 @@ function accessName(firstName: string | null, lastName: string | null, fallback:
 export const publicAccessRequestRouter = Router();
 publicAccessRequestRouter.post(
   "/",
-  rateLimit({ windowMs: 60 * 60 * 1000, limit: 3, standardHeaders: "draft-8", legacyHeaders: false }),
+  createRateLimiter({ namespace: "demo:access-request", windowMs: 60 * 60 * 1000, limit: 3, standardHeaders: "draft-8", legacyHeaders: false }),
   asyncHandler(async (request, response) => {
     const input = requestSchema.parse(request.body);
     const email = input.email.toLowerCase();

@@ -13,7 +13,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --env-file=.env.test --import tsx --test src/*.test.ts src/**/*.test.ts src/modules/acquisition/scraping-client.test.ts src/modules/acquisition/image-proxy.test.ts",
+    "test": "node --env-file=.env.test --import tsx --test src/*.test.ts src/**/*.test.ts src/modules/acquisition/scraping-client.test.ts src/modules/acquisition/image-proxy.test.ts src/modules/acquisition/reconciliation.test.ts src/modules/operations/service.test.ts",
     "test:coverage": "node --env-file=.env.test --import tsx --test --experimental-test-coverage src/*.test.ts src/**/*.test.ts"
   },
   "private": true,
@@ -40,6 +40,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
+    "ioredis": "^5.11.1",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",

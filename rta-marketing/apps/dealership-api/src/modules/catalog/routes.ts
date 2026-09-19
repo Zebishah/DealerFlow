@@ -6,6 +6,7 @@ import { db } from "../../db/client.js";
 import { listings, sources, vehicles } from "../../db/schema.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
+import { cacheAside, cacheScope } from "../../infra/cache.js";
 
 const sortSchema = z.enum(["newest", "price_asc", "price_desc", "year_desc"]);
 const querySchema = z.object({
@@ -115,70 +116,71 @@ catalogRouter.get(
       }
     }
 
-    const where = and(...conditions);
-    const [items, countRows] = await Promise.all([
-      db
-        .select({
-          listingId: listings.id,
-          vehicleId: vehicles.id,
-          externalId: listings.externalId,
-          source: sources.key,
-          sourceName: sources.name,
-          title: listings.title,
-          url: listings.url,
-          make: vehicles.make,
-          model: vehicles.model,
-          trim: vehicles.trim,
-          year: vehicles.year,
-          priceCents: listings.priceCents,
-          currency: listings.currency,
-          odometerKm: listings.odometerKm,
-          imageUrl: listings.imageUrl,
-          dealerName: listings.dealerName,
-          location: listings.location,
-          isUsed: vehicles.isUsed,
-          lastSeenAt: listings.lastSeenAt,
-        })
-        .from(listings)
-        .innerJoin(vehicles, eq(listings.vehicleId, vehicles.id))
-        .innerJoin(sources, eq(listings.sourceId, sources.id))
-        .where(where)
-        .orderBy(order, descending ? desc(listings.id) : asc(listings.id))
-        .limit(query.limit + 1),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(listings)
-        .innerJoin(vehicles, eq(listings.vehicleId, vehicles.id))
-        .innerJoin(sources, eq(listings.sourceId, sources.id))
-        .where(and(...baseConditions)),
-    ]);
+    const payload = await cacheAside({
+      namespace: "catalog",
+      scope: cacheScope(request.user?.workspaceId, request.user?.role ?? "unknown"),
+      filters: { ...query, cursor: cursor ?? null },
+      ttlSeconds: 30,
+      load: async () => {
+        const where = and(...conditions);
+        const [items, countRows] = await Promise.all([
+          db
+            .select({
+              listingId: listings.id,
+              vehicleId: vehicles.id,
+              externalId: listings.externalId,
+              source: sources.key,
+              sourceName: sources.name,
+              title: listings.title,
+              url: listings.url,
+              make: vehicles.make,
+              model: vehicles.model,
+              trim: vehicles.trim,
+              year: vehicles.year,
+              priceCents: listings.priceCents,
+              currency: listings.currency,
+              odometerKm: listings.odometerKm,
+              imageUrl: listings.imageUrl,
+              dealerName: listings.dealerName,
+              location: listings.location,
+              isUsed: vehicles.isUsed,
+              lastSeenAt: listings.lastSeenAt,
+            })
+            .from(listings)
+            .innerJoin(vehicles, eq(listings.vehicleId, vehicles.id))
+            .innerJoin(sources, eq(listings.sourceId, sources.id))
+            .where(where)
+            .orderBy(order, descending ? desc(listings.id) : asc(listings.id))
+            .limit(query.limit + 1),
+          db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(listings)
+            .innerJoin(vehicles, eq(listings.vehicleId, vehicles.id))
+            .innerJoin(sources, eq(listings.sourceId, sources.id))
+            .where(and(...baseConditions)),
+        ]);
 
-    const hasNext = items.length > query.limit;
-    const pageItems = items.slice(0, query.limit);
-    const last = pageItems.at(-1);
-    const nextCursor = hasNext && last
-      ? encodeCursor({
-        sort: query.sort,
-        key: query.sort === "newest"
-          ? last.lastSeenAt.toISOString()
-          : query.sort === "price_asc"
-            ? last.priceCents ?? 2147483647
-            : query.sort === "price_desc"
-              ? last.priceCents ?? -1
-              : last.year,
-        id: last.listingId,
-      })
-      : null;
-    const total = countRows[0]?.count ?? 0;
-    response.json({
-      data: pageItems,
-      page: {
-        limit: query.limit,
-        total,
-        hasNext,
-        nextCursor,
+        const hasNext = items.length > query.limit;
+        const pageItems = items.slice(0, query.limit);
+        const last = pageItems.at(-1);
+        const nextCursor = hasNext && last
+          ? encodeCursor({
+            sort: query.sort,
+            key: query.sort === "newest"
+              ? last.lastSeenAt.toISOString()
+              : query.sort === "price_asc"
+                ? last.priceCents ?? 2147483647
+                : query.sort === "price_desc"
+                  ? last.priceCents ?? -1
+                  : last.year,
+            id: last.listingId,
+          })
+          : null;
+        const total = countRows[0]?.count ?? 0;
+        return { data: pageItems, page: { limit: query.limit, total, hasNext, nextCursor } };
       },
     });
+    response.json(payload);
   }),
 );
 
