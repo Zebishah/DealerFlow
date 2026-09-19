@@ -28,6 +28,10 @@ const signupSchema = z.object({
 
 const emailSchema = z.object({ email: z.string().trim().email().max(254) });
 
+const demoRoleSchema = z.object({
+  role: z.enum(["recruiter", "employee", "virtual_assistant"]).default("recruiter"),
+});
+
 const tokenSchema = z.object({ token: z.string().min(40).max(200) });
 
 const resetSchema = z.object({
@@ -264,12 +268,18 @@ authRouter.post(
 
 authRouter.post(
   "/demo-login",
-  asyncHandler(async (_request, response) => {
+  asyncHandler(async (request, response) => {
     if (!env.DEMO_MODE || !env.DEMO_RECRUITER_PASSWORD) {
       throw new AppError(503, "DEMO_LOGIN_UNAVAILABLE", "Recruiter demo access is not configured");
     }
-    const user = await findUser(env.DEMO_RECRUITER_EMAIL);
-    if (!user || user.role !== "recruiter") {
+    const { role } = demoRoleSchema.parse(request.body ?? {});
+    const email = role === "recruiter"
+      ? env.DEMO_RECRUITER_EMAIL
+      : role === "employee"
+        ? "sales@rta.demo"
+        : "assistant@rta.demo";
+    const user = await findUser(email);
+    if (!user || user.role !== role) {
       throw new AppError(503, "DEMO_LOGIN_UNAVAILABLE", "Recruiter demo account is not configured");
     }
     const result = await loginUser(user, env.DEMO_RECRUITER_PASSWORD);

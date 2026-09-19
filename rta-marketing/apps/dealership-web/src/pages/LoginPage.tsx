@@ -10,6 +10,7 @@ import {
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
+import type { UserRole } from "../types/domain";
 import { ApiError } from "../lib/api";
 import { Link, Redirect, useNavigation } from "../router/Navigation";
 
@@ -52,11 +53,15 @@ export function LoginPage() {
   }
 
   async function enterDemo() {
+    await enterRoleDemo("recruiter");
+  }
+
+  async function enterRoleDemo(role: "recruiter" | "employee" | "virtual_assistant") {
     setSubmitting(true);
     try {
-      await demoLogin();
+      await demoLogin(role);
       navigate(loginReturnPath(), { replace: true });
-      toast.success("Recruiter demo opened");
+      toast.success(`${roleLabel(role)} preview opened`);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Demo access is unavailable",
@@ -64,6 +69,10 @@ export function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function roleLabel(role: UserRole): string {
+    return role === "virtual_assistant" ? "Virtual assistant" : role[0].toUpperCase() + role.slice(1);
   }
 
   return (
@@ -189,19 +198,23 @@ export function LoginPage() {
             <div>
               <ShieldCheck size={18} />
               <span>
-                <strong>Recruiter demo</strong>
+                <strong>Role previews</strong>
                 <small>
-                  Explore every dashboard with safe, read-only access.
+                  Open seeded demo workspaces without exposing passwords.
                 </small>
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => void enterDemo()}
-              disabled={submitting}
-            >
-              Enter recruiter demo <ArrowRight size={14} />
-            </button>
+            <div className="role-preview-actions">
+              <button type="button" onClick={() => void enterDemo()} disabled={submitting}>
+                Recruiter preview <ArrowRight size={14} />
+              </button>
+              <button type="button" onClick={() => void enterRoleDemo("employee")} disabled={submitting}>
+                Employee preview <ArrowRight size={14} />
+              </button>
+              <button type="button" onClick={() => void enterRoleDemo("virtual_assistant")} disabled={submitting}>
+                Virtual assistant preview <ArrowRight size={14} />
+              </button>
+            </div>
             <Link className="request-access-link" to="/request-access">
               <span>Need broader access?</span> Request full access{" "}
               <ArrowRight size={13} />
