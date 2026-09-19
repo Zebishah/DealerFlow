@@ -31,8 +31,8 @@ or start scraping jobs. Public/demo conversations use sanitized context.
 - `packages/shared` — scraping configuration, contracts, Redis connection, and security helpers.
 - `packages/scrapers` — bounded Cheerio/Playwright source adapters.
 
-The dealership API keeps its own domain schema and AWS ingestion implementation
-because it has a different deployment and data responsibility.
+The dealership API keeps its own domain schema. Its AWS ingestion code is a
+retained reference integration; the live acquisition flow uses Apify and Neon.
 
 ## Live production architecture
 
@@ -98,6 +98,8 @@ For a complete local run of all services, use
 - [Docker deployment](docs/deployment/docker.md)
 - [Environment setup](docs/deployment/environment.md)
 - [Operations](docs/operations/)
+- [Portfolio brief](docs/PORTFOLIO.md)
+- [Portfolio freeze and scope](docs/PORTFOLIO_FREEZE.md)
 - [AI assistant architecture](docs/architecture/ai-assistant.md)
 - [AI live verification plan](docs/operations/ai-live-verification.md)
 - [Azure worker CI/CD](../.github/workflows/worker-ci.yml)

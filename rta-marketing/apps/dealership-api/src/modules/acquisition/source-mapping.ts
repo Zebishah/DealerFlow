@@ -22,6 +22,12 @@ const liveSources: Record<ApifySiteKey, { baseUrl: string; imageHosts: readonly 
   },
 };
 
+export const APIFY_PARSER_VERSIONS: Readonly<Record<ApifySiteKey, string>> = Object.freeze({
+  "romans-international": "romans-international:v3",
+  "tom-hartley": "tom-hartley:v3",
+  "redline-specialist-cars": "redline-specialist-cars:v3",
+});
+
 // Exact hosts retained for image URLs already stored by historical/reference
 // scrapers. These are deliberately not wildcarded or inferred from DB rows.
 const legacyImageHosts = [

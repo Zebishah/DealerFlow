@@ -66,6 +66,10 @@ export async function reconcileActorRun(
   const updated = await update(row.id, {
     status,
     foundCount: output?.foundCount ?? row.foundCount,
+    recordsDiscovered: output?.recordsDiscovered ?? row.recordsDiscovered,
+    recordsAccepted: output?.recordsAccepted ?? row.recordsAccepted ?? output?.foundCount ?? row.foundCount,
+    recordsRejected: output?.recordsRejected ?? row.recordsRejected,
+    parserVersion: output?.parserVersion ?? row.parserVersion,
     durationMs,
     timings: output?.timings ?? row.timings,
     startedAt,

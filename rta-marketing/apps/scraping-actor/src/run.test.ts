@@ -12,6 +12,10 @@ test("actor persists fewer discovered items as a successful maximum-target scrap
   assert.equal(output.status, "completed");
   assert.equal(output.requestedCount, 5);
   assert.equal(output.foundCount, 3);
+  assert.equal(output.recordsDiscovered, null);
+  assert.equal(output.recordsAccepted, 3);
+  assert.equal(output.recordsRejected, null);
+  assert.equal(output.parserVersion, "romans-international:v3");
   assert.equal(persisted, 3);
 });
 

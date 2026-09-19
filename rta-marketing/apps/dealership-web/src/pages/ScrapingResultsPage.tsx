@@ -1,16 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Car, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bot, Car, Database, Gauge, RefreshCw, Server, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { ScrapedVehicleCard, ScrapedVehicleDetailsModal } from "../components/ScrapedVehicleCard";
 import { api, ApiError } from "../lib/api";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
-import type { ScrapedListing, ScrapingResultsResponse, ScrapingSite, ScrapingStatusResponse } from "../types/domain";
+import type { OperationalHealth, OperationalSourceHealth, ScrapedListing, ScrapingResultsResponse, ScrapingSite, ScrapingStatusResponse } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
-
-type SourceHealthStatus = "healthy" | "degraded" | "failing" | "unknown";
-type OperationalSourceHealth = { source: string; status: SourceHealthStatus; consecutiveFailures: number; lastDurationMs: number | null };
 
 function displaySiteName(name: string): string {
   return name.replace(/^Demo Source \(synthetic data\)$/i, "Generated inventory");
@@ -34,6 +31,13 @@ export function ScrapingResultsPage() {
   const sourceHealth = useQuery({
     queryKey: ["operations", "source-health"],
     queryFn: () => api<{ data: OperationalSourceHealth[] }>("/operations/source-health"),
+    enabled: Boolean(canTrigger),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+  const systemHealth = useQuery({
+    queryKey: ["operations", "health"],
+    queryFn: () => api<{ data: OperationalHealth }>("/operations/health"),
     enabled: Boolean(canTrigger),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -108,6 +112,8 @@ export function ScrapingResultsPage() {
     {statusError && <div className="warning-banner" role="alert"><AlertTriangle size={18} /><span><strong>Scraping status unavailable.</strong> {statusError}</span></div>}
     {activeJob && <div className="warning-banner" role="status"><AlertTriangle size={18} /><span><strong>{activeStatusLabel(activeJob.status)}: {displaySiteName(activeJob.siteKey)}.</strong> {isActiveStatus(activeJob.status) ? `Up to ${activeJob.limit} vehicles are being collected.` : `${activeJob.foundCount ?? 0} vehicles found.`} {activeJob.progressStage ? `${activeJob.progressStage} · ` : ""}{activeJob.failedReason ?? ""}</span></div>}
 
+    <SystemHealthPanel health={systemHealth.data?.data} loading={systemHealth.isLoading} error={systemHealth.isError} onRefresh={() => void systemHealth.refetch()} />
+
     <section className="surface scraping-filter-panel">
       <div className="surface-head"><div><span>SEARCH SCOPE</span><h3>Vehicle and site filters</h3></div><button className="filter-button" type="button" onClick={clearFilters}>Clear filters</button></div>
       <div className="scraping-filter-grid">
@@ -138,5 +144,25 @@ function SourceRow({ site, health, activeJob, canTrigger, busy, onTrigger }: { s
   const status = active ? activeStatusLabel(activeJob!.status) : terminalStatus ?? (live ? healthLabel ?? "connected" : "reference");
   const statusClass = active ? "queued" : live && health ? health.status : live ? "completed" : "";
   const diagnostic = health?.consecutiveFailures ? ` · ${health.consecutiveFailures} consecutive failures` : health?.lastDurationMs ? ` · ${Math.round(health.lastDurationMs / 1000)}s last run` : "";
-  return <div className="source-item"><span className="source-monogram">{displaySiteName(site.name).slice(0, 2).toUpperCase()}</span><div><strong>{displaySiteName(site.name)}</strong><small>{site.itemCount.toLocaleString()} stored listings{site.lastScrapedAt ? ` · last run ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : " · not run yet"}{diagnostic}</small></div><span className={`status-chip ${statusClass}`}>{status}</span><button className="scrape-now-button" type="button" disabled={!canTrigger || !live || busy} onClick={onTrigger}>{active ? status : live ? "Scrape now" : "Reference only"}</button></div>;
+  const telemetry = health ? `discovered ${formatMetric(health.recordsDiscovered)} · accepted ${formatMetric(health.recordsAccepted)} · rejected ${formatMetric(health.recordsRejected)} · parser ${health.parserVersion ?? "Not available"}` : "Telemetry not available";
+  return <div className="source-item"><span className="source-monogram">{displaySiteName(site.name).slice(0, 2).toUpperCase()}</span><div><strong>{displaySiteName(site.name)}</strong><small>{site.itemCount.toLocaleString()} stored listings{site.lastScrapedAt ? ` · last run ${new Date(site.lastScrapedAt).toLocaleString("en-CA")}` : " · not run yet"}{diagnostic}</small><small className="source-telemetry">{telemetry}</small></div><span className={`status-chip ${statusClass}`}>{status}</span><button className="scrape-now-button" type="button" disabled={!canTrigger || !live || busy} onClick={onTrigger}>{active ? status : live ? "Scrape now" : "Reference only"}</button></div>;
+}
+
+function formatMetric(value: number | null): string {
+  return value === null ? "Not available" : value.toLocaleString("en-CA");
+}
+
+function SystemHealthPanel({ health, loading, error, onRefresh }: { health?: OperationalHealth; loading: boolean; error: boolean; onRefresh: () => void }) {
+  const database = health?.database;
+  const redis = health?.redis;
+  const apify = health?.apify;
+  const ai = health?.ai;
+  const dependencyStatus = health?.status === "healthy" ? "Healthy" : health?.status === "degraded" ? "Degraded" : health?.status === "unavailable" ? "Unavailable" : "Checking";
+  const cards = [
+    { label: "Database", value: database ? database.reachable ? "Healthy" : "Unavailable" : dependencyStatus, detail: database?.latencyMs === null || database?.latencyMs === undefined ? "Latency not available" : `${database.latencyMs} ms response`, icon: Database },
+    { label: "Redis", value: redis ? !redis.configured ? "Disabled" : redis.reachable ? "Healthy" : "Unavailable" : dependencyStatus, detail: redis?.cacheHitRate === null || redis?.cacheHitRate === undefined ? "Cache hit rate not available" : `${Math.round(redis.cacheHitRate * 100)}% cache hit rate`, icon: Server },
+    { label: "Apify", value: apify ? `${apify.runs24h} runs / 24h` : dependencyStatus, detail: apify ? `${apify.successful} successful · ${apify.failed} failed${apify.averageDurationMs === null ? "" : ` · ${Math.round(apify.averageDurationMs / 1000)}s average`}` : "Run telemetry not available", icon: Bot },
+    { label: "AI services", value: ai ? `${ai.requests24h} requests / 24h` : dependencyStatus, detail: ai ? `${ai.providerFailures} provider failures · ${ai.fallbacks} fallbacks` : "Usage telemetry not available", icon: Sparkles },
+  ];
+  return <section className="surface system-health-panel"><div className="surface-head"><div><span>SYSTEM HEALTH</span><h3>Operational dependencies</h3></div><button className="filter-button" type="button" onClick={onRefresh} disabled={loading}><RefreshCw size={13} className={loading ? "spin" : ""} />Refresh</button></div>{error ? <div className="inline-error" role="status"><Gauge size={16} />System health is temporarily unavailable.</div> : <div className="system-health-grid">{cards.map(({ label, value, detail, icon: Icon }) => <div className="system-health-card" key={label}><span className="system-health-icon"><Icon size={15} /></span><div><small>{label}</small><strong>{value}</strong><span>{detail}</span></div></div>)}</div>}</section>;
 }

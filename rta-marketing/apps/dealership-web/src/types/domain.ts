@@ -202,6 +202,30 @@ export interface ScrapingResultsResponse {
   };
 }
 
+export type SourceHealthStatus = "healthy" | "degraded" | "failing" | "unknown";
+
+export interface OperationalSourceHealth {
+  source: string;
+  name: string;
+  status: SourceHealthStatus;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  consecutiveFailures: number;
+  lastDurationMs: number | null;
+  recordsDiscovered: number | null;
+  recordsAccepted: number | null;
+  recordsRejected: number | null;
+  parserVersion: string | null;
+}
+
+export interface OperationalHealth {
+  status: "healthy" | "degraded" | "unavailable";
+  database: { reachable: boolean; latencyMs: number | null };
+  redis: { configured: boolean; reachable: boolean; cacheHitRate: number | null };
+  apify: { runs24h: number; successful: number; failed: number; averageDurationMs: number | null };
+  ai: { requests24h: number; providerFailures: number; fallbacks: number };
+}
+
 export interface PublicInventoryResponse {
   data: {
     items: ScrapedListing[];
@@ -228,6 +252,10 @@ export interface ScrapingJob {
   progressStage?: string | null;
   requestedCount?: number;
   foundCount?: number | null;
+  recordsDiscovered?: number | null;
+  recordsAccepted?: number | null;
+  recordsRejected?: number | null;
+  parserVersion?: string | null;
   timings?: Record<string, number> | null;
   failedReason: string | null;
 }

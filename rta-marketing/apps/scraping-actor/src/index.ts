@@ -15,7 +15,7 @@ async function main(): Promise<void> {
     if (output.items.length > 0) {
       await Actor.pushData(output.items);
     }
-    logger.info({ site: output.siteKey, requestedCount: output.requestedCount, foundCount: output.foundCount }, "Apify scrape completed");
+    logger.info({ site: output.siteKey, requestedCount: output.requestedCount, foundCount: output.foundCount, parserVersion: output.parserVersion }, "Apify scrape completed");
   } catch (error) {
     exitCode = 1;
     logger.error({ message: error instanceof Error ? error.message : "unknown actor failure" }, "Apify scrape failed");

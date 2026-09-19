@@ -13,6 +13,10 @@ function row(overrides: Partial<ActorRunRow> = {}): ActorRunRow {
     status: "scraping",
     progressStage: "details",
     foundCount: null,
+    recordsDiscovered: null,
+    recordsAccepted: null,
+    recordsRejected: null,
+    parserVersion: null,
     durationMs: null,
     timings: null,
     startedAt: new Date("2026-09-19T00:00:00.000Z"),
@@ -24,7 +28,7 @@ function row(overrides: Partial<ActorRunRow> = {}): ActorRunRow {
   };
 }
 
-function client(remote: ApifyRun, output?: { foundCount?: number; durationMs?: number }): ApifyClient {
+function client(remote: ApifyRun, output?: { foundCount?: number; recordsAccepted?: number; parserVersion?: string; durationMs?: number }): ApifyClient {
   return {
     getRun: async () => remote,
     getOutput: async () => output ?? {},
@@ -51,13 +55,15 @@ void test("reconciliation moves a stale running run to completed and records out
   const setup = repository(row({ updatedAt: new Date(now - 600_000) }));
   const result = await reconcileStuckApifyRuns({
     repository: setup.repository,
-    client: client({ id: "run-1", status: "SUCCEEDED", finishedAt: "2026-09-19T00:59:00.000Z", defaultKeyValueStoreId: "store-1" }, { foundCount: 5, durationMs: 42 }),
+    client: client({ id: "run-1", status: "SUCCEEDED", finishedAt: "2026-09-19T00:59:00.000Z", defaultKeyValueStoreId: "store-1" }, { foundCount: 5, recordsAccepted: 5, parserVersion: "romans-international:v3", durationMs: 42 }),
     now,
     staleMs: 300_000,
   });
   assert.deepEqual(result, { examined: 1, reconciled: 1, stillActive: 0, failed: 0, errors: [] });
   assert.equal(setup.updates[0]?.status, "completed");
   assert.equal(setup.updates[0]?.foundCount, 5);
+  assert.equal(setup.updates[0]?.recordsAccepted, 5);
+  assert.equal(setup.updates[0]?.parserVersion, "romans-international:v3");
 });
 
 void test("reconciliation moves a stale run to failed when Apify reports failure", async () => {

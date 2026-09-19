@@ -64,6 +64,12 @@ The Actor path is:
 The Actor validates `{ siteKey, limit }`, verifies the database, invokes the
 shared adapter, persists normalized items, writes `OUTPUT`, and exits. It has
 no BullMQ or Redis dependency and cannot select rejected or legacy sources.
+The output also carries `recordsAccepted` and a deterministic parser version.
+The current shared adapter return type does not expose raw candidate and
+validation-rejection counters consistently across all three adapters, so
+`recordsDiscovered` and `recordsRejected` remain explicit `null` values rather
+than inferred or fabricated numbers. Source health preserves that unknown
+state for older and current runs.
 
 ### Current API Redis responsibilities
 

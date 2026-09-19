@@ -189,6 +189,16 @@ export function buildSuccessfulScrapeResult(requestedCount: number, foundCount: 
   return { status: "completed", requestedCount, foundCount };
 }
 
+// Explicit implementation identifiers make operational history comparable
+// across deployments without pretending to be a build hash.
+export const APIFY_PARSER_VERSIONS = Object.freeze({
+  "romans-international": "romans-international:v3",
+  "tom-hartley": "tom-hartley:v3",
+  "redline-specialist-cars": "redline-specialist-cars:v3",
+} as const);
+
+export type ApifySiteKey = keyof typeof APIFY_PARSER_VERSIONS;
+
 export function parseScrapeLimit(value: unknown, defaultLimit: number, maxLimit: number): number {
   if (value === undefined) return defaultLimit;
   if (typeof value !== "number" || !Number.isInteger(value)) throw new Error("limit must be an integer");

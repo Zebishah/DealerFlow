@@ -228,7 +228,7 @@ export function InventoryPage() {
   const clearFilters = () => { setQuery(""); setSiteId(""); setMinYear(""); setMaxYear(""); setMaxPrice(""); setMaxMileage(""); };
 
   return <div className="page-stack">
-    <section className="intelligence-banner"><div><span>VEHICLE INTELLIGENCE</span><h2>Search every vehicle collected by the scraper.</h2><p>PakWheels and OLX records are stored in Neon with source, mileage, location, image, and original listing links preserved.</p></div><div><Car /><strong>{firstPage?.page.total ?? 0}</strong><span>scraped listings</span></div></section>
+    <section className="intelligence-banner"><div><span>VEHICLE INTELLIGENCE</span><h2>Search every vehicle collected by the scraper.</h2><p>Approved international listings are stored in Neon with source, mileage, location, image, and original listing links preserved.</p></div><div><Car /><strong>{firstPage?.page.total ?? 0}</strong><span>scraped listings</span></div></section>
     <section className="page-toolbar">
       <div className="search-control"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vehicle or city" /></div>
       <select value={siteId} onChange={(event) => setSiteId(event.target.value)}><option value="">All scraping sites</option>{sites.map((site) => <option value={site.id} key={site.id}>{site.name}</option>)}</select>

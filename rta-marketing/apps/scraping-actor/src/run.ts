@@ -1,4 +1,4 @@
-import { buildSuccessfulScrapeResult, findConfiguredSite, logger, type BaseScraperConfig, type ScrapedItem, type SiteConfig } from "@rta/shared";
+import { APIFY_PARSER_VERSIONS, buildSuccessfulScrapeResult, findConfiguredSite, logger, type BaseScraperConfig, type ScrapedItem, type SiteConfig } from "@rta/shared";
 import type { ScraperOptions, ScrapeTimings } from "@rta/scrapers";
 import { parseActorInput } from "./input.js";
 
@@ -9,6 +9,10 @@ export interface ActorOutput {
   foundCount: number;
   durationMs: number;
   timings: ScrapeTimings;
+  recordsDiscovered: number | null;
+  recordsAccepted: number;
+  recordsRejected: number | null;
+  parserVersion: string;
   items: ScrapedItem[];
 }
 
@@ -39,5 +43,17 @@ export async function runActorScrape(input: unknown, config: BaseScraperConfig, 
   });
   await dependencies.persistScrapedItems(site, items);
 
-  return { siteKey: site.key, ...buildSuccessfulScrapeResult(validated.limit, items.length), durationMs: Date.now() - startedAt, timings, items };
+  return {
+    siteKey: site.key,
+    ...buildSuccessfulScrapeResult(validated.limit, items.length),
+    durationMs: Date.now() - startedAt,
+    timings,
+    // The current adapter contract returns normalized items but does not expose
+    // raw candidate/rejection counters. Keep those fields explicitly unknown.
+    recordsDiscovered: null,
+    recordsAccepted: items.length,
+    recordsRejected: null,
+    parserVersion: APIFY_PARSER_VERSIONS[validated.siteKey],
+    items,
+  };
 }

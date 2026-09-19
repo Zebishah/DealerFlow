@@ -17,6 +17,10 @@ interface ActorHealthRow {
   siteKey: string;
   status: string;
   foundCount: number | null;
+  recordsDiscovered?: number | null;
+  recordsAccepted?: number | null;
+  recordsRejected?: number | null;
+  parserVersion?: string | null;
   durationMs: number | null;
   finishedAt: Date | null;
   createdAt: Date;
@@ -66,10 +70,10 @@ export function buildSourceHealth(rows: readonly ActorHealthRow[], now = Date.no
       lastDurationMs: latest?.durationMs ?? null,
       // The current Actor output contract exposes accepted/found records only.
       // Unknown values remain null rather than being inferred as zero.
-      recordsDiscovered: null,
-      recordsAccepted: latest?.foundCount ?? null,
-      recordsRejected: null,
-      parserVersion: null,
+      recordsDiscovered: latest?.recordsDiscovered ?? null,
+      recordsAccepted: latest?.recordsAccepted ?? latest?.foundCount ?? null,
+      recordsRejected: latest?.recordsRejected ?? null,
+      parserVersion: latest?.parserVersion ?? null,
     };
   });
 }
@@ -79,6 +83,10 @@ async function actorRowsSince(since: Date): Promise<ActorHealthRow[]> {
     siteKey: scrapeActorRuns.siteKey,
     status: scrapeActorRuns.status,
     foundCount: scrapeActorRuns.foundCount,
+    recordsDiscovered: scrapeActorRuns.recordsDiscovered,
+    recordsAccepted: scrapeActorRuns.recordsAccepted,
+    recordsRejected: scrapeActorRuns.recordsRejected,
+    parserVersion: scrapeActorRuns.parserVersion,
     durationMs: scrapeActorRuns.durationMs,
     finishedAt: scrapeActorRuns.finishedAt,
     createdAt: scrapeActorRuns.createdAt,

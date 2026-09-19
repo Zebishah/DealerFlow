@@ -1,5 +1,32 @@
 # Architecture decisions
 
+## Current production path
+
+The recruiter-facing path is intentionally compact:
+
+```mermaid
+flowchart LR
+  W[Vercel dealership web] --> API[Render dealership API]
+  API --> DB[(Neon PostgreSQL)]
+  API --> REDIS[(Upstash Redis\nlimits · quotas · cache)]
+  API --> ACTOR[Apify Actor\non demand]
+  ACTOR --> SOURCES[Romans · Tom Hartley · Redline]
+  ACTOR --> DB
+```
+
+The API owns authentication, authorization, dealership workflows, safe read
+projections, Apify dispatch, reconciliation, and operational telemetry. The
+Actor is ephemeral and receives no Redis, BullMQ, database, or cloud-worker
+credentials. Scraping is initiated by an explicit authorized action.
+
+## Evolution boundary
+
+The repository also contains a complete earlier queue-worker architecture for
+reference: BullMQ/private Redis, the scraping API and web app, an Azure worker,
+and AWS SQS/Lambda ingestion code. Those components are not silently part of
+the current Apify runtime. Their status and safety gates are documented in
+[`legacy-reference.md`](legacy-reference.md).
+
 This document records design choices implemented in the portfolio branch. It avoids claims that cannot be demonstrated from code or test output.
 
 ## System boundary
@@ -13,7 +40,7 @@ repository retains older BullMQ/Azure and SQS/Lambda ingestion paths for
 reference; they are separate from the active Apify flow and disabled unless
 explicitly deployed/configured.
 
-## Reliable job creation
+## Reliable job creation (retained reference path)
 
 A scrape request writes three kinds of records in one PostgreSQL transaction:
 
@@ -36,7 +63,7 @@ This closes the failure window where PostgreSQL commits but the API process exit
 
 These constraints enforce correctness in PostgreSQL instead of relying only on application-level checks.
 
-## Queue semantics
+## Queue semantics (retained reference path)
 
 The retained Amazon SQS reference path provides durable at-least-once delivery
 when explicitly enabled. Lambda receives one message per batch and returns

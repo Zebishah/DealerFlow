@@ -8,7 +8,7 @@ import { scrapeActorRuns, scrapedItems, scrapingSites } from "../../db/schema.js
 import { asyncHandler } from "../../lib/async-handler.js";
 import { AppError } from "../../lib/errors.js";
 import { ApifyClientError, mapApifyStatus, requireApifyClient } from "./apify-client.js";
-import { APPROVED_APIFY_SITE_KEYS, apifySiteKeyForBaseUrl, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
+import { APIFY_PARSER_VERSIONS, APPROVED_APIFY_SITE_KEYS, apifySiteKeyForBaseUrl, sourceExecutionMetadata, type ApifySiteKey } from "./source-mapping.js";
 import { fetchApprovedSourceImage } from "./image-proxy.js";
 import { createRateLimiter } from "../../infra/rate-limit.js";
 import { cacheAside, cacheScope } from "../../infra/cache.js";
@@ -250,6 +250,10 @@ function publicActorRun(row: typeof scrapeActorRuns.$inferSelect) {
     limit: row.requestedLimit,
     requestedCount: row.requestedLimit,
     foundCount: row.foundCount,
+    recordsDiscovered: row.recordsDiscovered,
+    recordsAccepted: row.recordsAccepted,
+    recordsRejected: row.recordsRejected,
+    parserVersion: row.parserVersion,
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null,
     durationMs: row.durationMs,
@@ -304,6 +308,7 @@ acquisitionRouter.post(
           siteKey,
           requestedLimit: limit,
           status: mapApifyStatus(remote.status),
+          parserVersion: APIFY_PARSER_VERSIONS[siteKey],
           startedAt: remote.startedAt ? new Date(remote.startedAt) : null,
           updatedAt: new Date(),
         }).returning();

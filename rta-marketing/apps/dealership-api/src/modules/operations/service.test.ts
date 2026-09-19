@@ -5,9 +5,12 @@ import { buildSourceHealth, deriveOperationalStatus, deriveSourceHealth } from "
 const date = (value: string) => new Date(value);
 
 void test("source health is healthy after a recent successful run", () => {
-  const rows = [{ siteKey: "romans-international", status: "completed", foundCount: 5, durationMs: 800, finishedAt: date("2026-09-19T00:59:00.000Z"), createdAt: date("2026-09-19T00:58:00.000Z") }];
+  const rows = [{ siteKey: "romans-international", status: "completed", foundCount: 5, recordsDiscovered: 7, recordsAccepted: 5, recordsRejected: 2, parserVersion: "romans-international:v3", durationMs: 800, finishedAt: date("2026-09-19T00:59:00.000Z"), createdAt: date("2026-09-19T00:58:00.000Z") }];
   assert.equal(deriveSourceHealth(rows, Date.parse("2026-09-19T01:00:00.000Z")), "healthy");
   assert.equal(buildSourceHealth(rows, Date.parse("2026-09-19T01:00:00.000Z"))[0]?.recordsAccepted, 5);
+  assert.equal(buildSourceHealth(rows, Date.parse("2026-09-19T01:00:00.000Z"))[0]?.recordsDiscovered, 7);
+  assert.equal(buildSourceHealth(rows, Date.parse("2026-09-19T01:00:00.000Z"))[0]?.recordsRejected, 2);
+  assert.equal(buildSourceHealth(rows, Date.parse("2026-09-19T01:00:00.000Z"))[0]?.parserVersion, "romans-international:v3");
   assert.equal(buildSourceHealth(rows, Date.parse("2026-09-19T01:00:00.000Z"))[1]?.status, "unknown");
 });
 

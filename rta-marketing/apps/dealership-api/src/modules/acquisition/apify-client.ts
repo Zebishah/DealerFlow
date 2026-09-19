@@ -21,6 +21,10 @@ export interface ApifyOutputMetadata {
   requestedCount?: number;
   foundCount?: number;
   durationMs?: number;
+  recordsDiscovered?: number;
+  recordsAccepted?: number;
+  recordsRejected?: number;
+  parserVersion?: string;
   timings?: Record<string, number>;
 }
 
@@ -170,9 +174,17 @@ export class ApifyClient {
     const requestedCount = numberValue("requestedCount");
     const foundCount = numberValue("foundCount");
     const durationMs = numberValue("durationMs");
+    const recordsDiscovered = numberValue("recordsDiscovered");
+    const recordsAccepted = numberValue("recordsAccepted");
+    const recordsRejected = numberValue("recordsRejected");
+    const parserVersion = typeof values.parserVersion === "string" && values.parserVersion.length <= 100 ? values.parserVersion : undefined;
     if (requestedCount !== undefined) output.requestedCount = requestedCount;
     if (foundCount !== undefined) output.foundCount = foundCount;
     if (durationMs !== undefined) output.durationMs = durationMs;
+    if (recordsDiscovered !== undefined) output.recordsDiscovered = recordsDiscovered;
+    if (recordsAccepted !== undefined) output.recordsAccepted = recordsAccepted;
+    if (recordsRejected !== undefined) output.recordsRejected = recordsRejected;
+    if (parserVersion !== undefined) output.parserVersion = parserVersion;
     if (timings) output.timings = Object.fromEntries(Object.entries(timings).filter(([, value]) => typeof value === "number" && Number.isFinite(value)).map(([key, value]) => [key, value as number]));
     return output;
   }

@@ -115,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p>INTELLIGENCE</p>
         {items.filter((item) => ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control", "/app/access-requests"].includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
       </nav>
-      <div className="side-status"><span><i />API connected</span><small>PostgreSQL · SQS · Lambda</small></div>
+      <div className="side-status"><span><i />API connected</span><small>PostgreSQL · Redis · Apify</small></div>
     </aside>
     <main className="workspace-main">
       <header className="top-nav">
