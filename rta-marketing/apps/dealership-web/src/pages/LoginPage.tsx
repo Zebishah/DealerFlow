@@ -72,7 +72,7 @@ export function LoginPage() {
   }
 
   function roleLabel(role: UserRole): string {
-    return role === "virtual_assistant" ? "Virtual assistant" : role[0].toUpperCase() + role.slice(1);
+    return role === "virtual_assistant" ? "Virtual assistant" : role === "employee" ? "Employee" : "Recruiter";
   }
 
   return (
