@@ -141,6 +141,15 @@ void test("intelligence and acquisition endpoints reject unauthenticated access"
       "/api/v1/vehicles",
       "/api/v1/scrape-runs",
       "/api/v1/sources",
+      "/api/v1/customer-operations/my-day",
+      "/api/v1/customer-operations/appointments",
+      "/api/v1/customer-operations/follow-ups",
+      "/api/v1/customer-operations/inbox",
+      "/api/v1/customer-operations/inbox/00000000-0000-0000-0000-000000000000",
+      "/api/v1/customer-operations/inbox/00000000-0000-0000-0000-000000000000/accept",
+      "/api/v1/customer-operations/performance",
+      "/api/v1/customer-operations/admin-overview",
+      "/api/v1/customer-operations/notifications",
     ];
 
     for (const endpoint of endpoints) {

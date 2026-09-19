@@ -25,6 +25,7 @@ import { cacheInvalidationMiddleware } from "./infra/cache.js";
 import { createRateLimiter } from "./infra/rate-limit.js";
 import { redisHealth } from "./infra/redis.js";
 import { requestMetricsMiddleware } from "./infra/metrics.js";
+import { customerOperationsRouter } from "./modules/customer-operations/routes.js";
 
 export function createApp() {
   const app = express();
@@ -114,6 +115,7 @@ export function createApp() {
   app.use("/api/v1/scraping-results", acquisitionRouter);
   app.use("/api/v1/assistant", assistantRouter);
   app.use("/api/v1/operations", operationsRouter);
+  app.use("/api/v1/customer-operations", customerOperationsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

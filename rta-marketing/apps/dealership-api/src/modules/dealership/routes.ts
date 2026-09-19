@@ -15,6 +15,7 @@ import {
   auditEvents,
   financeProviders,
   idempotencyRecords,
+  leadActivities,
   leads,
   leadSources,
   monthlyTargets,
@@ -391,6 +392,7 @@ dealershipRouter.post(
         convertedAt: input.status === "converted" ? new Date() : null,
       }).returning();
       if (!created) throw new Error("Failed to create lead");
+      await tx.insert(leadActivities).values({ workspaceId, leadId: created.id, actorUserId: request.user!.id, type: "created", note: "Lead created" });
       const body = { id: created.id, version: created.version };
       await tx.update(idempotencyRecords).set({ responseStatus: 201, responseBody: body }).where(eq(idempotencyRecords.id, lock.id));
       await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "lead.created", entityType: "lead", entityId: created.id });
@@ -423,6 +425,13 @@ dealershipRouter.patch(
       updatedAt: new Date(),
     }).where(and(access, eq(leads.id, id), eq(leads.version, version))).returning();
     if (!updated) throw new AppError(409, "STALE_WRITE", "This lead changed after you opened it; refresh and try again");
+    await db.insert(leadActivities).values({
+      workspaceId,
+      leadId: id,
+      actorUserId: request.user!.id,
+      type: input.status !== undefined ? "status_changed" : "internal_note",
+      note: input.status !== undefined ? `Lead status changed to ${input.status}` : "Lead details updated",
+    });
     await db.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "lead.updated", entityType: "lead", entityId: id, metadata: { version: updated.version } });
     response.json({ data: updated });
   }),

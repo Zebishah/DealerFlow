@@ -18,6 +18,12 @@ acquisition.
 - Read-only RTA AI tools for authorized analytics, leads, inventory, sales, and
   scrape diagnostics.
 
+The customer-operations workflow gives the `virtual_assistant` role a focused
+BDC responsibility: lead engagement → follow-up → appointment → handoff. The
+admin role receives workspace-wide workload oversight, overdue work, appointment
+and escalation visibility, while internal communication remains business-context
+handoff threads linked to leads rather than a general chat system.
+
 ## Engineering signals
 
 The repository demonstrates idempotent writes, bounded inputs, source contracts,

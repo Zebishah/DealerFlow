@@ -288,6 +288,107 @@ export const leads = pgTable(
   ],
 );
 
+export const leadActivities = pgTable(
+  "lead_activities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    type: text("type").notNull(),
+    method: text("method"),
+    note: text("note").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("lead_activities_lead_created_idx").on(table.leadId, table.createdAt),
+    index("lead_activities_workspace_created_idx").on(table.workspaceId, table.createdAt),
+  ],
+);
+
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+    assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
+    salespersonId: uuid("salesperson_id").references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    type: text("type").notNull(),
+    status: text("status").notNull().default("scheduled"),
+    notes: text("notes"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("appointments_workspace_scheduled_idx").on(table.workspaceId, table.scheduledAt),
+    index("appointments_workspace_status_idx").on(table.workspaceId, table.status),
+    index("appointments_assigned_scheduled_idx").on(table.assignedUserId, table.scheduledAt),
+  ],
+);
+
+export const followUps = pgTable(
+  "follow_ups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    type: text("type").notNull(),
+    status: text("status").notNull().default("pending"),
+    priority: text("priority").notNull().default("normal"),
+    note: text("note"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("follow_ups_workspace_due_idx").on(table.workspaceId, table.dueAt),
+    index("follow_ups_assignee_status_due_idx").on(table.assignedToUserId, table.status, table.dueAt),
+  ],
+);
+
+export const operationsThreads = pgTable(
+  "operations_threads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull(),
+    leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    priority: text("priority").notNull().default("normal"),
+    status: text("status").notNull().default("open"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("operations_threads_workspace_status_updated_idx").on(table.workspaceId, table.status, table.updatedAt),
+    index("operations_threads_assignee_status_idx").on(table.assignedToUserId, table.status),
+    index("operations_threads_lead_idx").on(table.leadId),
+  ],
+);
+
+export const operationsMessages = pgTable(
+  "operations_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    threadId: uuid("thread_id").notNull().references(() => operationsThreads.id, { onDelete: "cascade" }),
+    authorUserId: uuid("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("operations_messages_thread_created_idx").on(table.threadId, table.createdAt)],
+);
+
 export const commissionRules = pgTable(
   "commission_rules",
   {
@@ -759,6 +860,11 @@ export type User = typeof users.$inferSelect;
 export type UserRole = User["role"];
 export type Workspace = typeof workspaces.$inferSelect;
 export type Lead = typeof leads.$inferSelect;
+export type LeadActivity = typeof leadActivities.$inferSelect;
+export type Appointment = typeof appointments.$inferSelect;
+export type FollowUp = typeof followUps.$inferSelect;
+export type OperationsThread = typeof operationsThreads.$inferSelect;
+export type OperationsMessage = typeof operationsMessages.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
 export type AccessRequest = typeof accessRequests.$inferSelect;

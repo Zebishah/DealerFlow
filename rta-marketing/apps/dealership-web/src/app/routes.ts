@@ -21,6 +21,12 @@ const CompareVehiclesPage = lazy(async () => ({ default: (await import("../pages
 const InventoryPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).InventoryPage }));
 const SavedVehiclesPage = lazy(async () => ({ default: (await import("../pages/VehicleWorkspacePages")).SavedVehiclesPage }));
 const AccessRequestsPage = lazy(async () => ({ default: (await import("../pages/AccessRequestsPage")).AccessRequestsPage }));
+const MyDayPage = lazy(async () => ({ default: (await import("../pages/CustomerOperationsPages")).MyDayPage }));
+const AppointmentsPage = lazy(async () => ({ default: (await import("../pages/CustomerOperationsPages")).AppointmentsPage }));
+const FollowUpsPage = lazy(async () => ({ default: (await import("../pages/CustomerOperationsPages")).FollowUpsPage }));
+const OperationsInboxPage = lazy(async () => ({ default: (await import("../pages/CustomerOperationsPages")).OperationsInboxPage }));
+const MyPerformancePage = lazy(async () => ({ default: (await import("../pages/CustomerOperationsPages")).MyPerformancePage }));
+const VAOperationsPage = lazy(async () => ({ default: (await import("../pages/CustomerOperationsPages")).VAOperationsPage }));
 
 export interface AppRoute {
   component: RouteComponent;
@@ -46,6 +52,36 @@ export const appRoutes: Readonly<Record<string, AppRoute>> = {
   "/app/leads": {
     component: LeadsPage,
     roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    workspace: "required",
+  },
+  "/app/my-day": {
+    component: MyDayPage,
+    roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    workspace: "required",
+  },
+  "/app/appointments": {
+    component: AppointmentsPage,
+    roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    workspace: "required",
+  },
+  "/app/follow-ups": {
+    component: FollowUpsPage,
+    roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    workspace: "required",
+  },
+  "/app/inbox": {
+    component: OperationsInboxPage,
+    roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    workspace: "required",
+  },
+  "/app/my-performance": {
+    component: MyPerformancePage,
+    roles: ["admin", "employee", "virtual_assistant", "recruiter"],
+    workspace: "required",
+  },
+  "/app/va-operations": {
+    component: VAOperationsPage,
+    roles: ["admin", "recruiter"],
     workspace: "required",
   },
   "/app/sales": {

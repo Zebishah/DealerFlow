@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, CircleDollarSign, Target, UserPlus } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
-import type { DealershipSummary } from "../types/domain";
+import type { DealershipSummary, MyDayData } from "../types/domain";
 import { NavLink } from "../router/Navigation";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
@@ -17,6 +17,12 @@ export function PerformanceBoardPage() {
   const summary = useQuery({
     queryKey: ["dealership", "summary"],
     queryFn: () => api<{ data: DealershipSummary }>("/dealership/summary").then((value) => value.data),
+    refetchInterval: 30_000,
+  });
+  const operations = useQuery({
+    queryKey: ["customer-operations", "my-day", "performance-board"],
+    queryFn: () => api<{ data: MyDayData }>("/customer-operations/my-day").then((value) => value.data),
+    enabled: user?.role === "employee" || user?.role === "admin",
     refetchInterval: 30_000,
   });
   if (summary.isLoading) return <PageSkeleton />;
@@ -52,7 +58,7 @@ export function PerformanceBoardPage() {
     </section>
     <section className="board-columns">
       <article className="surface board-list"><header><div><span>PIPELINE</span><h3>Recent opportunities</h3></div><NavLink to="/app/leads">Open pipeline <ArrowRight size={15} /></NavLink></header>{data.recentLeads.map((lead) => <div key={lead.id}><b>{lead.firstName[0]}{lead.lastName[0]}</b><span><strong>{lead.firstName} {lead.lastName}</strong><small>{lead.vehicleInterest ?? "Vehicle not selected"}</small></span><em className={`status-chip ${lead.status}`}>{lead.status}</em></div>)}</article>
-      {user?.role !== "virtual_assistant" && <article className="surface board-list"><header><div><span>FUNDED ACTIVITY</span><h3>Latest sales</h3></div><NavLink to="/app/sales">Open ledger <ArrowRight size={15} /></NavLink></header>{data.recentSales.map((sale) => <div key={sale.id}><b>{sale.externalSaleId.slice(-2)}</b><span><strong>{sale.customerName}</strong><small>{sale.vehicleDescription}</small></span><em>{money(sale.salePriceCents)}</em></div>)}</article>}
+      {user?.role === "employee" ? <article className="surface board-list"><header><div><span>CUSTOMER OPERATIONS</span><h3>Today’s work</h3></div><NavLink to="/app/my-day">Open My day <ArrowRight size={15} /></NavLink></header><div><b>{operations.data?.counts.appointmentsToday ?? "—"}</b><span><strong>Appointments today</strong><small>Prepare for the next customer moment</small></span><em><NavLink to="/app/appointments">Appointments</NavLink></em></div><div><b>{operations.data?.counts.dueToday ?? "—"}</b><span><strong>Follow-ups due</strong><small>{operations.data?.counts.overdue ?? "—"} overdue follow-ups</small></span><em><NavLink to="/app/follow-ups">Follow-ups</NavLink></em></div><div><b>{operations.data?.counts.escalations ?? "—"}</b><span><strong>Open handoffs</strong><small>Manager and VA context</small></span><em><NavLink to="/app/inbox">Inbox</NavLink></em></div></article> : user?.role !== "virtual_assistant" ? <article className="surface board-list"><header><div><span>FUNDED ACTIVITY</span><h3>Latest sales</h3></div><NavLink to="/app/sales">Open ledger <ArrowRight size={15} /></NavLink></header>{data.recentSales.map((sale) => <div key={sale.id}><b>{sale.externalSaleId.slice(-2)}</b><span><strong>{sale.customerName}</strong><small>{sale.vehicleDescription}</small></span><em>{money(sale.salePriceCents)}</em></div>)}</article> : <article className="surface board-list"><header><div><span>CUSTOMER OPERATIONS</span><h3>Keep the queue moving</h3></div><NavLink to="/app/my-day">Open My day <ArrowRight size={15} /></NavLink></header><div><b>01</b><span><strong>Work today’s priority queue</strong><small>Overdue follow-ups and appointment confirmations</small></span><em><NavLink to="/app/follow-ups">Follow-ups</NavLink></em></div><div><b>02</b><span><strong>Coordinate a clean handoff</strong><small>Give sales the context they need to close</small></span><em><NavLink to="/app/inbox">Operations inbox</NavLink></em></div><div><b>03</b><span><strong>Review your operating rhythm</strong><small>Contacts, bookings, and completed customer moments</small></span><em><NavLink to="/app/my-performance">Performance</NavLink></em></div></article>}
     </section>
   </div>;
 }

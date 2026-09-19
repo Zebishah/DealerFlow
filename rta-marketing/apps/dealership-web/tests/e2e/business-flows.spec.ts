@@ -61,6 +61,25 @@ async function mockRecruiterApi(page: Page, role = "recruiter") {
   });
 }
 
+async function mockEmployeeApi(page: Page) {
+  const employee = { ...user, id: "employee-1", email: "sales@rta.demo", firstName: "Sales", lastName: "Consultant", role: "employee", isDemoRecruiter: false };
+  const thread = { id: "thread-1", workspaceId: "demo-workspace", subject: "trade_in_review: Ethan Brown needs appraisal", leadId: "lead-1", createdByUserId: "va-1", assignedToUserId: employee.id, priority: "high", status: "open", resolvedAt: null, version: 1, leadName: "Ethan Brown", creatorName: "Priya Shah" };
+  let accepted = false;
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/session")) return route.fulfill({ json: { data: { user: employee, csrfToken: "test-csrf" } } });
+    if (path.endsWith("/dealership/bootstrap")) return route.fulfill({ json: { data: { workspace: { id: "demo-workspace", name: "RTA Demo Workspace", mode: "demo" }, user: employee, team: [employee, { id: "admin-1", firstName: "Sales", lastName: "Manager", email: "admin@rta.demo", role: "admin", isActive: true }], leadSources: [], financeProviders: [] } } });
+    if (path.endsWith("/dealership/summary")) return route.fulfill({ json: { data: summary } });
+    if (path.endsWith("/customer-operations/my-day")) return route.fulfill({ json: { data: { counts: { newLeads: 1, dueToday: 2, overdue: 1, appointmentsToday: 1, confirmations: 0, escalations: 1 }, priority: [] } } });
+    if (path.endsWith("/customer-operations/notifications")) return route.fulfill({ json: { data: { unreadCount: 1, items: [{ id: "thread-1", title: "New handoff", body: thread.subject, href: "/app/inbox" }] } } });
+    if (path.endsWith("/customer-operations/inbox")) return route.fulfill({ json: { data: [{ ...thread, status: accepted ? "waiting" : "open", version: accepted ? 2 : 1 }] } });
+    if (path.endsWith("/customer-operations/inbox/thread-1")) return route.fulfill({ json: { data: { thread: { ...thread, status: accepted ? "waiting" : "open", version: accepted ? 2 : 1 }, messages: [{ id: "message-1", threadId: thread.id, authorUserId: "va-1", body: "Customer wants a trade estimate before the test drive.", createdAt: "2026-09-20T10:00:00.000Z", authorName: "Priya Shah" }] } } });
+    if (path.endsWith("/customer-operations/performance")) return route.fulfill({ json: { data: { userId: employee.id, leadsAssigned: 3, leadsContacted: 2, followUpsCompleted: 4, overdueFollowUps: 1, appointmentsBooked: 2, appointmentsConfirmed: 1, appointmentsCompleted: 1, noShows: 0 } } });
+    if (path.endsWith("/customer-operations/inbox/thread-1/accept")) { accepted = true; return route.fulfill({ json: { data: { ...thread, status: "waiting", version: 2 } } }); }
+    return route.fulfill({ json: { data: [] } });
+  });
+}
+
 test("recruiter can move from dashboard to analytics and live inventory", async ({ page }) => {
   await mockRecruiterApi(page);
   await page.goto("/app/overview");
@@ -91,4 +110,18 @@ test("viewer is redirected away from the admin-only source controls", async ({ p
   await page.goto("/app/source-control");
   await expect(page).toHaveURL(/\/app\/overview$/);
   await expect(page.getByRole("heading", { name: /Your dealership is moving with purpose|A clear view of team readiness/ })).toBeVisible();
+});
+
+test("employee sees today operations and can accept a VA handoff", async ({ page }) => {
+  await mockEmployeeApi(page);
+  await page.goto("/app/overview");
+  await expect(page.getByRole("heading", { name: "Your sales desk, clearly prioritized." })).toBeVisible();
+  await expect(page.getByText("Appointments today")).toBeVisible();
+  await expect(page.getByText("Open handoffs")).toBeVisible();
+  await page.getByRole("link", { name: "Operations inbox" }).click();
+  await expect(page.getByText("trade_in_review: Ethan Brown needs appraisal")).toBeVisible();
+  await page.getByRole("button", { name: /trade_in_review: Ethan Brown/ }).click();
+  await expect(page.getByRole("button", { name: "Accept handoff" })).toBeVisible();
+  await page.getByRole("button", { name: "Accept handoff" }).click();
+  await expect(page.getByText("waiting")).toBeVisible();
 });

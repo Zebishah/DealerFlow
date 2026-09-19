@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, CircleDollarSign, Gauge, ListTodo, Target, UserCheck, UserPlus as UserRoundSearch, Users } from "lucide-react";
+import { AlertCircle, ArrowRight, CalendarDays, CircleDollarSign, Clock3, Gauge, Inbox, ListTodo, Target, UserCheck, UserPlus as UserRoundSearch, Users } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { Link } from "../router/Navigation";
 import { api } from "../lib/api";
-import type { BootstrapData, DealershipSummary } from "../types/domain";
+import type { BootstrapData, DealershipSummary, MyDayData } from "../types/domain";
 
 const currency = (cents: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(cents / 100);
 
@@ -20,6 +20,12 @@ export function OverviewPage() {
     queryFn: () => api<{ data: BootstrapData }>("/dealership/bootstrap").then((result) => result.data),
     staleTime: 5 * 60_000,
     enabled: user?.role === "recruiter",
+  });
+  const employeeDay = useQuery({
+    queryKey: ["customer-operations", "my-day", "overview"],
+    queryFn: () => api<{ data: MyDayData }>("/customer-operations/my-day").then((result) => result.data),
+    enabled: user?.role === "employee",
+    refetchInterval: 60_000,
   });
   const data = summary.data;
   const isEmployee = user?.role === "employee";
@@ -66,6 +72,18 @@ export function OverviewPage() {
         <Metric label="Commission earned" value={currency(data?.sales.commissionCents ?? 0)} change="Calculated in basis points" icon={Target} tone="coral" />
       </>}
     </section>
+    {isEmployee && <section className="employee-today-grid">
+      <article className="surface employee-today-panel">
+        <div className="surface-head"><div><span>TODAY · CUSTOMER OPERATIONS</span><h3>Keep the sales desk moving.</h3></div><Link to="/app/my-day">Open My day <ArrowRight size={15} /></Link></div>
+        {employeeDay.isLoading ? <div className="inline-loading" aria-label="Loading today’s customer operations"><span className="loading-spinner" />Loading today’s work…</div> : employeeDay.isError ? <div className="empty-state"><AlertCircle size={22} /><strong>Today’s work is temporarily unavailable</strong><span>Open My day to retry the operational queue.</span></div> : <div className="today-metrics">
+          <Link to="/app/appointments"><CalendarDays size={17} /><span><strong>{employeeDay.data?.counts.appointmentsToday ?? 0}</strong><small>Appointments today</small></span></Link>
+          <Link to="/app/follow-ups"><ListTodo size={17} /><span><strong>{employeeDay.data?.counts.dueToday ?? 0}</strong><small>Follow-ups due</small></span></Link>
+          <Link to="/app/follow-ups"><Clock3 size={17} /><span><strong>{employeeDay.data?.counts.overdue ?? 0}</strong><small>Overdue follow-ups</small></span></Link>
+          <Link to="/app/inbox"><Inbox size={17} /><span><strong>{employeeDay.data?.counts.escalations ?? 0}</strong><small>Open handoffs</small></span></Link>
+        </div>}
+      </article>
+      <article className="surface employee-next-action"><span>NEXT BEST ACTION</span>{employeeDay.data?.priority[0] ? <><h3>{employeeDay.data.priority[0].firstName} {employeeDay.data.priority[0].lastName}</h3><p>{employeeDay.data.priority[0].note ?? "Customer follow-up"}</p><small>{employeeDay.data.priority[0].priority} priority · {new Date(employeeDay.data.priority[0].dueAt).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}</small><Link to="/app/follow-ups">Open follow-up <ArrowRight size={15} /></Link></> : employeeDay.isLoading ? <div className="inline-loading"><span className="loading-spinner" />Finding next action…</div> : <div className="empty-state"><strong>No priority action waiting</strong><span>Your follow-up queue is clear.</span></div>}</article>
+    </section>}
     <section className="dashboard-grid">
       <article className="surface wide"><div className="surface-head"><div><span>PIPELINE</span><h3>Recent opportunities</h3></div><Link to="/app/leads">Open pipeline <ArrowRight size={15} /></Link></div><div className="data-list">{data?.recentLeads.map((lead) => <div className="data-row" key={lead.id}><span className="avatar small">{lead.firstName[0]}{lead.lastName[0]}</span><div><strong>{lead.firstName} {lead.lastName}</strong><small>{lead.vehicleInterest ?? "Vehicle preference pending"}</small></div><span className={`status-chip ${lead.status}`}>{lead.status}</span><time>{new Date(lead.createdAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}</time></div>)}</div></article>
       {isAssistant ? <article className="surface"><div className="surface-head"><div><span>LEAD QUALITY</span><h3>Qualification progress</h3></div></div><div className="progress-summary"><div><strong>{data?.leads.qualified ?? 0}</strong><span>of {data?.leads.total ?? 0} opportunities</span></div><div className="progress-bar"><i style={{ width: `${progress}%` }} /></div><dl><div><dt>New intake</dt><dd>{data?.leads.new ?? 0}</dd></div><div><dt>Contacted</dt><dd>{Math.max((data?.leads.total ?? 0) - (data?.leads.new ?? 0) - (data?.leads.qualified ?? 0) - (data?.leads.converted ?? 0), 0)}</dd></div><div><dt>Converted</dt><dd>{data?.leads.converted ?? 0}</dd></div></dl></div></article> : <article className="surface"><div className="surface-head"><div><span>{isRecruiter ? "TEAM PERFORMANCE" : "MONTHLY TARGET"}</span><h3>{isRecruiter ? "Funded deal progress" : "Funded deal progress"}</h3></div></div><div className="progress-summary"><div><strong>{data?.sales.funded ?? 0}</strong><span>of {targetTotal || "—"} deals</span></div><div className="progress-bar"><i style={{ width: `${progress}%` }} /></div><dl><div><dt>Retail goal</dt><dd>{data?.target?.retailTarget ?? "—"}</dd></div><div><dt>Wholesale goal</dt><dd>{data?.target?.wholesaleTarget ?? "—"}</dd></div><div><dt>Gross profit goal</dt><dd>{data?.target ? currency(data.target.grossProfitTargetCents) : "—"}</dd></div></dl></div></article>}

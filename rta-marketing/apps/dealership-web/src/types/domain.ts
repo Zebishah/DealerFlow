@@ -54,6 +54,91 @@ export interface DealershipSummary {
   recentSales: Array<{ id: string; externalSaleId: string; customerName: string; vehicleDescription: string; status: string; salePriceCents: number; soldAt: string }>;
 }
 
+export interface MyDayData {
+  counts: { newLeads: number; dueToday: number; overdue: number; appointmentsToday: number; confirmations: number; escalations: number };
+  priority: Array<{ id: string; leadId: string; firstName: string; lastName: string; status: string; dueAt: string; priority: string; note: string | null }>;
+}
+
+export interface Appointment {
+  id: string;
+  workspaceId: string;
+  leadId: string;
+  assignedUserId: string | null;
+  salespersonId: string | null;
+  createdByUserId: string | null;
+  scheduledAt: string;
+  type: string;
+  status: string;
+  notes: string | null;
+  version: number;
+  leadName: string;
+  assignedName: string | null;
+}
+
+export interface FollowUp {
+  id: string;
+  workspaceId: string;
+  leadId: string;
+  assignedToUserId: string | null;
+  createdByUserId: string | null;
+  dueAt: string;
+  type: string;
+  status: string;
+  priority: string;
+  note: string | null;
+  completedAt: string | null;
+  version: number;
+  leadName: string;
+  assignedName: string | null;
+}
+
+export interface OperationsThread {
+  id: string;
+  workspaceId: string;
+  subject: string;
+  leadId: string | null;
+  createdByUserId: string;
+  assignedToUserId: string | null;
+  priority: string;
+  status: string;
+  resolvedAt: string | null;
+  version: number;
+  leadName: string | null;
+  creatorName: string;
+}
+
+export interface OperationsMessage {
+  id: string;
+  threadId: string;
+  authorUserId: string | null;
+  body: string;
+  createdAt: string;
+  authorName: string;
+}
+
+export interface CustomerOperationsPerformance {
+  userId: string;
+  leadsAssigned: number;
+  leadsContacted: number;
+  followUpsCompleted: number;
+  overdueFollowUps: number;
+  appointmentsBooked: number;
+  appointmentsConfirmed: number;
+  appointmentsCompleted: number;
+  noShows: number;
+}
+
+export interface VAWorkload {
+  id: string;
+  name: string;
+  role: "employee" | "virtual_assistant";
+  assignedLeads: number;
+  pendingFollowUps: number;
+  overdue: number;
+  appointmentsToday: number;
+  openHandoffs: number;
+}
+
 export interface DealershipAnalytics {
   period: "last_6_months";
   monthlySales: Array<{ month: string; fundedSales: number; revenueCents: number; grossProfitCents: number }>;
@@ -77,6 +162,16 @@ export interface Lead {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LeadActivity {
+  id: string;
+  leadId: string;
+  type: string;
+  method: string | null;
+  note: string;
+  actorName: string;
+  createdAt: string;
 }
 
 export type SaleStatus = "draft" | "submitted" | "approved" | "rejected" | "funded" | "cancelled";

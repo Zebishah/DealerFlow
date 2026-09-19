@@ -74,6 +74,27 @@ Money is transported as integer cents. Commission percentages are stored as inte
 | PATCH | `/dealership/commission-rules/:id` | Admin | Update a commission rule |
 | GET | `/dealership/audit-events` | Admin | Cursor-paginated audit history |
 
+## Customer operations
+
+These endpoints are workspace-scoped and protected by session, role, CSRF for
+writes, and optimistic version checks for state transitions. They model CRM
+activity only; they do not send SMS, email, or external chat messages.
+
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| GET | `/customer-operations/my-day` | Admin, employee, assistant, recruiter | Personal/workspace operational counts and priority follow-ups |
+| GET/POST | `/customer-operations/appointments` | Admin, employee, assistant, recruiter | List or schedule customer appointments |
+| PATCH | `/customer-operations/appointments/:id` | Admin, employee, assistant | Confirm or transition an appointment with version protection |
+| GET/POST | `/customer-operations/follow-ups` | Admin, employee, assistant, recruiter | List or create CRM follow-up intent |
+| PATCH | `/customer-operations/follow-ups/:id` | Admin, employee, assistant | Complete or transition a follow-up with version protection |
+| GET/POST | `/customer-operations/leads/:leadId/activities` | Workspace roles / write-capable roles | Read or record contact notes and lead timeline activity |
+| GET/POST | `/customer-operations/inbox` | Admin, employee, assistant, recruiter | Read or create internal operational handoffs |
+| GET/POST | `/customer-operations/inbox/:id` | Thread participants/admin | Read a thread or add a reply |
+| PATCH | `/customer-operations/inbox/:id` | Admin | Assign, reprioritize, resolve, or reopen a handoff |
+| GET | `/customer-operations/performance` | Admin, assistant, recruiter | Real customer-engagement activity metrics |
+| GET | `/customer-operations/admin-overview` | Admin, recruiter | Workspace VA workload and operational totals |
+| GET | `/customer-operations/notifications` | Workspace roles | Derived overdue, appointment, and handoff notifications |
+
 ## Private employee documents
 
 | Method | Path | Access | Purpose |

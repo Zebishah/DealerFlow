@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Search, UserPlus as UserRoundSearch } from "lucide-react";
+import { MessageSquare, Pencil, Plus, Search, UserPlus as UserRoundSearch } from "lucide-react";
 import { useDeferredValue, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
 import { api, idempotentJson } from "../lib/api";
-import type { BootstrapData, Lead, UserRole } from "../types/domain";
+import type { BootstrapData, Lead, LeadActivity, UserRole } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
 type LeadStatus = Lead["status"];
@@ -75,7 +75,21 @@ export function LeadsPage() {
   const [editing, setEditing] = useState<Lead | null>(null);
   const [form, setForm] = useState<LeadForm>(emptyForm);
   const [modalOpen, setModalOpen] = useState(false);
+  const [activityLead, setActivityLead] = useState<Lead | null>(null);
+  const [activityType, setActivityType] = useState("contact");
+  const [activityMethod, setActivityMethod] = useState("phone");
+  const [activityNote, setActivityNote] = useState("");
   const canWrite = Boolean(user && writableRoles.includes(user.role));
+  const activityQuery = useQuery({
+    queryKey: ["customer-operations", "lead-activities", activityLead?.id],
+    queryFn: () => api<{ data: LeadActivity[] }>(`/customer-operations/leads/${activityLead?.id}/activities`).then((result) => result.data),
+    enabled: Boolean(activityLead),
+  });
+  const recordActivity = useMutation({
+    mutationFn: () => api(`/customer-operations/leads/${activityLead?.id}/activities`, { method: "POST", body: JSON.stringify({ type: activityType, method: activityMethod, note: activityNote }) }),
+    onSuccess: () => { setActivityNote(""); toast.success("Lead activity recorded"); void queryClient.invalidateQueries({ queryKey: ["customer-operations", "lead-activities", activityLead?.id] }); },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not record activity"),
+  });
 
   const leadsQuery = useQuery({
     queryKey: ["dealership", "leads", deferredQuery, status],
@@ -198,7 +212,7 @@ export function LeadsPage() {
                     <td><div className="contact-cell"><span>{lead.email ?? "No email"}</span><small>{lead.phone ?? "No phone"}</small></div></td>
                     <td><span className={`status-chip ${lead.status}`}>{lead.status}</span></td>
                     <td>{new Date(lead.updatedAt).toLocaleDateString("en-CA")}</td>
-                    {canWrite && <td className="row-actions"><button onClick={() => openEdit(lead)} aria-label={`Edit ${lead.firstName} ${lead.lastName}`}><Pencil size={15} />Edit</button></td>}
+                    {canWrite && <td className="row-actions"><button onClick={() => setActivityLead(lead)}><MessageSquare size={15} />Activity</button><button onClick={() => openEdit(lead)} aria-label={`Edit ${lead.firstName} ${lead.lastName}`}><Pencil size={15} />Edit</button></td>}
                   </tr>
                 ))}
               </tbody>
@@ -237,6 +251,10 @@ export function LeadsPage() {
             <button type="submit" className="primary-action" disabled={saveLead.isPending}>{saveLead.isPending ? "Saving…" : editing ? "Save changes" : "Create lead"}</button>
           </footer>
         </form>
+      </WorkflowModal>
+      <WorkflowModal open={Boolean(activityLead)} eyebrow="LEAD TIMELINE" title={activityLead ? `${activityLead.firstName} ${activityLead.lastName}` : "Lead activity"} description="Record a concise customer-contact note for the team. This is CRM history, not an external message." busy={activityQuery.isLoading || recordActivity.isPending} onClose={() => setActivityLead(null)}>
+        <div className="activity-timeline">{activityQuery.data?.map((activity) => <article key={activity.id}><span className="status-dot" /><div><strong>{activity.type.replaceAll("_", " ")}{activity.method ? ` · ${activity.method}` : ""}</strong><p>{activity.note}</p><small>{activity.actorName} · {new Date(activity.createdAt).toLocaleString("en-CA")}</small></div></article>)}</div>
+        {canWrite && <form className="workflow-form" onSubmit={(event) => { event.preventDefault(); if (activityNote.trim()) recordActivity.mutate(); }}><div className="form-grid"><label>Activity<select value={activityType} onChange={(event) => setActivityType(event.target.value)}><option value="contact">Customer contact</option><option value="internal_note">Internal note</option><option value="follow_up">Follow-up</option><option value="appointment">Appointment</option></select></label><label>Method<select value={activityMethod} onChange={(event) => setActivityMethod(event.target.value)}><option value="phone">Phone</option><option value="email">Email</option><option value="sms">SMS</option><option value="other">Other</option></select></label><label className="form-span">Note<textarea required minLength={2} maxLength={2000} rows={3} value={activityNote} onChange={(event) => setActivityNote(event.target.value)} placeholder="What happened and what is the next useful action?" /></label></div><footer className="modal-actions"><button className="primary-action" disabled={recordActivity.isPending}>Record activity</button></footer></form>}
       </WorkflowModal>
     </div>
   );

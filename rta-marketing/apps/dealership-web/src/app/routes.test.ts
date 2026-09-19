@@ -46,6 +46,25 @@ describe("route authorization policy", () => {
     expect(canAccessRoute(performance, "virtual_assistant", "workspace-1")).toBe(true);
   });
 
+  it("gives customer operations to the BDC role without exposing admin controls", () => {
+    const myDay = appRoutes["/app/my-day"];
+    const appointments = appRoutes["/app/appointments"];
+    const inbox = appRoutes["/app/inbox"];
+    const myPerformance = appRoutes["/app/my-performance"];
+    const vaOperations = appRoutes["/app/va-operations"];
+    expect(myDay && appointments && inbox && myPerformance && vaOperations).toBeTruthy();
+    if (!myDay || !appointments || !inbox || !myPerformance || !vaOperations) return;
+
+    expect(canAccessRoute(myDay, "virtual_assistant", "workspace-1")).toBe(true);
+    expect(canAccessRoute(appointments, "virtual_assistant", "workspace-1")).toBe(true);
+    expect(canAccessRoute(inbox, "virtual_assistant", "workspace-1")).toBe(true);
+    expect(canAccessRoute(myPerformance, "employee", "workspace-1")).toBe(true);
+    expect(canAccessRoute(myPerformance, "viewer", "workspace-1")).toBe(false);
+    expect(canAccessRoute(vaOperations, "virtual_assistant", "workspace-1")).toBe(false);
+    expect(canAccessRoute(vaOperations, "admin", "workspace-1")).toBe(true);
+    expect(canAccessRoute(appointments, "viewer", "workspace-1")).toBe(false);
+  });
+
   it("resolves safe default and legacy destinations", () => {
     expect(defaultPath("workspace-1")).toBe("/app/overview");
     expect(defaultPath(null)).toBe("/app/acquisition");
