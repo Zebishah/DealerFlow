@@ -28,4 +28,12 @@ describe("ScrapedVehicleCard image delivery", () => {
     expect(screen.getByRole("img", { name: item.title }).getAttribute("src"))
       .toContain("/scraping-results/image?url=");
   });
+
+  it("shows a disabled loading state while saving", () => {
+    render(<ScrapedVehicleCard item={item} saved={false} saving onSave={() => undefined} />);
+
+    const saveButton = screen.getByRole("button", { name: "Saving vehicle" });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-busy", "true");
+  });
 });

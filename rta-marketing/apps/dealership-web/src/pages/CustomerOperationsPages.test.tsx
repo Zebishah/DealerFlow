@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NavigationProvider } from "../router/Navigation";
 import { MyDayPage } from "./CustomerOperationsPages";
@@ -24,6 +24,9 @@ describe("customer operations", () => {
     expect(await screen.findByText("My day, clearly prioritized.")).toBeInTheDocument();
     expect(screen.getByText("Ethan Brown")).toBeInTheDocument();
     expect(screen.getByText("Confirm finance questions")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(await screen.findByRole("dialog", { name: /Ethan Brown/i })).toBeInTheDocument();
+    expect(screen.getByText("Open follow-up queue")).toBeInTheDocument();
     expect(mocks.api).toHaveBeenCalledWith("/customer-operations/my-day");
     queryClient.clear();
   });

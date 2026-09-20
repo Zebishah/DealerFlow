@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Car, ChevronRight, Heart, Plus, Search, X } from "lucide-react";
+import { Car, ChevronRight, Heart, Loader2, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -119,6 +119,7 @@ function VehicleCard({
   saved,
   compared,
   onSave,
+  saving = false,
   onCompare,
   onDetails,
 }: {
@@ -126,6 +127,7 @@ function VehicleCard({
   saved: boolean;
   compared: boolean;
   onSave: () => void;
+  saving?: boolean;
   onCompare: () => void;
   onDetails: () => void;
 }) {
@@ -135,7 +137,7 @@ function VehicleCard({
         ? <img src={vehicle.imageUrl} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} loading="lazy" decoding="async" />
         : <div className="vehicle-photo-placeholder"><Car size={42} /><span>No image available</span></div>}
       <span className="vehicle-source-label">{vehicle.sourceName}</span>
-      <button className={`vehicle-save ${saved ? "active" : ""}`} type="button" onClick={onSave} aria-label={saved ? "Remove saved vehicle" : "Save vehicle"}><Heart size={17} fill={saved ? "currentColor" : "none"} /></button>
+      <button className={`vehicle-save ${saved ? "active" : ""}`} type="button" disabled={saving} aria-busy={saving} onClick={onSave} aria-label={saving ? (saved ? "Removing saved vehicle" : "Saving vehicle") : saved ? "Remove saved vehicle" : "Save vehicle"}>{saving ? <Loader2 size={17} className="spin" aria-hidden="true" /> : <Heart size={17} fill={saved ? "currentColor" : "none"} />}</button>
     </div>
     <div className="vehicle-info">
       <small>{vehicle.isUsed ? "PRE-OWNED" : "NEW"} · {vehicle.year}</small>
@@ -237,7 +239,7 @@ export function InventoryPage() {
       <button className="filter-button" type="button" onClick={clearFilters}>Clear filters</button>
       <span className="selection-count">{compare.length}/4 selected</span>
     </section>
-    {items.length ? <section className="vehicle-grid">{items.map((vehicle) => <ScrapedVehicleCard key={vehicle.id} item={vehicle} saved={savedIds.has(vehicle.id)} onSave={() => saveScraped.mutate({ id: vehicle.id, saved: savedIds.has(vehicle.id) })} compared={compareIds.has(vehicle.id)} onCompare={() => toggleCompare(vehicle)} onDetails={() => setSelectedItem(vehicle)} />)}</section> : <div className="empty-state surface"><Car /><strong>No scraped vehicles match your search</strong><span>Run a scrape or adjust the filters.</span></div>}
+    {items.length ? <section className="vehicle-grid">{items.map((vehicle) => <ScrapedVehicleCard key={vehicle.id} item={vehicle} saved={savedIds.has(vehicle.id)} saving={saveScraped.isPending && saveScraped.variables?.id === vehicle.id} onSave={() => saveScraped.mutate({ id: vehicle.id, saved: savedIds.has(vehicle.id) })} compared={compareIds.has(vehicle.id)} onCompare={() => toggleCompare(vehicle)} onDetails={() => setSelectedItem(vehicle)} />)}</section> : <div className="empty-state surface"><Car /><strong>No scraped vehicles match your search</strong><span>Run a scrape or adjust the filters.</span></div>}
     {results.hasNextPage && <div className="pagination-actions"><button className="filter-button" type="button" onClick={() => results.fetchNextPage()} disabled={results.isFetchingNextPage}>{results.isFetchingNextPage ? "Loading more…" : "Load more vehicles"}</button></div>}
     <ScrapedVehicleDetailsModal item={selectedItem} onClose={() => setSelectedItem(null)} />
   </div>;
@@ -266,7 +268,7 @@ export function SavedVehiclesPage() {
   const compareIds = new Set(compare.map((vehicle) => vehicle.vehicleId));
   const scrapedCompareIds = new Set(scrapedCompare.map((vehicle) => vehicle.id));
   const hasSavedVehicles = Boolean(saved.data?.length || savedScraped.data?.length);
-  return <div className="page-stack"><section className="page-intro"><div><span>PERSONAL SHORTLIST</span><h2>Saved vehicles.</h2><p>Your saved scraped listings are private to your account and remain available here until you remove them.</p></div></section>{savedScraped.data?.length ? <section className="saved-section"><div className="surface-head"><div><span>SCRAPED LISTINGS</span><h3>Saved from vehicle intelligence</h3></div><span className="status-chip completed">{savedScraped.data.length} saved</span></div><section className="vehicle-grid">{savedScraped.data.map((vehicle) => <ScrapedVehicleCard key={vehicle.id} item={vehicle} saved onSave={() => removeScraped.mutate(vehicle.id)} compared={scrapedCompareIds.has(vehicle.id)} onCompare={() => { const current = readScrapedComparison(scrapedStorageKey); if (scrapedCompareIds.has(vehicle.id)) writeScrapedComparison(current.filter((item) => item.id !== vehicle.id), scrapedStorageKey); else if (current.length < 4) writeScrapedComparison([...current, vehicle], scrapedStorageKey); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setSelectedScraped(vehicle)} />)}</section></section> : null}{saved.data?.length ? <section className="saved-section"><div className="surface-head"><div><span>NORMALIZED INVENTORY</span><h3>Saved catalog vehicles</h3></div></div><section className="vehicle-grid">{saved.data.map((vehicle) => <VehicleCard key={vehicle.vehicleId} vehicle={vehicle} saved compared={compareIds.has(vehicle.vehicleId)} onSave={() => remove.mutate(vehicle.vehicleId)} onCompare={() => { const current = readComparison(storageKey); if (compareIds.has(vehicle.vehicleId)) writeComparison(current.filter((item) => item.vehicleId !== vehicle.vehicleId), storageKey); else if (current.length < 4) writeComparison([...current, vehicle], storageKey); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setDetailId(vehicle.vehicleId)} />)}</section></section> : null}{!hasSavedVehicles && <div className="empty-state surface"><Heart /><strong>No saved vehicles yet</strong><span>Use the heart button on a vehicle card to build your private shortlist.</span></div>}<VehicleDetails vehicleId={detailId} onClose={() => setDetailId(null)} /><ScrapedVehicleDetailsModal item={selectedScraped} onClose={() => setSelectedScraped(null)} /></div>;
+  return <div className="page-stack"><section className="page-intro"><div><span>PERSONAL SHORTLIST</span><h2>Saved vehicles.</h2><p>Your saved scraped listings are private to your account and remain available here until you remove them.</p></div></section>{savedScraped.data?.length ? <section className="saved-section"><div className="surface-head"><div><span>SCRAPED LISTINGS</span><h3>Saved from vehicle intelligence</h3></div><span className="status-chip completed">{savedScraped.data.length} saved</span></div><section className="vehicle-grid">{savedScraped.data.map((vehicle) => <ScrapedVehicleCard key={vehicle.id} item={vehicle} saved saving={removeScraped.isPending && removeScraped.variables === vehicle.id} onSave={() => removeScraped.mutate(vehicle.id)} compared={scrapedCompareIds.has(vehicle.id)} onCompare={() => { const current = readScrapedComparison(scrapedStorageKey); if (scrapedCompareIds.has(vehicle.id)) writeScrapedComparison(current.filter((item) => item.id !== vehicle.id), scrapedStorageKey); else if (current.length < 4) writeScrapedComparison([...current, vehicle], scrapedStorageKey); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setSelectedScraped(vehicle)} />)}</section></section> : null}{saved.data?.length ? <section className="saved-section"><div className="surface-head"><div><span>NORMALIZED INVENTORY</span><h3>Saved catalog vehicles</h3></div></div><section className="vehicle-grid">{saved.data.map((vehicle) => <VehicleCard key={vehicle.vehicleId} vehicle={vehicle} saved compared={compareIds.has(vehicle.vehicleId)} saving={remove.isPending && remove.variables === vehicle.vehicleId} onSave={() => remove.mutate(vehicle.vehicleId)} onCompare={() => { const current = readComparison(storageKey); if (compareIds.has(vehicle.vehicleId)) writeComparison(current.filter((item) => item.vehicleId !== vehicle.vehicleId), storageKey); else if (current.length < 4) writeComparison([...current, vehicle], storageKey); else toast.error("Compare up to four vehicles at a time"); }} onDetails={() => setDetailId(vehicle.vehicleId)} />)}</section></section> : null}{!hasSavedVehicles && <div className="empty-state surface"><Heart /><strong>No saved vehicles yet</strong><span>Use the heart button on a vehicle card to build your private shortlist.</span></div>}<VehicleDetails vehicleId={detailId} onClose={() => setDetailId(null)} /><ScrapedVehicleDetailsModal item={selectedScraped} onClose={() => setSelectedScraped(null)} /></div>;
 }
 
 export function CompareVehiclesPage() {

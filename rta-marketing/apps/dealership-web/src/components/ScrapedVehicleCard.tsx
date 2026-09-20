@@ -82,6 +82,7 @@ export function ScrapedVehicleCard({
   saved = false,
   compared = false,
   onSave,
+  saving = false,
   onCompare,
   onDetails,
 }: {
@@ -89,6 +90,7 @@ export function ScrapedVehicleCard({
   saved?: boolean;
   compared?: boolean;
   onSave?: () => void;
+  saving?: boolean;
   onCompare?: () => void;
   onDetails?: () => void;
 }) {
@@ -109,7 +111,7 @@ export function ScrapedVehicleCard({
     <div className="vehicle-photo">
       <ListingImage item={item} />
       <span className="vehicle-source-label">{displaySiteName(item.siteName)}</span>
-      {onSave && <button className={`vehicle-save ${saved ? "active" : ""}`} type="button" onClick={(event) => { event.stopPropagation(); onSave(); }} aria-label={saved ? "Remove saved vehicle" : "Save vehicle"} title={saved ? "Remove from saved vehicles" : "Save vehicle"}><Heart size={17} fill={saved ? "currentColor" : "none"} /></button>}
+      {onSave && <button className={`vehicle-save ${saved ? "active" : ""}`} type="button" disabled={saving} aria-busy={saving} onClick={(event) => { event.stopPropagation(); onSave(); }} aria-label={saving ? (saved ? "Removing saved vehicle" : "Saving vehicle") : saved ? "Remove saved vehicle" : "Save vehicle"} title={saving ? (saved ? "Removing saved vehicle" : "Saving vehicle") : saved ? "Remove from saved vehicles" : "Save vehicle"}>{saving ? <Loader2 size={17} className="spin" aria-hidden="true" /> : <Heart size={17} fill={saved ? "currentColor" : "none"} />}</button>}
     </div>
     <div className="vehicle-info">
       <small>{item.year ?? "YEAR UNAVAILABLE"}</small>
