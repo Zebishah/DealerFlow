@@ -44,8 +44,9 @@ test("login page has no serious accessibility violations", async ({ page }) => {
   expect(results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
 });
 
-async function mockVAOperationsPages(page: import("@playwright/test").Page) {
-  const va = { id: "va-1", workspaceId: "demo-workspace", email: "assistant@rta.demo", firstName: "Priya", lastName: "Shah", role: "virtual_assistant", mustChangePassword: false, temporaryPasswordExpiresAt: null, emailVerifiedAt: "2026-01-01T00:00:00.000Z", isDemoRecruiter: false };
+async function mockVAOperationsPages(page: import("@playwright/test").Page, role: "virtual_assistant" | "employee" = "virtual_assistant") {
+  const isEmployee = role === "employee";
+  const va = { id: isEmployee ? "employee-1" : "va-1", workspaceId: "demo-workspace", email: isEmployee ? "sales@rta.demo" : "assistant@rta.demo", firstName: isEmployee ? "Maya" : "Priya", lastName: "Shah", role, mustChangePassword: false, temporaryPasswordExpiresAt: null, emailVerifiedAt: "2026-01-01T00:00:00.000Z", isDemoRecruiter: false };
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) return route.fulfill({ json: { data: { user: va, csrfToken: "test-csrf" } } });
@@ -72,6 +73,28 @@ test.describe("virtual assistant customer-operations accessibility", () => {
   for (const [path, heading] of pages) {
     test(`${path} has no serious or critical axe findings`, async ({ page }) => {
       await mockVAOperationsPages(page);
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
+    });
+  }
+});
+
+test.describe("employee customer-operations accessibility", () => {
+  const pages = [
+    ["/app/overview", "Your sales desk, clearly prioritized."],
+    ["/app/my-day", "My day, clearly prioritized."],
+    ["/app/appointments", "Appointments that convert."],
+    ["/app/follow-ups", "Follow-ups without dropped threads."],
+    ["/app/inbox", "Handoffs that stay visible."],
+    ["/app/my-performance", "Measure the work behind the conversion."],
+    ["/app/performance-board", "Dealership momentum, visible to the whole team."],
+  ] as const;
+
+  for (const [path, heading] of pages) {
+    test(`${path} has no serious or critical axe findings`, async ({ page }) => {
+      await mockVAOperationsPages(page, "employee");
       await page.goto(path);
       await expect(page.getByRole("heading", { name: heading })).toBeVisible();
       const results = await new AxeBuilder({ page }).analyze();

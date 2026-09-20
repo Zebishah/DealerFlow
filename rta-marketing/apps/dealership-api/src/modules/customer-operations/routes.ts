@@ -1,3 +1,4 @@
+import { aliasedTable } from "drizzle-orm/alias";
 import { and, asc, desc, eq, gte, lt, or, sql } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
@@ -25,6 +26,8 @@ const appointmentTypes = ["showroom_visit", "test_drive", "finance_consultation"
 const followUpTypes = ["call", "email", "sms", "customer_callback", "appointment_confirmation", "appointment_follow_up", "post_test_drive", "deal_follow_up", "delivery_follow_up", "post_sale", "post_visit", "general"] as const;
 const activityTypes = ["contact", "internal_note", "status_changed", "follow_up", "appointment"] as const;
 const contactMethods = ["phone", "email", "sms", "other"] as const;
+const threadCreators = aliasedTable(users, "thread_creator");
+const threadAssignees = aliasedTable(users, "thread_assignee");
 
 const appointmentInput = z.object({
   leadId: uuid,
@@ -221,8 +224,8 @@ customerOperationsRouter.post("/leads/:leadId/activities", requireCsrf, asyncHan
 customerOperationsRouter.get("/inbox", asyncHandler(async (request, response) => {
   const workspaceId = requireWorkspace(request); const user = request.user!;
   const scope = user.role === "admin" || user.role === "recruiter" ? eq(operationsThreads.workspaceId, workspaceId) : and(eq(operationsThreads.workspaceId, workspaceId), or(eq(operationsThreads.createdByUserId, user.id), eq(operationsThreads.assignedToUserId, user.id)));
-  const rows = await db.select({ thread: operationsThreads, leadFirstName: leads.firstName, leadLastName: leads.lastName, creatorFirstName: users.firstName, creatorLastName: users.lastName }).from(operationsThreads).leftJoin(leads, eq(operationsThreads.leadId, leads.id)).leftJoin(users, eq(operationsThreads.createdByUserId, users.id)).where(scope).orderBy(desc(operationsThreads.updatedAt)).limit(100);
-  response.json({ data: rows.map((row) => ({ ...row.thread, leadName: row.leadFirstName ? `${row.leadFirstName} ${row.leadLastName}` : null, creatorName: [row.creatorFirstName, row.creatorLastName].filter(Boolean).join(" ") || "Team member" })) });
+  const rows = await db.select({ thread: operationsThreads, leadFirstName: leads.firstName, leadLastName: leads.lastName, creatorFirstName: threadCreators.firstName, creatorLastName: threadCreators.lastName, creatorRole: threadCreators.role, assignedFirstName: threadAssignees.firstName, assignedLastName: threadAssignees.lastName, assignedRole: threadAssignees.role }).from(operationsThreads).leftJoin(leads, eq(operationsThreads.leadId, leads.id)).leftJoin(threadCreators, eq(operationsThreads.createdByUserId, threadCreators.id)).leftJoin(threadAssignees, eq(operationsThreads.assignedToUserId, threadAssignees.id)).where(scope).orderBy(desc(operationsThreads.updatedAt)).limit(100);
+  response.json({ data: rows.map((row) => ({ ...row.thread, leadName: row.leadFirstName ? `${row.leadFirstName} ${row.leadLastName}` : null, creatorName: [row.creatorFirstName, row.creatorLastName].filter(Boolean).join(" ") || "Team member", creatorRole: row.creatorRole, assignedName: [row.assignedFirstName, row.assignedLastName].filter(Boolean).join(" ") || null, assignedRole: row.assignedRole })) });
 }));
 
 customerOperationsRouter.get("/inbox/:id", asyncHandler(async (request, response) => {
@@ -230,8 +233,9 @@ customerOperationsRouter.get("/inbox/:id", asyncHandler(async (request, response
   const scope = user.role === "admin" || user.role === "recruiter" ? sql`true` : or(eq(operationsThreads.createdByUserId, user.id), eq(operationsThreads.assignedToUserId, user.id));
   const [thread] = await db.select().from(operationsThreads).where(and(eq(operationsThreads.id, id), eq(operationsThreads.workspaceId, workspaceId), scope)).limit(1);
   if (!thread) throw new AppError(404, "THREAD_NOT_FOUND", "This operations thread was not found");
-  const messages = await db.select({ message: operationsMessages, firstName: users.firstName, lastName: users.lastName, email: users.email }).from(operationsMessages).leftJoin(users, eq(operationsMessages.authorUserId, users.id)).where(eq(operationsMessages.threadId, id)).orderBy(asc(operationsMessages.createdAt));
-  response.json({ data: { thread, messages: messages.map((row) => ({ ...row.message, authorName: [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || "Team member" })) } });
+  const [threadContext] = await db.select({ creatorFirstName: threadCreators.firstName, creatorLastName: threadCreators.lastName, creatorRole: threadCreators.role, assignedFirstName: threadAssignees.firstName, assignedLastName: threadAssignees.lastName, assignedRole: threadAssignees.role }).from(operationsThreads).leftJoin(threadCreators, eq(operationsThreads.createdByUserId, threadCreators.id)).leftJoin(threadAssignees, eq(operationsThreads.assignedToUserId, threadAssignees.id)).where(eq(operationsThreads.id, id)).limit(1);
+  const messages = await db.select({ message: operationsMessages, firstName: users.firstName, lastName: users.lastName, email: users.email, authorRole: users.role }).from(operationsMessages).leftJoin(users, eq(operationsMessages.authorUserId, users.id)).where(eq(operationsMessages.threadId, id)).orderBy(asc(operationsMessages.createdAt));
+  response.json({ data: { thread: { ...thread, creatorName: [threadContext?.creatorFirstName, threadContext?.creatorLastName].filter(Boolean).join(" ") || "Team member", creatorRole: threadContext?.creatorRole ?? null, assignedName: [threadContext?.assignedFirstName, threadContext?.assignedLastName].filter(Boolean).join(" ") || null, assignedRole: threadContext?.assignedRole ?? null }, messages: messages.map((row) => ({ ...row.message, authorName: [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || "Team member", authorRole: row.authorRole ?? null })) } });
 }));
 
 customerOperationsRouter.post("/inbox/:id/accept", requireCsrf, asyncHandler(async (request, response) => {

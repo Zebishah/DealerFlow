@@ -105,6 +105,9 @@ export interface OperationsThread {
   version: number;
   leadName: string | null;
   creatorName: string;
+  creatorRole: UserRole | null;
+  assignedName: string | null;
+  assignedRole: UserRole | null;
 }
 
 export interface OperationsMessage {
@@ -114,6 +117,7 @@ export interface OperationsMessage {
   body: string;
   createdAt: string;
   authorName: string;
+  authorRole: UserRole | null;
 }
 
 export interface CustomerOperationsPerformance {

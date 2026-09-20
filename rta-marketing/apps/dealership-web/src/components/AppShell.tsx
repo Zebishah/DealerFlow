@@ -135,7 +135,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const askPrompt = contextualPrompts[key] ?? `Explain the most useful intelligence available on the ${title.toLowerCase()} page.`;
   const intelligencePaths = ["/app/inventory", "/app/saved-vehicles", "/app/compare", "/app/acquisition", "/app/source-control", "/app/access-requests"];
   const customerOpsPaths = ["/app/my-day", "/app/appointments", "/app/follow-ups", "/app/inbox", "/app/my-performance", "/app/va-operations"];
+  const performancePaths = ["/app/commissions", "/app/targets", "/app/analytics", "/app/performance-board"];
+  const resourcePaths = ["/app/documents"];
+  const workspacePaths = ["/app/overview", "/app/leads", "/app/sales"];
+  const administrationPaths = ["/app/team", "/app/configuration", "/app/audit"];
   const notificationItems = notifications.data?.items?.filter((item) => !readNotificationIds.includes(item.id)) ?? [];
+
+  function renderNavGroup(label: string, paths: string[]) {
+    const groupItems = items.filter((item) => paths.includes(item.to));
+    if (!groupItems.length) return null;
+    return <><p>{label}</p>{groupItems.map(({ to, label: itemLabel, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{itemLabel}</span></NavLink>)}</>;
+  }
 
   function markNotificationRead(id: string) {
     setReadNotificationIds((current) => {
@@ -167,12 +177,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>RTA</strong><span>OPERATIONS</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{user.workspaceId ? "Workspace operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
-        <p>WORKSPACE</p>
-        {items.filter((item) => !intelligencePaths.includes(item.to) && !customerOpsPaths.includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
-        <p>CUSTOMER OPERATIONS</p>
-        {items.filter((item) => customerOpsPaths.includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
-        <p>INTELLIGENCE</p>
-        {items.filter((item) => intelligencePaths.includes(item.to)).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)}><Icon size={18} /><span>{label}</span></NavLink>)}
+        {renderNavGroup("WORKSPACE", workspacePaths)}
+        {renderNavGroup("CUSTOMER OPERATIONS", customerOpsPaths)}
+        {renderNavGroup("PERFORMANCE", performancePaths)}
+        {renderNavGroup("RESOURCES", resourcePaths)}
+        {renderNavGroup("INTELLIGENCE", intelligencePaths)}
+        {renderNavGroup("ADMINISTRATION", administrationPaths)}
       </nav>
       <div className="side-status"><span><i />API connected</span><small>PostgreSQL · Redis · Apify</small></div>
     </aside>

@@ -944,19 +944,19 @@ button:disabled {
 .board-metrics article { display: grid; grid-template-columns: auto 1fr; gap: .25rem .7rem; padding: 1.15rem; border: 1px solid #e2e5ed; border-radius: .9rem; background: #fff; box-shadow: 0 8px 25px rgba(23,31,58,.04); }
 .board-metrics svg { grid-row: 1 / 4; padding: .55rem; box-sizing: content-box; border-radius: .65rem; background: #f1efff; color: #5d4ee8; }
 .board-metrics span, .board-metrics strong, .board-metrics small { grid-column: 2; }
-.board-metrics span { color: #747d91; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.board-metrics span { color: #5f6b80; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
 .board-metrics strong { font-size: 1.35rem; color: #1c2438; }
-.board-metrics small { color: #959cab; }
+.board-metrics small { color: #5f6b80; }
 .board-columns { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
 .board-list { padding: 1.2rem; }
 .board-list header { display: flex; align-items: center; justify-content: space-between; padding-bottom: .8rem; border-bottom: 1px solid #e6e8ef; }
-.board-list header span { color: #7b84a0; font-size: .62rem; letter-spacing: .12em; }
+.board-list header span { color: #5f6b80; font-size: .62rem; letter-spacing: .12em; }
 .board-list header h3 { margin: .25rem 0 0; }
 .board-list header a { display: inline-flex; align-items: center; gap: .25rem; color: #5749e5; font-size: .75rem; font-weight: 700; text-decoration: none; }
 .board-list > div { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .75rem; padding: .8rem 0; border-bottom: 1px solid #eef0f4; }
 .board-list > div > b { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .6rem; background: #f1efff; color: #5d4ee8; font-size: .7rem; }
 .board-list > div > span { display: grid; min-width: 0; gap: .15rem; }
-.board-list > div small { overflow: hidden; color: #8991a2; text-overflow: ellipsis; white-space: nowrap; }
+.board-list > div small { overflow: hidden; color: #5f6b80; text-overflow: ellipsis; white-space: nowrap; }
 .board-list em { font-style: normal; font-weight: 700; }
 @media (max-width: 980px) { .board-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .board-columns { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .board-hero { align-items: flex-start; padding: 1.5rem; } .board-score { flex-basis: 5.6rem; } .board-score strong { font-size: 1.15rem; } .board-metrics { grid-template-columns: 1fr; } }
