@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import type { AuditEvent, BootstrapData, NamedResource } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 import { WorkflowModal } from "../components/WorkflowModal";
+import { LoadingButton } from "../components/LoadingButton";
 
 type ResourceKind = "lead-sources" | "finance-providers";
 
@@ -54,7 +55,7 @@ function ResourcePanel({ kind, title, description, icon: Icon }: {
 
   return <article className="surface resource-panel">
     <div className="resource-heading"><span><Icon /></span><div><h3>{title}</h3><p>{description}</p></div></div>
-    <form className="inline-create" onSubmit={submit}><input required minLength={2} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder={`New ${title.toLowerCase().slice(0, -1)} name`} /><button className="primary-action" disabled={create.isPending}><Plus size={16} />Add</button></form>
+    <form className="inline-create" onSubmit={submit}><input required minLength={2} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder={`New ${title.toLowerCase().slice(0, -1)} name`} /><LoadingButton type="submit" loading={create.isPending} loadingLabel="Adding…"><Plus size={16} />Add</LoadingButton></form>
     {resource.isLoading ? <div className="mini-loading">Loading configuration…</div> : resource.isError ? <p className="inline-error">Configuration could not be loaded.</p> : <div className="resource-list">{resource.data?.map((item) => <div key={item.id}><div><strong>{item.name}</strong><small>{item.isActive ? "Available in operational forms" : "Inactive and hidden from new records"}</small></div><button disabled={toggle.isPending} onClick={() => toggle.mutate(item)} aria-label={`${item.isActive ? "Deactivate" : "Activate"} ${item.name}`}>{item.isActive ? <ToggleRight /> : <ToggleLeft />}<span>{item.isActive ? "Active" : "Inactive"}</span></button></div>)}</div>}
   </article>;
 }

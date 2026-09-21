@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
+import { LoadingButton } from "../components/LoadingButton";
 import { api } from "../lib/api";
 import type { BootstrapData, CommissionRule, DealershipAnalytics, DealershipSummary, MonthlyTargetRecord } from "../types/domain";
 import { buildAnalyticsTimeline, LeadPipelineChart, LeadSourceChart, MonthlyActivityChart, RevenueTrendChart } from "../components/AnalyticsCharts";
@@ -143,7 +144,7 @@ export function CommissionsPage() {
         {!editing && <label>Effective from<input required type="date" value={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} /></label>}
         <label>Effective until<input type="date" min={form.effectiveFrom} value={form.effectiveTo} onChange={(event) => setForm({ ...form, effectiveTo: event.target.value })} /></label>
         {editing && <label>Status<select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm({ ...form, isActive: event.target.value === "active" })}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>}
-      </div><footer className="modal-actions"><button type="button" className="filter-button" disabled={save.isPending} onClick={() => setModalOpen(false)}>Cancel</button><button type="submit" className="primary-action" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save rule"}</button></footer></form>
+      </div><footer className="modal-actions"><button type="button" className="filter-button" disabled={save.isPending} onClick={() => setModalOpen(false)}>Cancel</button><LoadingButton type="submit" loading={save.isPending} loadingLabel="Saving…">Save rule</LoadingButton></footer></form>
     </WorkflowModal>
   </div>;
 }
@@ -232,7 +233,7 @@ export function TargetsPage() {
         <label>Retail deals<input required type="number" min="0" max="1000" step="1" value={form.retailTarget} onChange={(event) => setForm({ ...form, retailTarget: event.target.value })} /></label>
         <label>Wholesale deals<input required type="number" min="0" max="1000" step="1" value={form.wholesaleTarget} onChange={(event) => setForm({ ...form, wholesaleTarget: event.target.value })} /></label>
         <label className="form-span">Gross profit target (CAD)<input required type="number" min="0" max="20000000" step=".01" value={form.grossProfitTarget} onChange={(event) => setForm({ ...form, grossProfitTarget: event.target.value })} /></label>
-      </div><footer className="modal-actions"><button type="button" className="filter-button" disabled={save.isPending} onClick={() => setModalOpen(false)}>Cancel</button><button type="submit" className="primary-action" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save target"}</button></footer></form>
+      </div><footer className="modal-actions"><button type="button" className="filter-button" disabled={save.isPending} onClick={() => setModalOpen(false)}>Cancel</button><LoadingButton type="submit" loading={save.isPending} loadingLabel="Saving…">Save target</LoadingButton></footer></form>
     </WorkflowModal>
   </div>;
 }

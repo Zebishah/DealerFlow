@@ -1,8 +1,9 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Car, ExternalLink, Loader2 as LoaderCircle, Play, RefreshCw, ServerCog } from "lucide-react";
+import { Activity, AlertTriangle, Car, ExternalLink, Play, RefreshCw, ServerCog } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
+import { LoadingButton } from "../components/LoadingButton";
 import toast from "react-hot-toast";
 import { api, idempotentJson } from "../lib/api";
 import type { IntelligenceSummary, ScrapedListing, ScrapingResultsResponse, ScrapingSite, SourceHealth } from "../types/domain";
@@ -148,10 +149,10 @@ export function AcquisitionPage() {
             <option value="fixture">Validation run</option>
           </select>
         </label>
-        <button onClick={() => run.mutate(crypto.randomUUID())} disabled={run.isPending || selectedSources.length === 0}>
-          {run.isPending ? <LoaderCircle className="spin" /> : <Play />}
+        <LoadingButton onClick={() => run.mutate(crypto.randomUUID())} loading={run.isPending} loadingLabel="Queueing…" disabled={selectedSources.length === 0}>
+          <Play />
           {selectedSources.length ? `Queue ${selectedSources.length} source${selectedSources.length === 1 ? "" : "s"}` : "Select a source"}
-        </button>
+        </LoadingButton>
       </div>
     </section>
 

@@ -3,6 +3,7 @@ import { KeyRound, Save, ShieldCheck, User } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
+import { LoadingButton } from "../components/LoadingButton";
 import { api } from "../lib/api";
 
 export function ProfilePage() {
@@ -52,12 +53,12 @@ export function ProfilePage() {
       <form className="surface settings-card" onSubmit={saveProfile}>
         <header><span><User /></span><div><h3>Profile information</h3><p>Your role and email are controlled by an administrator.</p></div></header>
         <div className="settings-fields"><label>Email<input value={user?.email ?? ""} disabled /></label><label>Role<input className="capitalize" value={user?.role.replace("_", " ") ?? ""} disabled /></label><label>First name<input required minLength={1} maxLength={80} value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Last name<input required minLength={1} maxLength={80} value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div>
-        <footer><button className="primary-action" disabled={profile.isPending}><Save size={16} />{profile.isPending ? "Saving…" : "Save profile"}</button></footer>
+        <footer><LoadingButton loading={profile.isPending} loadingLabel="Saving…"><Save size={16} />Save profile</LoadingButton></footer>
       </form>
       <form className="surface settings-card" onSubmit={changePassword}>
         <header><span><KeyRound /></span><div><h3>Change password</h3><p>Changing your password revokes every other active session.</p></div></header>
         <div className="settings-fields single"><label>Current password<input required type="password" minLength={8} maxLength={200} autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input required type="password" minLength={14} maxLength={200} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label><label>Confirm new password<input required type="password" minLength={14} maxLength={200} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label></div>
-        <footer><button className="primary-action" disabled={password.isPending}><ShieldCheck size={16} />{password.isPending ? "Updating…" : "Update password"}</button></footer>
+        <footer><LoadingButton loading={password.isPending} loadingLabel="Updating…"><ShieldCheck size={16} />Update password</LoadingButton></footer>
       </form>
     </section>
   </div>;

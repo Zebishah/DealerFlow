@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
+import { LoadingButton } from "../components/LoadingButton";
 import { api } from "../lib/api";
 import type { AdminUser, BootstrapData, UserRole } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
@@ -195,7 +196,7 @@ export function TeamPage() {
             {editing && <label>Access status<select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm({ ...form, isActive: event.target.value === "active" })}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>}
             <label className="form-span">{editing ? "New password (optional)" : "Temporary password"}<input required={!editing} type="password" minLength={14} maxLength={200} autoComplete="new-password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /><small>{editing ? "Leave blank to keep the current password. Resetting it revokes existing sessions." : "Use at least 14 characters and share it securely."}</small></label>
           </div>
-          <footer className="modal-actions"><button type="button" className="filter-button" disabled={saveMember.isPending} onClick={() => setModalOpen(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saveMember.isPending}>{saveMember.isPending ? "Saving…" : editing ? "Save changes" : "Create account"}</button></footer>
+          <footer className="modal-actions"><button type="button" className="filter-button" disabled={saveMember.isPending} onClick={() => setModalOpen(false)}>Cancel</button><LoadingButton type="submit" loading={saveMember.isPending} loadingLabel="Saving…">{editing ? "Save changes" : "Create account"}</LoadingButton></footer>
         </form>
       </WorkflowModal>
     </div>

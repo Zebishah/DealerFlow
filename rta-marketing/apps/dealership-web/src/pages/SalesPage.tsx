@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
+import { LoadingButton } from "../components/LoadingButton";
 import { api, idempotentJson } from "../lib/api";
 import type { BootstrapData, Sale, UserRole } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
@@ -294,7 +295,7 @@ export function SalesPage() {
           </div>
           <footer className="modal-actions">
             <button type="button" className="filter-button" disabled={saving} onClick={closeModal}>Cancel</button>
-            <button type="submit" className="primary-action" disabled={saving}>{saving ? "Saving…" : editingSale ? "Save changes" : "Record sale"}</button>
+            <LoadingButton type="submit" loading={saving} loadingLabel="Saving…">{editingSale ? "Save changes" : "Record sale"}</LoadingButton>
           </footer>
         </form>
       </WorkflowModal>
