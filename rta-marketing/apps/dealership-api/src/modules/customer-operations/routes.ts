@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { aliasedTable } from "drizzle-orm/alias";
 import { and, asc, desc, eq, gte, lt, or, sql } from "drizzle-orm";
 import { Router } from "express";
@@ -9,6 +10,7 @@ import {
   appointments,
   auditEvents,
   followUps,
+  idempotencyRecords,
   leadActivities,
   leads,
   operationsMessages,
@@ -66,6 +68,16 @@ const threadUpdate = z.object({
   version: z.number().int().min(1),
 });
 const messageInput = z.object({ body: z.string().trim().min(2).max(4_000) });
+
+function requestHash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function requireIdempotencyKey(header: string | undefined): string {
+  const result = z.string().trim().min(8).max(200).safeParse(header);
+  if (!result.success) throw new AppError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required");
+  return result.data;
+}
 
 function canWrite(user: AuthenticatedUser): boolean {
   return ["admin", "employee", "virtual_assistant"].includes(user.role);
@@ -150,25 +162,38 @@ customerOperationsRouter.post("/appointments", requireCsrf, asyncHandler(async (
   const lead = await assertLead(workspaceId, input.leadId, request.user!);
   const assignedUserId = input.assignedUserId ?? (["virtual_assistant", "employee"].includes(request.user!.role) ? request.user!.id : null);
   await assertMember(workspaceId, assignedUserId); await assertMember(workspaceId, input.salespersonId);
-  const created = await db.transaction(async (tx) => {
+  const key = requireIdempotencyKey(request.header("idempotency-key"));
+  const hash = requestHash({ ...input, assignedUserId, salespersonId: input.salespersonId ?? null });
+  const result = await db.transaction(async (tx) => {
+    const [lock] = await tx.insert(idempotencyRecords).values({ workspaceId, userId: request.user!.id, operation: "appointment.create", key, requestHash: hash, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }).onConflictDoNothing().returning({ id: idempotencyRecords.id });
+    if (!lock) {
+      const [existing] = await tx.select({ requestHash: idempotencyRecords.requestHash, responseBody: idempotencyRecords.responseBody }).from(idempotencyRecords).where(and(eq(idempotencyRecords.workspaceId, workspaceId), eq(idempotencyRecords.operation, "appointment.create"), eq(idempotencyRecords.key, key))).limit(1);
+      if (!existing || existing.requestHash !== hash) throw new AppError(409, "IDEMPOTENCY_CONFLICT", "This idempotency key was used for a different request");
+      if (!existing.responseBody) throw new AppError(409, "REQUEST_IN_PROGRESS", "An identical request is already being processed");
+      return { body: existing.responseBody, reused: true };
+    }
     const [appointment] = await tx.insert(appointments).values({ ...input, workspaceId, assignedUserId, salespersonId: input.salespersonId ?? null, createdByUserId: request.user!.id, type: input.type, status: "scheduled" }).returning();
     if (!appointment) throw new Error("Failed to create appointment");
     await tx.insert(leadActivities).values({ workspaceId, leadId: input.leadId, actorUserId: request.user!.id, type: "appointment", note: `Appointment scheduled for ${appointment.scheduledAt.toISOString()}` });
     await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "appointment.created", entityType: "appointment", entityId: appointment.id, metadata: { leadId: lead.id } });
-    return appointment;
+    const body = appointment as unknown as Record<string, unknown>;
+    await tx.update(idempotencyRecords).set({ responseStatus: 201, responseBody: body }).where(eq(idempotencyRecords.id, lock.id));
+    return { body, reused: false };
   });
-  response.status(201).json({ data: created });
+  response.status(result.reused ? 200 : 201).json({ data: result.body, meta: { idempotentReplay: result.reused } });
 }));
 
 customerOperationsRouter.patch("/appointments/:id", requireCsrf, asyncHandler(async (request, response) => {
   if (!canWrite(request.user!)) throw new AppError(403, "APPOINTMENT_WRITE_FORBIDDEN", "Your role cannot update appointments");
   const workspaceId = requireWorkspace(request); const id = uuid.parse(request.params.id); const { version, ...changes } = appointmentUpdate.parse(request.body);
+  await assertMember(workspaceId, changes.assignedUserId); await assertMember(workspaceId, changes.salespersonId);
   const scope = request.user!.role === "admin" ? sql`true` : or(eq(appointments.assignedUserId, request.user!.id), eq(appointments.salespersonId, request.user!.id), eq(appointments.createdByUserId, request.user!.id));
-  const [updated] = await db.update(appointments).set({ ...changes, version: version + 1, updatedAt: new Date() }).where(and(eq(appointments.id, id), eq(appointments.workspaceId, workspaceId), eq(appointments.version, version), scope)).returning();
-  if (!updated) throw new AppError(409, "STALE_APPOINTMENT", "This appointment changed; refresh and try again");
-  await db.transaction(async (tx) => {
-    await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: `appointment.${updated.status}`, entityType: "appointment", entityId: id });
-    await tx.insert(leadActivities).values({ workspaceId, leadId: updated.leadId, actorUserId: request.user!.id, type: "appointment", note: `Appointment marked ${updated.status.replaceAll("_", " ")}` });
+  const updated = await db.transaction(async (tx) => {
+    const [updatedAppointment] = await tx.update(appointments).set({ ...changes, version: version + 1, updatedAt: new Date() }).where(and(eq(appointments.id, id), eq(appointments.workspaceId, workspaceId), eq(appointments.version, version), scope)).returning();
+    if (!updatedAppointment) throw new AppError(409, "STALE_APPOINTMENT", "This appointment changed; refresh and try again");
+    await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: `appointment.${updatedAppointment.status}`, entityType: "appointment", entityId: id });
+    await tx.insert(leadActivities).values({ workspaceId, leadId: updatedAppointment.leadId, actorUserId: request.user!.id, type: "appointment", note: `Appointment marked ${updatedAppointment.status.replaceAll("_", " ")}` });
+    return updatedAppointment;
   });
   response.json({ data: updated });
 }));
@@ -186,22 +211,38 @@ customerOperationsRouter.post("/follow-ups", requireCsrf, asyncHandler(async (re
   if (!canWrite(request.user!)) throw new AppError(403, "FOLLOW_UP_WRITE_FORBIDDEN", "Your role cannot create follow-ups");
   const workspaceId = requireWorkspace(request); const input = followUpInput.parse(request.body); await assertLead(workspaceId, input.leadId, request.user!);
   const assignedToUserId = input.assignedToUserId ?? (["virtual_assistant", "employee"].includes(request.user!.role) ? request.user!.id : null); await assertMember(workspaceId, assignedToUserId);
-  const [created] = await db.insert(followUps).values({ ...input, workspaceId, assignedToUserId, createdByUserId: request.user!.id, note: input.note ?? null }).returning();
-  if (!created) throw new Error("Failed to create follow-up");
-  await db.insert(leadActivities).values({ workspaceId, leadId: input.leadId, actorUserId: request.user!.id, type: "follow_up", note: input.note ?? `Follow-up scheduled for ${input.dueAt.toISOString()}` });
-  await db.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "follow_up.created", entityType: "follow_up", entityId: created.id });
-  response.status(201).json({ data: created });
+  const key = requireIdempotencyKey(request.header("idempotency-key"));
+  const hash = requestHash({ ...input, assignedToUserId });
+  const result = await db.transaction(async (tx) => {
+    const [lock] = await tx.insert(idempotencyRecords).values({ workspaceId, userId: request.user!.id, operation: "follow_up.create", key, requestHash: hash, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }).onConflictDoNothing().returning({ id: idempotencyRecords.id });
+    if (!lock) {
+      const [existing] = await tx.select({ requestHash: idempotencyRecords.requestHash, responseBody: idempotencyRecords.responseBody }).from(idempotencyRecords).where(and(eq(idempotencyRecords.workspaceId, workspaceId), eq(idempotencyRecords.operation, "follow_up.create"), eq(idempotencyRecords.key, key))).limit(1);
+      if (!existing || existing.requestHash !== hash) throw new AppError(409, "IDEMPOTENCY_CONFLICT", "This idempotency key was used for a different request");
+      if (!existing.responseBody) throw new AppError(409, "REQUEST_IN_PROGRESS", "An identical request is already being processed");
+      return { body: existing.responseBody, reused: true };
+    }
+    const [followUp] = await tx.insert(followUps).values({ ...input, workspaceId, assignedToUserId, createdByUserId: request.user!.id, note: input.note ?? null }).returning();
+    if (!followUp) throw new Error("Failed to create follow-up");
+    await tx.insert(leadActivities).values({ workspaceId, leadId: input.leadId, actorUserId: request.user!.id, type: "follow_up", note: input.note ?? `Follow-up scheduled for ${input.dueAt.toISOString()}` });
+    await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "follow_up.created", entityType: "follow_up", entityId: followUp.id });
+    const body = followUp as unknown as Record<string, unknown>;
+    await tx.update(idempotencyRecords).set({ responseStatus: 201, responseBody: body }).where(eq(idempotencyRecords.id, lock.id));
+    return { body, reused: false };
+  });
+  response.status(result.reused ? 200 : 201).json({ data: result.body, meta: { idempotentReplay: result.reused } });
 }));
 
 customerOperationsRouter.patch("/follow-ups/:id", requireCsrf, asyncHandler(async (request, response) => {
   if (!canWrite(request.user!)) throw new AppError(403, "FOLLOW_UP_WRITE_FORBIDDEN", "Your role cannot update follow-ups");
   const workspaceId = requireWorkspace(request); const id = uuid.parse(request.params.id); const { version, ...changes } = followUpUpdate.parse(request.body);
+  await assertMember(workspaceId, changes.assignedToUserId);
   const scope = request.user!.role === "admin" ? sql`true` : or(eq(followUps.assignedToUserId, request.user!.id), eq(followUps.createdByUserId, request.user!.id));
-  const [updated] = await db.update(followUps).set({ ...changes, completedAt: changes.status === "completed" ? new Date() : changes.status ? null : undefined, version: version + 1, updatedAt: new Date() }).where(and(eq(followUps.id, id), eq(followUps.workspaceId, workspaceId), eq(followUps.version, version), scope)).returning();
-  if (!updated) throw new AppError(409, "STALE_FOLLOW_UP", "This follow-up changed; refresh and try again");
-  await db.transaction(async (tx) => {
-    await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: `follow_up.${updated.status}`, entityType: "follow_up", entityId: id });
-    await tx.insert(leadActivities).values({ workspaceId, leadId: updated.leadId, actorUserId: request.user!.id, type: "follow_up", note: `Follow-up marked ${updated.status.replaceAll("_", " ")}` });
+  const updated = await db.transaction(async (tx) => {
+    const [updatedFollowUp] = await tx.update(followUps).set({ ...changes, completedAt: changes.status === "completed" ? new Date() : changes.status ? null : undefined, version: version + 1, updatedAt: new Date() }).where(and(eq(followUps.id, id), eq(followUps.workspaceId, workspaceId), eq(followUps.version, version), scope)).returning();
+    if (!updatedFollowUp) throw new AppError(409, "STALE_FOLLOW_UP", "This follow-up changed; refresh and try again");
+    await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: `follow_up.${updatedFollowUp.status}`, entityType: "follow_up", entityId: id });
+    await tx.insert(leadActivities).values({ workspaceId, leadId: updatedFollowUp.leadId, actorUserId: request.user!.id, type: "follow_up", note: `Follow-up marked ${updatedFollowUp.status.replaceAll("_", " ")}` });
+    return updatedFollowUp;
   });
   response.json({ data: updated });
 }));
@@ -215,9 +256,12 @@ customerOperationsRouter.get("/leads/:leadId/activities", asyncHandler(async (re
 customerOperationsRouter.post("/leads/:leadId/activities", requireCsrf, asyncHandler(async (request, response) => {
   if (!canWrite(request.user!)) throw new AppError(403, "ACTIVITY_WRITE_FORBIDDEN", "Your role cannot record activity");
   const workspaceId = requireWorkspace(request); const leadId = uuid.parse(request.params.leadId); await assertLead(workspaceId, leadId, request.user!); const input = activityInput.parse(request.body);
-  const [created] = await db.insert(leadActivities).values({ ...input, workspaceId, leadId, actorUserId: request.user!.id, method: input.method ?? null }).returning();
-  if (!created) throw new Error("Failed to record activity");
-  await db.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "lead.activity_recorded", entityType: "lead", entityId: leadId, metadata: { activityId: created.id, type: created.type } });
+  const created = await db.transaction(async (tx) => {
+    const [activity] = await tx.insert(leadActivities).values({ ...input, workspaceId, leadId, actorUserId: request.user!.id, method: input.method ?? null }).returning();
+    if (!activity) throw new Error("Failed to record activity");
+    await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "lead.activity_recorded", entityType: "lead", entityId: leadId, metadata: { activityId: activity.id, type: activity.type } });
+    return activity;
+  });
   response.status(201).json({ data: created });
 }));
 
@@ -244,11 +288,12 @@ customerOperationsRouter.post("/inbox/:id/accept", requireCsrf, asyncHandler(asy
   const [thread] = await db.select().from(operationsThreads).where(and(eq(operationsThreads.id, id), eq(operationsThreads.workspaceId, workspaceId), eq(operationsThreads.assignedToUserId, user.id))).limit(1);
   if (!thread) throw new AppError(404, "THREAD_NOT_FOUND", "This operations handoff is not assigned to you");
   if (thread.status === "resolved") throw new AppError(409, "THREAD_ALREADY_RESOLVED", "This operations handoff is already resolved");
-  const [updated] = await db.update(operationsThreads).set({ status: "waiting", version: thread.version + 1, updatedAt: new Date() }).where(and(eq(operationsThreads.id, id), eq(operationsThreads.version, thread.version))).returning();
-  if (!updated) throw new AppError(409, "STALE_THREAD", "This handoff changed; refresh and try again");
-  await db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
+    const [updatedThread] = await tx.update(operationsThreads).set({ status: "waiting", version: thread.version + 1, updatedAt: new Date() }).where(and(eq(operationsThreads.id, id), eq(operationsThreads.workspaceId, workspaceId), eq(operationsThreads.assignedToUserId, user.id), eq(operationsThreads.version, thread.version))).returning();
+    if (!updatedThread) throw new AppError(409, "STALE_THREAD", "This handoff changed; refresh and try again");
     await tx.insert(auditEvents).values({ workspaceId, actorUserId: user.id, action: "operations_thread.accepted", entityType: "operations_thread", entityId: id });
     if (thread.leadId) await tx.insert(leadActivities).values({ workspaceId, leadId: thread.leadId, actorUserId: user.id, type: "internal_note", note: "Sales handoff accepted" });
+    return updatedThread;
   });
   response.json({ data: updated });
 }));
@@ -256,29 +301,56 @@ customerOperationsRouter.post("/inbox/:id/accept", requireCsrf, asyncHandler(asy
 customerOperationsRouter.post("/inbox", requireCsrf, asyncHandler(async (request, response) => {
   if (!canWrite(request.user!)) throw new AppError(403, "THREAD_WRITE_FORBIDDEN", "Your role cannot create handoffs");
   const workspaceId = requireWorkspace(request); const { body, ...input } = threadInput.parse(request.body); if (input.leadId) await assertLead(workspaceId, input.leadId, request.user!); await assertMember(workspaceId, input.assignedToUserId);
-  const created = await db.transaction(async (tx) => {
+  const key = requireIdempotencyKey(request.header("idempotency-key"));
+  const hash = requestHash({ ...input, body });
+  const result = await db.transaction(async (tx) => {
+    const [lock] = await tx.insert(idempotencyRecords).values({ workspaceId, userId: request.user!.id, operation: "operations_thread.create", key, requestHash: hash, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }).onConflictDoNothing().returning({ id: idempotencyRecords.id });
+    if (!lock) {
+      const [existing] = await tx.select({ requestHash: idempotencyRecords.requestHash, responseBody: idempotencyRecords.responseBody }).from(idempotencyRecords).where(and(eq(idempotencyRecords.workspaceId, workspaceId), eq(idempotencyRecords.operation, "operations_thread.create"), eq(idempotencyRecords.key, key))).limit(1);
+      if (!existing || existing.requestHash !== hash) throw new AppError(409, "IDEMPOTENCY_CONFLICT", "This idempotency key was used for a different request");
+      if (!existing.responseBody) throw new AppError(409, "REQUEST_IN_PROGRESS", "An identical request is already being processed");
+      return { body: existing.responseBody, reused: true };
+    }
     const [thread] = await tx.insert(operationsThreads).values({ ...input, workspaceId, subject: input.subject, leadId: input.leadId ?? null, assignedToUserId: input.assignedToUserId ?? null, createdByUserId: request.user!.id }).returning();
     if (!thread) throw new Error("Failed to create handoff");
     await tx.insert(operationsMessages).values({ threadId: thread.id, authorUserId: request.user!.id, body });
     await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "operations_thread.created", entityType: "operations_thread", entityId: thread.id, metadata: { leadId: input.leadId ?? null } });
-    return thread;
+    const responseBody = thread as unknown as Record<string, unknown>;
+    await tx.update(idempotencyRecords).set({ responseStatus: 201, responseBody }).where(eq(idempotencyRecords.id, lock.id));
+    return { body: responseBody, reused: false };
   });
-  response.status(201).json({ data: created });
+  response.status(result.reused ? 200 : 201).json({ data: result.body, meta: { idempotentReplay: result.reused } });
 }));
 
 customerOperationsRouter.post("/inbox/:id/messages", requireCsrf, asyncHandler(async (request, response) => {
   if (!canWrite(request.user!)) throw new AppError(403, "THREAD_WRITE_FORBIDDEN", "Your role cannot reply to handoffs");
   const workspaceId = requireWorkspace(request); const id = uuid.parse(request.params.id); const input = messageInput.parse(request.body); const user = request.user!;
   const scope = user.role === "admin" ? sql`true` : or(eq(operationsThreads.createdByUserId, user.id), eq(operationsThreads.assignedToUserId, user.id));
-  const [thread] = await db.select().from(operationsThreads).where(and(eq(operationsThreads.id, id), eq(operationsThreads.workspaceId, workspaceId), scope)).limit(1); if (!thread) throw new AppError(404, "THREAD_NOT_FOUND", "This operations thread was not found");
-  const [message] = await db.insert(operationsMessages).values({ threadId: id, authorUserId: user.id, body: input.body }).returning();
-  await db.update(operationsThreads).set({ updatedAt: new Date(), status: thread.status === "resolved" ? "open" : "waiting", version: thread.version + 1 }).where(eq(operationsThreads.id, id));
-  if (!message) throw new Error("Failed to add handoff reply");
-  await db.transaction(async (tx) => {
+  const key = requireIdempotencyKey(request.header("idempotency-key"));
+  const hash = requestHash({ threadId: id, ...input });
+  const result = await db.transaction(async (tx) => {
+    // Serialize replies for one thread so two simultaneous submissions cannot
+    // both advance the thread from the same version or lose an update.
+    await tx.execute(sql`select "id" from "operations_threads" where "id" = ${id} and "workspace_id" = ${workspaceId} and ${scope} for update`);
+    const [thread] = await tx.select().from(operationsThreads).where(and(eq(operationsThreads.id, id), eq(operationsThreads.workspaceId, workspaceId), scope)).limit(1);
+    if (!thread) throw new AppError(404, "THREAD_NOT_FOUND", "This operations thread was not found");
+    const [lock] = await tx.insert(idempotencyRecords).values({ workspaceId, userId: user.id, operation: "operations_message.create", key, requestHash: hash, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }).onConflictDoNothing().returning({ id: idempotencyRecords.id });
+    if (!lock) {
+      const [existing] = await tx.select({ requestHash: idempotencyRecords.requestHash, responseBody: idempotencyRecords.responseBody }).from(idempotencyRecords).where(and(eq(idempotencyRecords.workspaceId, workspaceId), eq(idempotencyRecords.operation, "operations_message.create"), eq(idempotencyRecords.key, key))).limit(1);
+      if (!existing || existing.requestHash !== hash) throw new AppError(409, "IDEMPOTENCY_CONFLICT", "This idempotency key was used for a different request");
+      if (!existing.responseBody) throw new AppError(409, "REQUEST_IN_PROGRESS", "An identical request is already being processed");
+      return { body: existing.responseBody, reused: true };
+    }
+    const [message] = await tx.insert(operationsMessages).values({ threadId: id, authorUserId: user.id, body: input.body }).returning();
+    if (!message) throw new Error("Failed to add handoff reply");
+    await tx.update(operationsThreads).set({ updatedAt: new Date(), status: thread.status === "resolved" ? "open" : "waiting", version: thread.version + 1 }).where(and(eq(operationsThreads.id, id), eq(operationsThreads.workspaceId, workspaceId), eq(operationsThreads.version, thread.version)));
     await tx.insert(auditEvents).values({ workspaceId, actorUserId: user.id, action: "operations_thread.replied", entityType: "operations_thread", entityId: id });
     if (thread.leadId) await tx.insert(leadActivities).values({ workspaceId, leadId: thread.leadId, actorUserId: user.id, type: "internal_note", note: "Operations handoff updated" });
+    const body = message as unknown as Record<string, unknown>;
+    await tx.update(idempotencyRecords).set({ responseStatus: 201, responseBody: body }).where(eq(idempotencyRecords.id, lock.id));
+    return { body, reused: false };
   });
-  response.status(201).json({ data: message });
+  response.status(result.reused ? 200 : 201).json({ data: result.body, meta: { idempotentReplay: result.reused } });
 }));
 
 customerOperationsRouter.patch("/inbox/:id", requireCsrf, asyncHandler(async (request, response) => {
@@ -294,6 +366,8 @@ customerOperationsRouter.get("/performance", asyncHandler(async (request, respon
   const workspaceId = requireWorkspace(request); const user = request.user!; const requested = typeof request.query.userId === "string" ? uuid.parse(request.query.userId) : user.id;
   if (["virtual_assistant", "employee"].includes(user.role) && requested !== user.id) throw new AppError(403, "PERFORMANCE_SCOPE_FORBIDDEN", "This role can only view its own performance");
   if (!["admin", "recruiter", "virtual_assistant", "employee"].includes(user.role)) throw new AppError(403, "PERFORMANCE_FORBIDDEN", "This performance view is restricted");
+  const [member] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, requested), eq(users.workspaceId, workspaceId))).limit(1);
+  if (!member) throw new AppError(404, "PERFORMANCE_MEMBER_NOT_FOUND", "That team member is not in this workspace");
   const assigned = eq(leads.assignedToUserId, requested); const followAssigned = eq(followUps.assignedToUserId, requested); const appointmentAssigned = eq(appointments.assignedUserId, requested);
   const [leadCount, contacted, completedFollowUps, overdue, booked, confirmed, completed, noShows] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int` }).from(leads).where(and(eq(leads.workspaceId, workspaceId), assigned)),

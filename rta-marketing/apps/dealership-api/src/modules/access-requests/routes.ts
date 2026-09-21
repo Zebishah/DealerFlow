@@ -69,6 +69,13 @@ function accessName(firstName: string | null, lastName: string | null, fallback:
   return [firstName, lastName].filter(Boolean).join(" ") || fallback;
 }
 
+async function assertProvisionedUserInWorkspace(workspaceId: string, userId: string): Promise<void> {
+  const [user] = await db.select({ workspaceId: users.workspaceId }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user || user.workspaceId !== workspaceId) {
+    throw new AppError(404, "ACCESS_REQUEST_NOT_FOUND", "This access request is not available in your workspace");
+  }
+}
+
 export const publicAccessRequestRouter = Router();
 publicAccessRequestRouter.post(
   "/",
@@ -125,6 +132,7 @@ adminAccessRequestRouter.patch(
     const workspaceId = requireWorkspace(request);
     const [current] = await db.select().from(accessRequests).where(eq(accessRequests.id, id)).limit(1);
     if (!current) throw new AppError(404, "ACCESS_REQUEST_NOT_FOUND", "Access request was not found");
+    if (current.provisionedUserId) await assertProvisionedUserInWorkspace(workspaceId, current.provisionedUserId);
     if (input.action === "reject") {
       if (current.status !== "pending") throw new AppError(409, "ACCESS_REQUEST_ALREADY_REVIEWED", "This access request has already been reviewed");
       const [updated] = await db.update(accessRequests).set({ status: "rejected", notes: input.notes ?? null, reviewedAt: new Date(), reviewedByUserId: request.user!.id, updatedAt: new Date() }).where(eq(accessRequests.id, id)).returning();
@@ -135,7 +143,7 @@ adminAccessRequestRouter.patch(
     if (input.action === "revoke") {
       const updated = await db.transaction(async (tx) => {
         if (current.provisionedUserId) {
-          await tx.update(users).set({ isActive: false, updatedAt: new Date() }).where(eq(users.id, current.provisionedUserId));
+          await tx.update(users).set({ isActive: false, updatedAt: new Date() }).where(and(eq(users.id, current.provisionedUserId), eq(users.workspaceId, workspaceId)));
           await tx.delete(sessions).where(eq(sessions.userId, current.provisionedUserId));
         }
         const result = await tx.update(accessRequests).set({ status: "revoked", notes: input.notes ?? current.notes, reviewedAt: new Date(), reviewedByUserId: request.user!.id, updatedAt: new Date() }).where(eq(accessRequests.id, id)).returning();
@@ -161,12 +169,14 @@ adminAccessRequestRouter.patch(
     const invitationToken = createOpaqueToken();
     const passwordHash = hashPassword(createOpaqueToken());
     const result = await db.transaction(async (tx) => {
-      const [existing] = await tx.select({ id: users.id, role: users.role, emailVerifiedAt: users.emailVerifiedAt, firstName: users.firstName, lastName: users.lastName }).from(users).where(sql`lower(${users.email}) = ${current.email.toLowerCase()}`).limit(1);
+      const [existing] = await tx.select({ id: users.id, workspaceId: users.workspaceId, role: users.role, emailVerifiedAt: users.emailVerifiedAt, firstName: users.firstName, lastName: users.lastName }).from(users).where(sql`lower(${users.email}) = ${current.email.toLowerCase()}`).limit(1);
       let userId = existing?.id;
       const invitationRequired = !existing?.emailVerifiedAt;
       if (existing && !["viewer", "recruiter"].includes(existing.role)) throw new AppError(409, "EMAIL_BELONGS_TO_EXISTING_USER", "This email already belongs to a managed team account");
+      if (existing?.workspaceId && existing.workspaceId !== workspaceId) throw new AppError(409, "EMAIL_BELONGS_TO_OTHER_WORKSPACE", "This email already belongs to another workspace");
       if (existing) {
-        await tx.update(users).set({ workspaceId, role: "recruiter", isActive: true, emailVerifiedAt: existing.emailVerifiedAt, accessInviteTokenHash: existing.emailVerifiedAt ? null : hashOpaqueToken(invitationToken), accessInviteExpiresAt: existing.emailVerifiedAt ? null : approvedUntil, emailVerificationTokenHash: null, emailVerificationExpiresAt: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() }).where(eq(users.id, existing.id));
+        const [updatedUser] = await tx.update(users).set({ workspaceId, role: "recruiter", isActive: true, emailVerifiedAt: existing.emailVerifiedAt, accessInviteTokenHash: existing.emailVerifiedAt ? null : hashOpaqueToken(invitationToken), accessInviteExpiresAt: existing.emailVerifiedAt ? null : approvedUntil, emailVerificationTokenHash: null, emailVerificationExpiresAt: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() }).where(and(eq(users.id, existing.id), sql`(${users.workspaceId} is null or ${users.workspaceId} = ${workspaceId})`)).returning({ id: users.id });
+        if (!updatedUser) throw new AppError(409, "EMAIL_BELONGS_TO_OTHER_WORKSPACE", "This email was assigned to another workspace while access was being approved");
         await tx.delete(sessions).where(eq(sessions.userId, existing.id));
       } else {
         const { firstName, lastName } = splitFullName(current.fullName);
@@ -200,10 +210,11 @@ adminAccessRequestRouter.post(
     const workspaceId = requireWorkspace(request);
     const [current] = await db.select().from(accessRequests).where(eq(accessRequests.id, id)).limit(1);
     if (!current || current.status !== "approved" || !current.provisionedUserId) throw new AppError(409, "ACCESS_REQUEST_NOT_APPROVED", "Only approved access can receive a notification");
-    const [user] = await db.select({ email: users.email, firstName: users.firstName, lastName: users.lastName, emailVerifiedAt: users.emailVerifiedAt }).from(users).where(eq(users.id, current.provisionedUserId)).limit(1);
+    await assertProvisionedUserInWorkspace(workspaceId, current.provisionedUserId);
+    const [user] = await db.select({ email: users.email, firstName: users.firstName, lastName: users.lastName, emailVerifiedAt: users.emailVerifiedAt }).from(users).where(and(eq(users.id, current.provisionedUserId), eq(users.workspaceId, workspaceId))).limit(1);
     if (!user) throw new AppError(404, "USER_NOT_FOUND", "The approved recruiter account was not found");
     const invitationToken = user.emailVerifiedAt ? null : createOpaqueToken();
-    if (invitationToken) await db.update(users).set({ accessInviteTokenHash: hashOpaqueToken(invitationToken), accessInviteExpiresAt: current.approvedUntil ?? hoursFromNow(ACCESS_INVITE_TOKEN_TTL_HOURS), updatedAt: new Date() }).where(eq(users.id, current.provisionedUserId));
+    if (invitationToken) await db.update(users).set({ accessInviteTokenHash: hashOpaqueToken(invitationToken), accessInviteExpiresAt: current.approvedUntil ?? hoursFromNow(ACCESS_INVITE_TOKEN_TTL_HOURS), updatedAt: new Date() }).where(and(eq(users.id, current.provisionedUserId), eq(users.workspaceId, workspaceId)));
     const notified = await sendEmailSafely(addressEmail(accessApprovedEmail({
       name: accessName(user.firstName, user.lastName, current.email),
       permissions: current.grantedPermissions.join(", "),

@@ -172,6 +172,7 @@ dealershipRouter.use("/documents", documentRouter);
 
 dealershipRouter.get(
   "/bootstrap",
+  requireRoles("admin", "employee", "virtual_assistant", "recruiter"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const [workspace, team, sourcesData, providers] = await Promise.all([
@@ -197,7 +198,7 @@ dealershipRouter.get(
     const month = now.toISOString().slice(0, 7);
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const leadScope = visibleToUser(request.user!, workspaceId);
-    const salesVisible = request.user!.role !== "virtual_assistant";
+    const salesVisible = ["admin", "employee", "recruiter"].includes(request.user!.role);
     const saleScope = !salesVisible
       ? sql`false`
       : request.user!.role === "employee"
@@ -221,9 +222,11 @@ dealershipRouter.get(
       db.select().from(monthlyTargets).where(and(
         eq(monthlyTargets.workspaceId, workspaceId),
         eq(monthlyTargets.month, month),
-        request.user!.role === "employee"
+        !salesVisible
+          ? sql`false`
+          : request.user!.role === "employee"
           ? eq(monthlyTargets.userId, request.user!.id)
-          : request.user!.role === "virtual_assistant" ? sql`false` : sql`true`,
+          : sql`true`,
       )).limit(1),
       db.select({ id: leads.id, firstName: leads.firstName, lastName: leads.lastName, status: leads.status, vehicleInterest: leads.vehicleInterest, createdAt: leads.createdAt })
         .from(leads).where(leadScope).orderBy(desc(leads.createdAt)).limit(5),
@@ -306,6 +309,7 @@ dealershipRouter.get(
 
 dealershipRouter.get(
   "/leads",
+  requireRoles("admin", "employee", "virtual_assistant", "recruiter"),
   asyncHandler(async (request, response) => {
     const workspaceId = requireWorkspace(request);
     const query = listQuerySchema.parse(request.query);
@@ -417,22 +421,25 @@ dealershipRouter.patch(
       ? { ...parsed, assignedToUserId: request.user!.id }
       : parsed;
     const access = visibleToUser(request.user!, workspaceId);
-    const [updated] = await db.update(leads).set({
-      ...input,
-      ...(input.status === "contacted" ? { contactedAt: new Date() } : {}),
-      ...(input.status === "converted" ? { convertedAt: new Date() } : {}),
-      version: version + 1,
-      updatedAt: new Date(),
-    }).where(and(access, eq(leads.id, id), eq(leads.version, version))).returning();
-    if (!updated) throw new AppError(409, "STALE_WRITE", "This lead changed after you opened it; refresh and try again");
-    await db.insert(leadActivities).values({
-      workspaceId,
-      leadId: id,
-      actorUserId: request.user!.id,
-      type: input.status !== undefined ? "status_changed" : "internal_note",
-      note: input.status !== undefined ? `Lead status changed to ${input.status}` : "Lead details updated",
+    const updated = await db.transaction(async (tx) => {
+      const [updatedLead] = await tx.update(leads).set({
+        ...input,
+        ...(input.status === "contacted" ? { contactedAt: new Date() } : {}),
+        ...(input.status === "converted" ? { convertedAt: new Date() } : {}),
+        version: version + 1,
+        updatedAt: new Date(),
+      }).where(and(access, eq(leads.id, id), eq(leads.version, version))).returning();
+      if (!updatedLead) throw new AppError(409, "STALE_WRITE", "This lead changed after you opened it; refresh and try again");
+      await tx.insert(leadActivities).values({
+        workspaceId,
+        leadId: id,
+        actorUserId: request.user!.id,
+        type: input.status !== undefined ? "status_changed" : "internal_note",
+        note: input.status !== undefined ? `Lead status changed to ${input.status}` : "Lead details updated",
+      });
+      await tx.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "lead.updated", entityType: "lead", entityId: id, metadata: { version: updatedLead.version } });
+      return updatedLead;
     });
-    await db.insert(auditEvents).values({ workspaceId, actorUserId: request.user!.id, action: "lead.updated", entityType: "lead", entityId: id, metadata: { version: updated.version } });
     response.json({ data: updated });
   }),
 );

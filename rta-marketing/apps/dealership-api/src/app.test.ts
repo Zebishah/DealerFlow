@@ -358,3 +358,144 @@ void test(
     }
   },
 );
+
+void test(
+  "viewer sessions cannot read CRM leads or financial summary data",
+  { skip: process.env.RUN_DATABASE_TESTS !== "true" },
+  async () => {
+    const workspaceId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const salespersonId = crypto.randomUUID();
+    const saleId = crypto.randomUUID();
+    const viewerEmail = `viewer-${crypto.randomUUID()}@rta.test`;
+    const password = "Integration-password-123";
+
+    await pool.query(
+      `insert into workspaces (id, slug, name, mode) values ($1, $2, 'Viewer boundary test', 'demo')`,
+      [workspaceId, `viewer-boundary-${workspaceId}`],
+    );
+    await pool.query(
+      `insert into users (id, workspace_id, email, password_hash, role)
+       values ($1, $2, $3, $4, 'viewer'), ($5, $2, $6, $4, 'employee')`,
+      [viewerId, workspaceId, viewerEmail, hashPassword(password), salespersonId, `seller-${crypto.randomUUID()}@rta.test`],
+    );
+    await pool.query(
+      `insert into sales
+         (id, workspace_id, salesperson_id, external_sale_id, type, status, customer_name,
+          vehicle_description, sale_price_cents, gross_profit_cents,
+          commission_rate_basis_points, commission_amount_cents, sold_at)
+       values ($1, $2, $3, $4, 'retail', 'funded', 'Private customer', 'Private vehicle',
+               5000000, 700000, 500, 35000, now())`,
+      [saleId, workspaceId, salespersonId, `viewer-boundary-sale-${saleId}`],
+    );
+
+    try {
+      await withServer(async ({ baseUrl }) => {
+        const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: viewerEmail, password }),
+        });
+        assert.equal(login.status, 200);
+        const cookie = login.headers.get("set-cookie")?.split(";")[0];
+        assert.ok(cookie);
+
+        const leads = await fetch(`${baseUrl}/api/v1/dealership/leads`, { headers: { cookie } });
+        assert.equal(leads.status, 403);
+        assert.equal((await leads.json() as { error: { code: string } }).error.code, "ROLE_REQUIRED");
+
+        const summary = await fetch(`${baseUrl}/api/v1/dealership/summary`, { headers: { cookie } });
+        assert.equal(summary.status, 200);
+        const summaryPayload = await summary.json() as { data: { sales: { total: number; funded: number; revenueCents: number }; target: unknown } };
+        assert.deepEqual(summaryPayload.data.sales, { total: 0, funded: 0, revenueCents: 0, grossProfitCents: 0, commissionCents: 0 });
+        assert.equal(summaryPayload.data.target, null);
+      });
+    } finally {
+      await pool.query("delete from sales where id = $1", [saleId]);
+      await pool.query("delete from sessions where user_id in ($1, $2)", [viewerId, salespersonId]);
+      await pool.query("delete from users where id in ($1, $2)", [viewerId, salespersonId]);
+      await pool.query("delete from workspaces where id = $1", [workspaceId]);
+    }
+  },
+);
+
+void test(
+  "customer-operation updates reject an assignee from another workspace",
+  { skip: process.env.RUN_DATABASE_TESTS !== "true" },
+  async () => {
+    const workspaceId = crypto.randomUUID();
+    const otherWorkspaceId = crypto.randomUUID();
+    const employeeId = crypto.randomUUID();
+    const otherEmployeeId = crypto.randomUUID();
+    const leadId = crypto.randomUUID();
+    const appointmentId = crypto.randomUUID();
+    const email = `assignment-${crypto.randomUUID()}@rta.test`;
+    const password = "Integration-password-123";
+
+    await pool.query(
+      `insert into workspaces (id, slug, name, mode) values
+       ($1, $3, 'Assignment workspace', 'demo'), ($2, $4, 'Other workspace', 'demo')`,
+      [workspaceId, otherWorkspaceId, `assignment-${workspaceId}`, `other-${otherWorkspaceId}`],
+    );
+    await pool.query(
+      `insert into users (id, workspace_id, email, password_hash, role)
+       values ($1, $2, $3, $4, 'employee'), ($5, $6, $7, $4, 'employee')`,
+      [employeeId, workspaceId, email, hashPassword(password), otherEmployeeId, otherWorkspaceId, `other-${crypto.randomUUID()}@rta.test`],
+    );
+    await pool.query(
+      `insert into leads (id, workspace_id, assigned_to_user_id, first_name, last_name, status)
+       values ($1, $2, $3, 'Assigned', 'Customer', 'new')`,
+      [leadId, workspaceId, employeeId],
+    );
+    await pool.query(
+      `insert into appointments (id, workspace_id, lead_id, assigned_user_id, created_by_user_id, scheduled_at, type, status)
+       values ($1, $2, $3, $4, $4, now(), 'callback', 'scheduled')`,
+      [appointmentId, workspaceId, leadId, employeeId],
+    );
+
+    try {
+      await withServer(async ({ baseUrl }) => {
+        const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        assert.equal(login.status, 200);
+        const cookie = login.headers.get("set-cookie")?.split(";")[0];
+        assert.ok(cookie);
+        const loginPayload = await login.json() as { data: { csrfToken: string } };
+
+        const response = await fetch(`${baseUrl}/api/v1/customer-operations/appointments/${appointmentId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json", cookie, "x-csrf-token": loginPayload.data.csrfToken },
+          body: JSON.stringify({ version: 1, assignedUserId: otherEmployeeId }),
+        });
+        assert.equal(response.status, 400);
+        assert.equal((await response.json() as { error: { code: string } }).error.code, "INVALID_ASSIGNEE");
+
+        const createBody = { leadId, scheduledAt: new Date(Date.now() + 86_400_000).toISOString(), type: "callback", notes: "Retry-safe appointment" };
+        const idempotencyKey = `appointment-${crypto.randomUUID()}`;
+        const createAppointment = () => fetch(`${baseUrl}/api/v1/customer-operations/appointments`, {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie, "x-csrf-token": loginPayload.data.csrfToken, "idempotency-key": idempotencyKey },
+          body: JSON.stringify(createBody),
+        });
+        const createdResponse = await createAppointment();
+        assert.equal(createdResponse.status, 201);
+        const created = await createdResponse.json() as { data: { id: string }; meta: { idempotentReplay: boolean } };
+        assert.equal(created.meta.idempotentReplay, false);
+        const replayResponse = await createAppointment();
+        assert.equal(replayResponse.status, 200);
+        const replayed = await replayResponse.json() as { data: { id: string }; meta: { idempotentReplay: boolean } };
+        assert.equal(replayed.data.id, created.data.id);
+        assert.equal(replayed.meta.idempotentReplay, true);
+      });
+    } finally {
+      await pool.query("delete from appointments where id = $1", [appointmentId]);
+      await pool.query("delete from leads where id = $1", [leadId]);
+      await pool.query("delete from sessions where user_id in ($1, $2)", [employeeId, otherEmployeeId]);
+      await pool.query("delete from users where id in ($1, $2)", [employeeId, otherEmployeeId]);
+      await pool.query("delete from workspaces where id in ($1, $2)", [workspaceId, otherWorkspaceId]);
+    }
+  },
+);
