@@ -35,8 +35,8 @@ export type { AnalyticsMonth } from "./charts/chart-formatters";
 export { buildAcquisitionChartData, buildPipelineChartData, formatCurrency, formatPercentage } from "./charts/chart-formatters";
 
 const chartHeight = 248;
-const axisColor = "#919bad";
-const gridColor = "#edf0f5";
+const axisColor = "var(--rta-chart-axis)";
+const gridColor = "var(--rta-chart-grid)";
 
 function ChartSummary({ children }: { children: string }) {
   return <p className="analytics-chart-summary sr-only">{children}</p>;
@@ -55,14 +55,14 @@ export function RevenueTrendChart({ points }: { points: AnalyticsMonth[] }) {
     <div className="analytics-recharts-frame">
       <ResponsiveContainer width="100%" height={chartHeight}>
         <AreaChart data={points} margin={{ top: 12, right: 8, left: 4, bottom: 2 }}>
-          <defs><linearGradient id="analytics-revenue-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#635bdf" stopOpacity={0.22} /><stop offset="100%" stopColor="#635bdf" stopOpacity={0} /></linearGradient></defs>
+          <defs><linearGradient id="analytics-revenue-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="var(--rta-chart-revenue)" stopOpacity={0.22} /><stop offset="100%" stopColor="var(--rta-chart-revenue)" stopOpacity={0} /></linearGradient></defs>
           <CartesianGrid stroke={gridColor} vertical={false} />
           <XAxis dataKey="label" tick={{ fill: axisColor, fontSize: 10 }} tickLine={false} axisLine={false} />
           <YAxis tickFormatter={formatCompactCurrency} tick={{ fill: axisColor, fontSize: 10 }} tickLine={false} axisLine={false} width={48} />
-          <Tooltip content={<ChartTooltip valueFormat="currency" showMargin />} cursor={{ stroke: "#cfd3e1", strokeDasharray: "4 4" }} />
-          <Area type="monotone" dataKey="revenueCents" name="Revenue" stroke="#6159dc" strokeWidth={3} fill="url(#analytics-revenue-fill)" dot={{ r: 3, fill: "#fff", strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 3 }} isAnimationActive={!reducedMotion} animationDuration={650} />
-          <Line type="monotone" dataKey="grossProfitCents" name="Gross profit" stroke="#32a77a" strokeWidth={2.5} strokeDasharray="6 5" dot={{ r: 3, fill: "#fff", strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 3 }} isAnimationActive={!reducedMotion} animationDuration={650} />
-          <ReferenceLine y={0} stroke="#dfe3eb" />
+          <Tooltip content={<ChartTooltip valueFormat="currency" showMargin />} cursor={{ stroke: "var(--rta-border)", strokeDasharray: "4 4" }} />
+          <Area type="monotone" dataKey="revenueCents" name="Revenue" stroke="var(--rta-chart-revenue)" strokeWidth={3} fill="url(#analytics-revenue-fill)" dot={{ r: 3, fill: "#fff", strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 3 }} isAnimationActive={!reducedMotion} animationDuration={650} />
+          <Line type="monotone" dataKey="grossProfitCents" name="Gross profit" stroke="var(--rta-chart-profit)" strokeWidth={2.5} strokeDasharray="6 5" dot={{ r: 3, fill: "#fff", strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 3 }} isAnimationActive={!reducedMotion} animationDuration={650} />
+          <ReferenceLine y={0} stroke="var(--rta-border)" />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -82,11 +82,11 @@ export function LeadPipelineChart({ data }: { data: DealershipAnalytics["leadPip
       <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 35, left: 8, bottom: 4 }} barCategoryGap="22%">
         <CartesianGrid stroke={gridColor} horizontal={false} />
         <XAxis type="number" allowDecimals={false} tickFormatter={formatCount} tick={{ fill: axisColor, fontSize: 10 }} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="label" width={72} tick={{ fill: "#566177", fontSize: 10 }} tickLine={false} axisLine={false} />
-        <Tooltip content={<ChartTooltip showPercentage />} cursor={{ fill: "#f8f8ff" }} />
+        <YAxis type="category" dataKey="label" width={72} tick={{ fill: "var(--rta-muted)", fontSize: 10 }} tickLine={false} axisLine={false} />
+        <Tooltip content={<ChartTooltip showPercentage />} cursor={{ fill: "var(--rta-surface-tint)" }} />
         <Bar dataKey="count" name="Leads" radius={[0, 5, 5, 0]} isAnimationActive={!reducedMotion} animationDuration={550}>
           {chartData.map((stage) => <Cell key={stage.key} fill={stage.color} />)}
-          <LabelList dataKey="count" position="right" formatter={(value) => formatCount(Number(value ?? 0))} fill="#30394f" fontSize={10} />
+          <LabelList dataKey="count" position="right" formatter={(value) => formatCount(Number(value ?? 0))} fill="var(--rta-text)" fontSize={10} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -106,11 +106,11 @@ export function LeadSourceChart({ data }: { data: DealershipAnalytics["leadSourc
       <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 35, left: 8, bottom: 4 }} barCategoryGap="24%">
         <CartesianGrid stroke={gridColor} horizontal={false} />
         <XAxis type="number" allowDecimals={false} tickFormatter={formatCount} tick={{ fill: axisColor, fontSize: 10 }} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="source" width={90} tick={{ fill: "#566177", fontSize: 10 }} tickLine={false} axisLine={false} />
-        <Tooltip content={<ChartTooltip showPercentage />} cursor={{ fill: "#f8f8ff" }} />
+        <YAxis type="category" dataKey="source" width={90} tick={{ fill: "var(--rta-muted)", fontSize: 10 }} tickLine={false} axisLine={false} />
+        <Tooltip content={<ChartTooltip showPercentage />} cursor={{ fill: "var(--rta-surface-tint)" }} />
         <Bar dataKey="count" name="Leads" radius={[0, 5, 5, 0]} isAnimationActive={!reducedMotion} animationDuration={550}>
-          {chartData.map((source, index) => <Cell key={source.source} fill={["#6057dc", "#3886d6", "#d99636", "#39a77b"][index % 4]} />)}
-          <LabelList dataKey="count" position="right" formatter={(value) => formatCount(Number(value ?? 0))} fill="#30394f" fontSize={10} />
+          {chartData.map((source, index) => <Cell key={source.source} fill={["var(--rta-chart-revenue)", "var(--rta-chart-contacted)", "var(--rta-chart-qualified)", "var(--rta-chart-converted)"][index % 4]} />)}
+          <LabelList dataKey="count" position="right" formatter={(value) => formatCount(Number(value ?? 0))} fill="var(--rta-text)" fontSize={10} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -130,10 +130,10 @@ export function MonthlyActivityChart({ points }: { points: AnalyticsMonth[] }) {
         <CartesianGrid stroke={gridColor} vertical={false} />
         <XAxis dataKey="label" tick={{ fill: axisColor, fontSize: 10 }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} tickFormatter={formatCount} tick={{ fill: axisColor, fontSize: 10 }} tickLine={false} axisLine={false} width={30} />
-        <Tooltip content={<ChartTooltip showConversion />} cursor={{ fill: "#f8f8ff" }} />
-        <Legend verticalAlign="top" align="left" height={30} iconType="circle" wrapperStyle={{ color: "#778197", fontSize: "10px" }} />
-        <Bar dataKey="leads" name="Leads" fill="#6259de" radius={[4, 4, 0, 0]} isAnimationActive={!reducedMotion} animationDuration={550} />
-        <Bar dataKey="fundedSales" name="Funded deals" fill="#39ad80" radius={[4, 4, 0, 0]} isAnimationActive={!reducedMotion} animationDuration={550} />
+        <Tooltip content={<ChartTooltip showConversion />} cursor={{ fill: "var(--rta-surface-tint)" }} />
+        <Legend verticalAlign="top" align="left" height={30} iconType="circle" wrapperStyle={{ color: "var(--rta-muted)", fontSize: "10px" }} />
+        <Bar dataKey="leads" name="Leads" fill="var(--rta-chart-revenue)" radius={[4, 4, 0, 0]} isAnimationActive={!reducedMotion} animationDuration={550} />
+        <Bar dataKey="fundedSales" name="Funded deals" fill="var(--rta-chart-profit)" radius={[4, 4, 0, 0]} isAnimationActive={!reducedMotion} animationDuration={550} />
       </BarChart>
     </ResponsiveContainer>
     <div className="analytics-hover-stats" role="status"><strong>Interactive monthly activity</strong><span>Hover a month for leads, funded deals and conversion.</span></div>

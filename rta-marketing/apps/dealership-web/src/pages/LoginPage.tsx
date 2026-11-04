@@ -1,12 +1,11 @@
 import {
   ArrowRight,
-  BarChart3,
   Car as CarFront,
-  CheckCircle2,
   Eye,
   EyeOff,
   ShieldCheck,
 } from "lucide-react";
+import { AuthStory } from "../components/AuthPageLayout";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
@@ -77,52 +76,7 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
-      <section className="login-story">
-        <div className="login-brand">
-          <span>
-            <CarFront />
-          </span>
-          <strong>RTA Operations</strong>
-        </div>
-        <div className="story-copy">
-          <span className="eyebrow">DEALERSHIP INTELLIGENCE PLATFORM</span>
-          <h1>Turn every lead, sale, and market signal into action.</h1>
-          <p>
-            A secure operating system for dealership teams—combining CRM
-            workflows, commission visibility, and real-time vehicle acquisition.
-          </p>
-          <div className="story-points">
-            <span>
-              <CheckCircle2 />
-              Role-specific workspaces
-            </span>
-            <span>
-              <CheckCircle2 />
-              Auditable sales operations
-            </span>
-            <span>
-              <CheckCircle2 />
-              Vehicle intelligence workflows
-            </span>
-          </div>
-        </div>
-        <div className="story-metrics">
-          <div>
-            <BarChart3 />
-            <span>
-              <strong>One source of truth</strong>
-              <small>PostgreSQL-backed operations</small>
-            </span>
-          </div>
-          <div>
-            <ShieldCheck />
-            <span>
-              <strong>Secure by design</strong>
-              <small>HttpOnly sessions and RBAC</small>
-            </span>
-          </div>
-        </div>
-      </section>
+      <AuthStory />
       <section className="login-panel">
         <div className="login-form-wrap">
           <span className="mobile-brand">
@@ -132,7 +86,7 @@ export function LoginPage() {
           <div>
             <span className="eyebrow">WELCOME BACK</span>
             <h2>Sign in to your workspace</h2>
-            <p>Use the account assigned to your dealership role.</p>
+            <p>Sign in to your dealership workspace and vehicle intelligence.</p>
           </div>
           <form onSubmit={submit}>
             <label>
@@ -140,6 +94,7 @@ export function LoginPage() {
               <input
                 type="email"
                 autoComplete="email"
+                placeholder="you@dealership.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
@@ -151,6 +106,7 @@ export function LoginPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   minLength={8}
@@ -198,9 +154,9 @@ export function LoginPage() {
             <div>
               <ShieldCheck size={18} />
               <span>
-                <strong>Role previews</strong>
+                <strong>Take RTA for a test drive</strong>
                 <small>
-                  Open seeded demo workspaces without exposing passwords.
+                  Recruiters and evaluators: explore the product with safe, seeded demo data.
                 </small>
               </span>
             </div>

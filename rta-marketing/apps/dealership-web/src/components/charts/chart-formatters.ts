@@ -16,11 +16,11 @@ export const PIPELINE_STAGES: ReadonlyArray<{
   label: string;
   color: string;
 }> = [
-  { key: "new", label: "New", color: "#5b54dc" },
-  { key: "contacted", label: "Contacted", color: "#3985d8" },
-  { key: "qualified", label: "Qualified", color: "#d99432" },
-  { key: "converted", label: "Converted", color: "#35a477" },
-  { key: "lost", label: "Closed lost", color: "#a6adbb" },
+  { key: "new", label: "New", color: "var(--rta-chart-revenue)" },
+  { key: "contacted", label: "Contacted", color: "var(--rta-chart-contacted)" },
+  { key: "qualified", label: "Qualified", color: "var(--rta-chart-qualified)" },
+  { key: "converted", label: "Converted", color: "var(--rta-chart-converted)" },
+  { key: "lost", label: "Closed lost", color: "var(--rta-chart-lost)" },
 ];
 
 export function buildAnalyticsTimeline(data: DealershipAnalytics, now = new Date()): AnalyticsMonth[] {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import "./styles.css";
 
 export type AssistantHistoryMessage = { role: "user" | "assistant"; content: string };
@@ -70,6 +70,24 @@ function initialSuggestions(authenticated: boolean): string[] {
     : ["What does RTA do?", "How does the recruiter demo work?", "How is the platform secured?"];
 }
 
+type AssistantIconName = "sparkles" | "arrow" | "close" | "reset" | "shield" | "grid" | "play" | "chart" | "search" | "book";
+
+function AssistantIcon({ name, className = "" }: { name: AssistantIconName; className?: string }) {
+  const paths: Record<AssistantIconName, ReactNode> = {
+    sparkles: <><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" /><path d="m20 2 .6 1.4L22 4l-1.4.6L20 6l-.6-1.4L18 4l1.4-.6L20 2Z" /></>,
+    arrow: <><path d="M7 17 17 7M7 7h10v10" /></>,
+    close: <path d="m6 6 12 12M6 18 18 6" />,
+    reset: <><path d="M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6" /></>,
+    shield: <><path d="m12 3 8 3v6c0 4-4.5 7.5-8 9-3.5-1.5-8-5-8-9V6l8-3Z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>,
+    grid: <><rect x="4" y="4" width="6" height="6" rx="1.5" /><rect x="14" y="4" width="6" height="6" rx="1.5" /><rect x="4" y="14" width="6" height="6" rx="1.5" /><rect x="14" y="14" width="6" height="6" rx="1.5" /></>,
+    play: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m10 9 5 3-5 3V9Z" /></>,
+    chart: <><path d="M4 4v16h16M8 15v-4m5 4V7m5 8v-6" /></>,
+    search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></>,
+    book: <><path d="M12 6v15M3 4c4-1 6 0 9 2 3-2 5-3 9-2v14c-4-1-6 0-9 2-3-2-5-3-9-2V4Z" /></>,
+  };
+  return <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
 export function RtaAssistant({ authenticated, path, request, navigate, productLabel = "RTA Assistant" }: RtaAssistantProps) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -78,16 +96,44 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const suggestions = useMemo(() => initialSuggestions(authenticated), [authenticated]);
+  const panelId = useId();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const empty = !messages.length && !answer;
+  const starterIcons: AssistantIconName[] = authenticated ? ["chart", "search", "shield"] : ["grid", "play", "shield"];
+  const starterLabels = authenticated ? ["Workspace overview", "Vehicle intelligence", "Access & permissions"] : ["Explore the platform", "See it in action", "Security & architecture"];
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
       const prompt = (event as CustomEvent<{ prompt?: string }>).detail?.prompt;
       setOpen(true);
       if (prompt) setInput(prompt);
+      inputRef.current?.focus();
     };
     window.addEventListener("rta-assistant:open", handleOpen);
     return () => window.removeEventListener("rta-assistant:open", handleOpen);
   }, []);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open, loading]);
+
+  useEffect(() => {
+    if (open && bodyRef.current) bodyRef.current.scrollTop = messages.length ? bodyRef.current.scrollHeight : 0;
+  }, [open, messages, loading, error]);
+
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`;
+  }, [input, open]);
+
+  function close(): void {
+    setOpen(false);
+    launcherRef.current?.focus();
+  }
 
   async function submit(message: string): Promise<void> {
     const trimmed = message.trim();
@@ -117,63 +163,83 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
     setMessages([]);
     setAnswer(null);
     setError("");
+    setInput("");
+    inputRef.current?.focus();
   }
 
   return (
-    <div className={`rta-assistant ${open ? "is-open" : ""}`}>
+    <div className={`rta-assistant ${open ? "is-open" : ""}`} onKeyDown={(event) => { if (event.key === "Escape" && open) { event.stopPropagation(); close(); } }}>
       {open && (
-        <section className="rta-assistant-panel" aria-label={productLabel}>
+        <section id={panelId} className="rta-assistant-panel" role="region" aria-label={productLabel}>
           <header className="rta-assistant-header">
-            <div>
+            <span className="rta-assistant-brand-icon"><AssistantIcon name="sparkles" /></span>
+            <div className="rta-assistant-heading">
               <span className="rta-assistant-kicker">RTA INTELLIGENCE</span>
-              <h2>{productLabel}</h2>
-              <p>{authenticated ? "Grounded in your authorized workspace data." : "Ask about the product, demo, or architecture."}</p>
+              <h2>{productLabel}<span className="rta-assistant-ai-badge">AI</span></h2>
             </div>
             <div className="rta-assistant-header-actions">
-              <button type="button" onClick={reset} aria-label="Clear conversation">Clear</button>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close assistant">×</button>
+              <button type="button" onClick={reset} disabled={loading || (empty && !input && !error)} aria-label="Clear conversation" title="New conversation"><AssistantIcon name="reset" /></button>
+              <button type="button" onClick={close} aria-label="Close assistant" title="Close assistant"><AssistantIcon name="close" /></button>
             </div>
           </header>
-          <div className="rta-assistant-body" aria-live="polite">
-            {!messages.length && !answer && (
+          <div className="rta-assistant-context"><span className="rta-assistant-context-dot" />{authenticated ? "Connected to your workspace" : "Your guide to everything RTA"}<span className="rta-assistant-readonly"><AssistantIcon name="shield" />Read-only</span></div>
+          <div className="rta-assistant-body" ref={bodyRef}>
+            {empty && (
               <div className="rta-assistant-welcome">
-                <span className="rta-assistant-orb">✦</span>
-                <strong>{authenticated ? "What should we inspect?" : "How can I help?"}</strong>
-                <p>I use verified product knowledge and read-only tools. I will say when data is unavailable.</p>
+                <div className="rta-assistant-orbit" aria-hidden="true"><span className="rta-assistant-orbit-dot" /><span className="rta-assistant-orb"><AssistantIcon name="sparkles" /></span><span className="rta-assistant-orbit-star">+</span></div>
+                <span className="rta-assistant-welcome-eyebrow">A LITTLE INTELLIGENCE. A LOT OF CLARITY.</span>
+                <h3>{authenticated ? <>Your workspace.<br /><span>A clearer perspective.</span></> : <>Big questions.<br /><span>Clearer answers.</span></>}</h3>
+                <p>{authenticated ? "Make sense of your leads, inventory and performance with insights from your authorized data." : "Explore the platform, discover the demo, or get into the details. Start with a question."}</p>
+                <div className="rta-assistant-starters">
+                  <span className="rta-assistant-section-label">{authenticated ? "WHERE SHOULD WE START?" : "CURIOUS? START HERE"}</span>
+                  {suggestions.map((suggestion, index) => (
+                    <button type="button" className="rta-assistant-starter" key={suggestion} onClick={() => void submit(suggestion)} disabled={loading}>
+                      <span className={`rta-assistant-starter-icon tone-${index}`}><AssistantIcon name={starterIcons[index] ?? "book"} /></span>
+                      <span><small>{starterLabels[index]}</small><strong>{suggestion}</strong></span>
+                      <AssistantIcon name="arrow" className="rta-assistant-starter-arrow" />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
-            {messages.map((message, index) => (
-              <div className={`rta-assistant-message ${message.role}`} key={`${message.role}-${index}`}>
-                {message.content}
-              </div>
-            ))}
-            {loading && <div className="rta-assistant-message assistant">Checking authorized sources…</div>}
+            <div className="rta-assistant-transcript" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
+              {messages.map((message, index) => (
+                <div className={`rta-assistant-message ${message.role}`} key={`${message.role}-${index}`}>
+                  <div className="rta-assistant-message-label">{message.role === "assistant" && <AssistantIcon name="sparkles" />}<span>{message.role === "user" ? "You" : productLabel}</span></div>
+                  <div className="rta-assistant-message-content">{message.content}</div>
+                </div>
+              ))}
+              {loading && <div className="rta-assistant-thinking" role="status"><span className="rta-assistant-thinking-dots" aria-hidden="true"><i /><i /><i /></span>Checking authorized sources…</div>}
+            </div>
             {answer && !loading && (answer.sources.length > 0 || answer.navigation.length > 0) && (
               <div className="rta-assistant-result">
-                {answer.sources.length > 0 && <small>Sources: {answer.sources.map((source) => source.label).join(" · ")}</small>}
+                {answer.sources.length > 0 && <><span className="rta-assistant-section-label"><AssistantIcon name="book" />ANSWER SOURCES</span><div className="rta-assistant-sources">{answer.sources.map((source, index) => <span key={`${source.label}-${index}`}>{source.label}</span>)}</div></>}
                 {answer.navigation.length > 0 && navigate && (
                   <div className="rta-assistant-links">
-                    {answer.navigation.map((item) => <button type="button" key={item.path} onClick={() => { navigate(item.path); setOpen(false); }}>{item.label} →</button>)}
+                    {answer.navigation.map((item) => <button type="button" key={item.path} onClick={() => { navigate(item.path); close(); }}>{item.label}<AssistantIcon name="arrow" /></button>)}
                   </div>
                 )}
               </div>
             )}
             {error && <div className="rta-assistant-error" role="alert">{error}</div>}
           </div>
-          <div className="rta-assistant-suggestions">
+          {!empty && <div className="rta-assistant-suggestions" aria-label="Suggested questions">
             {(answer?.suggestions.length ? answer.suggestions : suggestions).map((suggestion) => (
-              <button type="button" key={suggestion} onClick={() => void submit(suggestion)} disabled={loading}>{suggestion}</button>
+              <button type="button" key={suggestion} onClick={() => void submit(suggestion)} disabled={loading}>{suggestion}<AssistantIcon name="arrow" /></button>
             ))}
+          </div>}
+          <div className="rta-assistant-composer">
+            <form className="rta-assistant-form" onSubmit={onSubmit}>
+              <label className="rta-assistant-sr-only" htmlFor={`${panelId}-input`}>Ask the RTA assistant</label>
+              <textarea id={`${panelId}-input`} ref={inputRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(input); } }} maxLength={2_000} placeholder={messages.length ? "Ask a follow-up…" : "Ask anything about RTA…"} disabled={loading} />
+              <div className="rta-assistant-composer-actions"><span><AssistantIcon name="sparkles" />{authenticated ? "Workspace intelligence" : "Powered by RTA intelligence"}</span><button type="submit" disabled={!input.trim() || loading} aria-label="Send question"><AssistantIcon name="arrow" /></button></div>
+            </form>
+            <footer className="rta-assistant-footer"><AssistantIcon name="shield" />Read-only assistance<span>·</span>Verify important details</footer>
           </div>
-          <form className="rta-assistant-form" onSubmit={onSubmit}>
-            <input value={input} onChange={(event) => setInput(event.target.value)} maxLength={2_000} placeholder="Ask a question…" aria-label="Ask the RTA assistant" disabled={loading} />
-            <button type="submit" disabled={!input.trim() || loading} aria-label="Send question">↑</button>
-          </form>
-          <footer className="rta-assistant-footer">Read-only assistance · Verify decisions before acting</footer>
         </section>
       )}
-      <button className="rta-assistant-launcher" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={open ? "Close RTA Assistant" : "Open RTA Assistant"}>
-        <span>✦</span><b>{open ? "Close" : "Ask RTA"}</b>
+      <button ref={launcherRef} className="rta-assistant-launcher" type="button" onClick={() => open ? close() : setOpen(true)} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-label={open ? "Close RTA Assistant" : "Open RTA Assistant"}>
+        <span className="rta-assistant-launcher-icon"><AssistantIcon name={open ? "close" : "sparkles"} /></span><b>{open ? "Close assistant" : "Ask RTA"}</b>{!open && <span className="rta-assistant-launcher-badge">AI</span>}
       </button>
     </div>
   );

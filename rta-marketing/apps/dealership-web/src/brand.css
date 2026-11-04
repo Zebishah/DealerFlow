@@ -1,0 +1,30 @@
+/* Shared RTA colors for the landing page, authentication, and every workspace. */
+:root {
+  --rta-ink: #091719;
+  --rta-teal: #102b2a;
+  --rta-teal-soft: #264b43;
+  --rta-teal-text: #28574e;
+  --rta-teal-wash: #eaf1e8;
+  --rta-paper: #f3f2ee;
+  --rta-surface: #fffefa;
+  --rta-surface-tint: #fafaf5;
+  --rta-coral: #f16445;
+  --rta-action: #c94931;
+  --rta-action-hover: #ad3f2b;
+  --rta-action-text: #a44830;
+  --rta-on-coral: #241c13;
+  --rta-coral-wash: #fff1e9;
+  --rta-coral-border: #efd0bf;
+  --rta-coral-light: #efac8f;
+  --rta-text: #203c32;
+  --rta-muted: #61735c;
+  --rta-border: #dfe5d8;
+  --rta-chart-revenue: #c94931;
+  --rta-chart-profit: #2d7466;
+  --rta-chart-contacted: #42685e;
+  --rta-chart-qualified: #b1873f;
+  --rta-chart-converted: #56806a;
+  --rta-chart-lost: #7c8377;
+  --rta-chart-axis: #61735c;
+  --rta-chart-grid: #e7ebdf;
+}

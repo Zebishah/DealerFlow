@@ -38,7 +38,7 @@ export function ChartTooltip({ active, label, payload, valueFormat = "count", sh
           ? firstPayload.percentage
           : total && total > 0 ? value / total : null;
         return <div className="analytics-tooltip-row" key={`${String(entry.dataKey ?? entry.name)}-${index}`}>
-          <span><i style={{ backgroundColor: entry.color ?? "#6259de" }} />{entry.name ?? entry.dataKey}</span>
+          <span><i style={{ backgroundColor: entry.color ?? "var(--rta-chart-revenue)" }} />{entry.name ?? entry.dataKey}</span>
           <strong>{valueFormat === "currency" ? formatCurrency(value) : formatCount(value)}{showPercentage && percentage !== null ? ` · ${formatPercentage(percentage)}` : ""}</strong>
         </div>;
       })}

@@ -1,4 +1,5 @@
-import { ArrowLeft, ArrowRight, Car as CarFront, Check, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ShieldCheck } from "lucide-react";
+import { AuthStory } from "../components/AuthPageLayout";
 import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { api } from "../lib/api";
@@ -64,11 +65,7 @@ export function AccessRequestPage() {
   }
 
   return <main className="login-page access-request-page">
-    <section className="login-story">
-      <div className="login-brand"><span><CarFront /></span><strong>RTA Operations</strong></div>
-      <div className="story-copy"><span className="eyebrow">CONTROLLED EVALUATION ACCESS</span><h1>See the platform in action.</h1><p>Request scoped access to review dealership operations, vehicle intelligence, and the systems connecting them.</p><div className="story-points"><span><CheckCircle2 />Explore dealership workflows</span><span><CheckCircle2 />Review vehicle data operations</span><span><CheckCircle2 />Receive time-limited permissions</span></div></div>
-      <div className="story-metrics"><div><ShieldCheck /><span><strong>Scoped by design</strong><small>Only the permissions you request</small></span></div><div><CheckCircle2 /><span><strong>Auditable access</strong><small>Every approval is reviewed</small></span></div></div>
-    </section>
+    <AuthStory evaluation />
     <section className="login-panel access-request-panel">
       <div className="login-form-wrap access-request-form-wrap">
         <Link className="access-back-link" to="/login"><ArrowLeft size={15} /> Back to sign in</Link>

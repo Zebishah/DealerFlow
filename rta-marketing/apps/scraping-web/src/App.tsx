@@ -38,6 +38,7 @@ function jobLabel(job: ActiveJob): string {
 
 export function App() {
   const [sites, setSites] = useState<Site[]>([]);
+  const [sourcesLoaded, setSourcesLoaded] = useState(false);
   const [selected, setSelected] = useState<{ site: Site; items: Item[] } | null>(null);
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
   const [scrapeLimit, setScrapeLimit] = useState(5);
@@ -51,6 +52,7 @@ export function App() {
     if (!response.ok) throw new Error("API request failed");
     const value = await response.json() as { data: Site[] };
     setSites(value.data);
+    setSourcesLoaded(true);
   }, []);
 
   const loadScrapeStatus = useCallback(async () => {
@@ -172,12 +174,12 @@ export function App() {
   }
 
   return (
-    <main>
+    <main className="scraping-monitor">
       <RtaAssistant authenticated={false} path="/scraping-monitor" request={askAssistant} productLabel="RTA Scraping Assistant" />
       <header>
-        <p className="eyebrow">RTA AUTOMOTIVE GROUP</p>
-        <h1>Scraping monitor</h1>
-        <p>Trigger real PakWheels and OLX crawls from the dashboard. Jobs run through BullMQ and persist results in Neon.</p>
+        <div className="monitor-brand-row"><a className="monitor-brand" href={dealershipWebUrl}><span>R</span>RTA<span className="monitor-brand-label">VEHICLE INTELLIGENCE</span></a><a className="monitor-workspace-link" href={`${dealershipWebUrl}/login`}>Open dealership workspace ↗</a></div><p className="eyebrow">YOUR CONNECTED VEHICLE DATA WORKSPACE</p>
+        <h1>Better data.<br /><span>A clearer next move.</span></h1>
+        <p className="monitor-lede">Monitor approved vehicle sources, collect current listings, and keep every acquisition run in view.</p>
         <label className="limit-control">Vehicles per run
           <input type="number" min="1" max="10" value={scrapeLimit} onChange={(event) => setScrapeLimit(Math.min(Math.max(Number(event.target.value) || 1, 1), 10))} />
         </label>
@@ -186,17 +188,19 @@ export function App() {
             <div className="access-active"><span>Scrape access enabled for this browser session.</span><button type="button" onClick={() => void logoutScraping()}>End access</button></div>
           ) : (
             <form onSubmit={(event) => void unlockScraping(event)}>
-              <label>Recruiter access code
+              <label>Private acquisition access code
                 <input type="password" autoComplete="off" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="Enter the private access code" />
               </label>
               <button type="submit" disabled={!accessCode}>Unlock scraping</button>
             </form>
           )}
-          <small>The code is exchanged for an HTTP-only session and is never stored in the frontend bundle. Recruiters can explore this surface through the <a href={`${dealershipWebUrl}/login?request=1`}>dealership demo</a> or <a href={`${dealershipWebUrl}/login?request=1`}>request full access</a>.</small>
+          <small>Acquisition controls require a private access session. Explore the connected product in the <a href={`${dealershipWebUrl}/login?request=1`}>dealership demo</a> or <a href={`${dealershipWebUrl}/login?request=1`}>request full access</a>.</small>
         </section>
       </header>
       {notice && <p className="notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
+      <section className="monitor-summary" aria-label="Acquisition overview"><article><span>Connected sources</span><strong>{sourcesLoaded ? sites.length : "—"}</strong><small>Available data sources</small></article><article><span>Collected listings</span><strong>{sourcesLoaded ? sites.reduce((total, site) => total + site.itemCount, 0) : "—"}</strong><small>Persisted source records</small></article><article><span>Acquisition status</span><strong>{workerBusy ? "Processing" : "Idle"}</strong><small>{workerBusy ? "A run is in progress" : "No acquisition run in progress"}</small></article></section>
+      <div className="monitor-section-heading"><div><span className="eyebrow">ACQUISITION CONTROL</span><h2>Your vehicle sources</h2></div><p>Inspect listings. Follow each run.</p></div>
       <section className="grid">
         {sites.map((site) => (
           <article className="site-card" key={site.id}>

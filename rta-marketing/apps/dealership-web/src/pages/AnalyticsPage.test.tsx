@@ -33,11 +33,15 @@ const analyticsResponse = {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   mocks.api.mockReset();
 });
 
 describe("performance analytics", () => {
   it("renders charts and KPIs from the analytics API, filling missing months with zero activity", async () => {
+    // Keep the six-month window aligned with this fixture as the real date changes.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-17T12:00:00Z"));
     mocks.api.mockResolvedValue(analyticsResponse);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={queryClient}><AnalyticsPage /></QueryClientProvider>);

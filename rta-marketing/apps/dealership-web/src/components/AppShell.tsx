@@ -1,5 +1,7 @@
 import {
   Activity,
+  Zap,
+  ArrowUpRight,
   BarChart3,
   Car,
   ChevronDown,
@@ -174,7 +176,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <button className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu /></button>
     {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
     <aside className={`side-nav ${mobileOpen ? "open" : ""}`}>
-      <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>RTA</strong><span>OPERATIONS</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
+      <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>RTA</strong><span>DEALERSHIP INTELLIGENCE</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{user.workspaceId ? "Workspace operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
         {renderNavGroup("WORKSPACE", workspacePaths)}
@@ -184,11 +186,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         {renderNavGroup("INTELLIGENCE", intelligencePaths)}
         {renderNavGroup("ADMINISTRATION", administrationPaths)}
       </nav>
-      <div className="side-status"><span><i />API connected</span><small>PostgreSQL · Redis · Apify</small></div>
+      <button className="side-intelligence" type="button" onClick={() => openRtaAssistant(askPrompt)}><span><Zap size={16} /></span><div><strong>A clearer next move.</strong><small>Ask your RTA assistant</small></div><ArrowUpRight size={14} /></button><div className="side-status"><span><ShieldCheck size={11} /> Role-aware workspace</span><small>People. Vehicles. Possibilities.</small></div>
     </aside>
     <main className="workspace-main">
       <header className="top-nav">
-        <div><span>RTA AUTOMOTIVE GROUP</span><h1>{title}</h1><p>{subtitle}</p></div>
+        <div><span>RTA / YOUR CONNECTED WORKSPACE</span><h1>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
           <button className="ai-header-control" type="button" onClick={() => openRtaAssistant(askPrompt)}><MessageSquare size={15} /><span>Ask RTA AI</span></button>
           <div className="notification-wrap"><button className="notification-control" type="button" onClick={() => setNotificationsOpen((value) => !value)} aria-label={`${notificationItems.length} customer operations notifications`}><Inbox size={16} />{notificationItems.length > 0 && <b>{notificationItems.length}</b>}</button>{notificationsOpen && <div className="notification-menu"><header><strong>Notifications</strong>{notificationItems.length > 0 && <button type="button" onClick={markAllNotificationsRead}>Mark all read</button>}</header>{notificationItems.length > 0 ? notificationItems.slice(0, 6).map((item) => <button className="notification-item" type="button" key={item.id} onClick={() => { markNotificationRead(item.id); setNotificationsOpen(false); navigate(item.href); }}><strong>{item.title}</strong><span>{item.body}</span></button>) : <p className="notification-empty">You are all caught up.</p>}</div>}</div>
@@ -198,6 +200,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      <div className="workspace-intelligence-strip"><span><Zap size={13} /> INTELLIGENCE, IN CONTEXT</span><p>More clarity. Right where you work.</p><button type="button" onClick={() => openRtaAssistant(askPrompt)}>Ask about this page <ArrowUpRight size={13} /></button></div>
       {user.isDemoRecruiter && <div className="demo-access-banner"><ShieldAlert size={16} /><div><strong>Recruiter Demo Mode</strong><span>You can explore all product areas. Sensitive and destructive actions require approved access.</span></div><button type="button" onClick={() => navigate("/request-access")}>Request full access</button></div>}
       <div className="page-content">{children}</div>
     </main>
