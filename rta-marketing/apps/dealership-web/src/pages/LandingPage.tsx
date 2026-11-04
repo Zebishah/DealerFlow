@@ -124,10 +124,24 @@ const techGroups: Array<[string, string[]]> = [
 
 export function LandingNav({ browsePage = false }: { browsePage?: boolean }) {
   const [open, setOpen] = useState(false);
+  const header = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function outside(event: PointerEvent) {
+      if (event.target instanceof Node && !header.current?.contains(event.target)) setOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") { setOpen(false); trigger.current?.focus(); }
+    }
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open]);
   const close = () => setOpen(false);
   const section = (id: string) => browsePage ? `/#${id}` : `#${id}`;
 
-  return <header className="landing-nav"><a className="landing-brand" href={browsePage ? "/" : "#top"} aria-label="RTA home"><span className="landing-brand-mark"><Car size={17} strokeWidth={2.5} /></span><span>RTA<span className="landing-brand-dot">.</span></span></a><nav className={open ? "landing-nav-links is-open" : "landing-nav-links"} aria-label="Primary navigation"><a href={section("solutions")} onClick={close}>The platform</a><a href={section("ai-intelligence")} onClick={close}>RTA intelligence</a><Link to="/inventory" onClick={close}>Find a vehicle</Link><a href={section("operations")} onClick={close}>For dealerships</a><a href={section("architecture")} onClick={close}>Under the hood</a><Link className="landing-nav-cta" to={landingLinks.dealership} onClick={close}>Explore live demo <ArrowUpRight size={15} /></Link></nav><button className="landing-menu-button" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={21} /> : <Menu size={21} />}</button></header>;
+  return <header ref={header} className="landing-nav"><a className="landing-brand" href={browsePage ? "/" : "#top"} aria-label="RTA home"><span className="landing-brand-mark"><Car size={17} strokeWidth={2.5} /></span><span>RTA<span className="landing-brand-dot">.</span></span></a><nav id="landing-navigation" className={open ? "landing-nav-links is-open" : "landing-nav-links"} aria-label="Primary navigation"><a href={section("solutions")} onClick={close}>The platform</a><a href={section("ai-intelligence")} onClick={close}>RTA intelligence</a><Link to="/inventory" onClick={close}>Find a vehicle</Link><a href={section("operations")} onClick={close}>For dealerships</a><a href={section("architecture")} onClick={close}>Under the hood</a><Link className="landing-nav-cta" to={landingLinks.dealership} onClick={close}>Explore live demo <ArrowUpRight size={15} /></Link></nav><button ref={trigger} aria-controls="landing-navigation" className="landing-menu-button" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={21} /> : <Menu size={21} />}</button></header>;
 }
 
 function HeroSection() {

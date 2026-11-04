@@ -25,13 +25,14 @@ import {
   X,
   ShieldAlert,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/api";
 import type { BootstrapData, UserRole } from "../types/domain";
 import { NavLink, useNavigation } from "../router/Navigation";
+import { LogoutConfirmation } from "./LogoutConfirmation";
+import { useDialogFocus } from "../lib/useDialogFocus";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import { openRtaAssistant } from "@rta/assistant-ui";
 
@@ -94,11 +95,63 @@ function initials(firstName: string | null, lastName: string | null, email: stri
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { navigate, path } = useNavigation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia?.("(max-width: 800px)").matches ?? false);
+  const sideNav = useRef<HTMLElement>(null);
+  const profileWrap = useRef<HTMLDivElement>(null);
+  const notificationWrap = useRef<HTMLDivElement>(null);
+  const profileTrigger = useRef<HTMLButtonElement>(null);
+  const notificationTrigger = useRef<HTMLButtonElement>(null);
+  const pageHeading = useRef<HTMLHeadingElement>(null);
+  const previousPath = useRef(path);
+  useDialogFocus(sideNav, mobileOpen && isMobile, { onClose: () => setMobileOpen(false) });
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 800px)");
+    if (!media) return;
+    const update = () => { setIsMobile(media.matches); if (!media.matches) setMobileOpen(false); };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (sideNav.current) sideNav.current.inert = isMobile && !mobileOpen;
+  }, [isMobile, mobileOpen]);
+
+  useEffect(() => {
+    setProfileOpen(false);
+    setNotificationsOpen(false);
+    setMobileOpen(false);
+    if (previousPath.current === path) return;
+    previousPath.current = path;
+    const frame = window.requestAnimationFrame(() => pageHeading.current?.focus({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [path]);
+
+  useEffect(() => {
+    if (!profileOpen && !notificationsOpen) return;
+    function outside(event: PointerEvent) {
+      if (!(event.target instanceof Node)) return;
+      if (!profileWrap.current?.contains(event.target)) setProfileOpen(false);
+      if (!notificationWrap.current?.contains(event.target)) setNotificationsOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (profileOpen) { setProfileOpen(false); profileTrigger.current?.focus(); }
+      if (notificationsOpen) { setNotificationsOpen(false); notificationTrigger.current?.focus(); }
+    }
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [profileOpen, notificationsOpen]);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
   useEffect(() => {
     if (!user) return;
@@ -152,7 +205,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   function markNotificationRead(id: string) {
     setReadNotificationIds((current) => {
       const next = current.includes(id) ? current : [...current, id];
-      if (user) localStorage.setItem(`rta-read-notifications:${user.id}`, JSON.stringify(next.slice(-100)));
+      persistReadNotifications(next);
       return next;
     });
   }
@@ -160,22 +213,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   function markAllNotificationsRead() {
     const ids = notifications.data?.items.map((item) => item.id) ?? [];
     setReadNotificationIds(ids);
-    if (user) localStorage.setItem(`rta-read-notifications:${user.id}`, JSON.stringify(ids));
+    persistReadNotifications(ids);
   }
 
-  async function signOut() {
+  function persistReadNotifications(ids: string[]) {
     try {
-      await logout();
-      navigate("/login", { replace: true });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not sign out");
+      if (user) localStorage.setItem(`rta-read-notifications:${user.id}`, JSON.stringify(ids.slice(-100)));
+    } catch {
+      // Notification controls still work when browser storage is unavailable.
     }
   }
 
+  function requestSignOut() {
+    setProfileOpen(false);
+    setMobileOpen(false);
+    setLogoutOpen(true);
+  }
+
   return <div className="app-frame">
-    <button className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu /></button>
-    {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-    <aside className={`side-nav ${mobileOpen ? "open" : ""}`}>
+    <a className="skip-link" href="#workspace-content">Skip to main content</a>
+    <button type="button" aria-expanded={mobileOpen} aria-controls="workspace-navigation" className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu /></button>
+    {mobileOpen && <button type="button" data-dialog-backdrop tabIndex={-1} className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
+    <aside ref={sideNav} id="workspace-navigation" className={`side-nav ${mobileOpen ? "open" : ""}`} role={isMobile ? "dialog" : undefined} aria-modal={isMobile && mobileOpen ? true : undefined} aria-label="Workspace navigation" aria-hidden={isMobile && !mobileOpen ? true : undefined} tabIndex={-1}>
       <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>RTA</strong><span>DEALERSHIP INTELLIGENCE</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{user.workspaceId ? "Workspace operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
@@ -190,20 +249,30 @@ export function AppShell({ children }: { children: ReactNode }) {
     </aside>
     <main className="workspace-main">
       <header className="top-nav">
-        <div><span>RTA / YOUR CONNECTED WORKSPACE</span><h1>{title}</h1><p>{subtitle}</p></div>
+        <div><span>RTA / YOUR CONNECTED WORKSPACE</span><h1 ref={pageHeading} tabIndex={-1}>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
-          <button className="ai-header-control" type="button" onClick={() => openRtaAssistant(askPrompt)}><MessageSquare size={15} /><span>Ask RTA AI</span></button>
-          <div className="notification-wrap"><button className="notification-control" type="button" onClick={() => setNotificationsOpen((value) => !value)} aria-label={`${notificationItems.length} customer operations notifications`}><Inbox size={16} />{notificationItems.length > 0 && <b>{notificationItems.length}</b>}</button>{notificationsOpen && <div className="notification-menu"><header><strong>Notifications</strong>{notificationItems.length > 0 && <button type="button" onClick={markAllNotificationsRead}>Mark all read</button>}</header>{notificationItems.length > 0 ? notificationItems.slice(0, 6).map((item) => <button className="notification-item" type="button" key={item.id} onClick={() => { markNotificationRead(item.id); setNotificationsOpen(false); navigate(item.href); }}><strong>{item.title}</strong><span>{item.body}</span></button>) : <p className="notification-empty">You are all caught up.</p>}</div>}</div>
-          <div className="profile-wrap">
-            <button className="profile-control" onClick={() => setProfileOpen((value) => !value)}><b>{initials(user.firstName, user.lastName, user.email)}</b><span><strong>{[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email}</strong><small>{user.role.replace("_", " ")}</small></span><ChevronDown size={15} /></button>
-            {profileOpen && <div className="profile-menu"><button onClick={() => { setProfileOpen(false); navigate("/app/settings"); }}><Settings2 size={16} />Account settings</button><button onClick={() => void signOut()}><LogOut size={16} />Sign out</button></div>}
+          <button className="ai-header-control" type="button" aria-label="Ask RTA AI" onClick={() => openRtaAssistant(askPrompt)}><MessageSquare size={15} /><span>Ask RTA AI</span></button>
+          <div ref={notificationWrap} className="notification-wrap">
+            <button ref={notificationTrigger} className="notification-control" type="button" onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); }} aria-label={`${notificationItems.length} customer operations notifications`} aria-expanded={notificationsOpen} aria-controls="workspace-notifications"><Inbox size={16} />{notificationItems.length > 0 && <b>{notificationItems.length}</b>}</button>
+            {notificationsOpen && <section id="workspace-notifications" className="notification-menu" aria-label="Notifications">
+              <header><strong>Notifications</strong>{notificationItems.length > 0 && <button type="button" onClick={markAllNotificationsRead}>Mark all read</button>}</header>
+              {notifications.isLoading ? <p className="notification-empty" role="status">Loading notifications…</p>
+                : notifications.isError ? <div className="notification-empty"><p role="alert">Notifications couldn’t be loaded.</p><button type="button" className="filter-button" onClick={() => void notifications.refetch()}>Try again</button></div>
+                  : notificationItems.length > 0 ? notificationItems.slice(0, 6).map((item) => <button className="notification-item" type="button" key={item.id} onClick={() => { markNotificationRead(item.id); setNotificationsOpen(false); navigate(item.href); }}><strong>{item.title}</strong><span>{item.body}</span></button>)
+                    : <p className="notification-empty">You are all caught up.</p>}
+            </section>}
+          </div>
+          <div ref={profileWrap} className="profile-wrap">
+            <button ref={profileTrigger} type="button" className="profile-control" aria-label="Account menu" aria-expanded={profileOpen} aria-controls="workspace-account-menu" onClick={() => { setProfileOpen((value) => !value); setNotificationsOpen(false); }}><b>{initials(user.firstName, user.lastName, user.email)}</b><span><strong>{[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email}</strong><small>{user.role.replace("_", " ")}</small></span><ChevronDown size={15} /></button>
+            {profileOpen && <div id="workspace-account-menu" className="profile-menu"><button onClick={() => { setProfileOpen(false); navigate("/app/settings"); }}><Settings2 size={16} />Account settings</button><button type="button" onClick={requestSignOut}><LogOut size={16} />Sign out</button></div>}
           </div>
         </div>
       </header>
       <div className="workspace-intelligence-strip"><span><Zap size={13} /> INTELLIGENCE, IN CONTEXT</span><p>More clarity. Right where you work.</p><button type="button" onClick={() => openRtaAssistant(askPrompt)}>Ask about this page <ArrowUpRight size={13} /></button></div>
       {user.isDemoRecruiter && <div className="demo-access-banner"><ShieldAlert size={16} /><div><strong>Recruiter Demo Mode</strong><span>You can explore all product areas. Sensitive and destructive actions require approved access.</span></div><button type="button" onClick={() => navigate("/request-access")}>Request full access</button></div>}
-      <div className="page-content">{children}</div>
+      <div id="workspace-content" className="page-content" tabIndex={-1}>{children}</div>
     </main>
-    <PasswordChangeModal />
+    <PasswordChangeModal suspended={logoutOpen} onSignOut={requestSignOut} />
+    {logoutOpen && <LogoutConfirmation onClose={() => setLogoutOpen(false)} returnFocusRef={profileTrigger} />}
   </div>;
 }

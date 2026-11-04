@@ -48,7 +48,7 @@ export function ProfilePage() {
   }
 
   return <div className="page-stack">
-    <section className="page-intro"><div><span>ACCOUNT SECURITY</span><h2>Your profile and credentials.</h2><p>Update identity information and rotate your password without exposing authentication secrets to the browser.</p></div></section>
+    <section className="page-intro"><div><span>ACCOUNT SECURITY</span><h2>Your profile and credentials.</h2><p>Keep your profile up to date and manage your account password.</p></div></section>
     <section className="settings-grid">
       <form className="surface settings-card" onSubmit={saveProfile}>
         <header><span><User /></span><div><h3>Profile information</h3><p>Your role and email are controlled by an administrator.</p></div></header>

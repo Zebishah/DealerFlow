@@ -105,3 +105,13 @@ a { color: #3159bb; }
 @media (prefers-reduced-motion: reduce) { .scraping-monitor * { transition: none !important; } }
 
 .scraping-monitor .monitor-section-heading .eyebrow { color: #a45134; }
+.access-confirmation { box-sizing: border-box; width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 26px; overflow: auto; border: 1px solid #dfe5d8; border-radius: 18px; color: #203c32; background: #fffefa; box-shadow: 0 24px 80px #09171940; }
+.access-confirmation::backdrop { background: #091719b8; backdrop-filter: blur(4px); }
+.access-confirmation h2 { margin: 12px 0; font-size: 24px; line-height: 1.2; }
+.access-confirmation > p { color: #52604f; font-size: 14px; line-height: 1.6; }
+.access-confirmation footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.access-confirmation button { min-height: 44px; padding: 10px 14px; border: 1px solid #dfe5d8; border-radius: 9px; color: #203c32; background: white; cursor: pointer; }
+.access-confirmation .confirm-end-access { border-color: #ad3f2b; color: white; background: #ad3f2b; }
+.access-confirmation button:disabled { cursor: wait; opacity: .65; }
+.scraping-monitor .access-panel button, .scraping-monitor .scrape-button { min-height: 44px; color: #241c13; }
+@media (max-width: 600px) { .scraping-monitor .access-panel input { font-size: 16px; } .access-active { flex-wrap: wrap; } }

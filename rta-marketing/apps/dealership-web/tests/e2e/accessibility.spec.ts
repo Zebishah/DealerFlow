@@ -102,3 +102,32 @@ test.describe("employee customer-operations accessibility", () => {
     });
   }
 });
+
+test.describe("public account screens on mobile", () => {
+  for (const path of ["/", "/signup", "/forgot-password", "/resend-verification", "/verify-email", "/reset-password", "/setup-access", "/request-access"]) {
+    test(`${path} fits a narrow viewport and has no serious accessibility findings`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.route("**/api/v1/**", route => route.fulfill(new URL(route.request().url()).pathname.endsWith("/auth/session")
+        ? { status: 401, json: { error: { code: "AUTH_REQUIRED", message: "Sign in required" } } }
+        : { json: publicInventoryPayload }));
+      await page.goto(path);
+      await expect(page.locator("main")).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations.filter(item => item.impact === "serious" || item.impact === "critical")
+        .map(item => ({ rule: item.id, elements: item.nodes.map(node => ({ target: node.target, issue: node.failureSummary })) }))).toEqual([]);
+    });
+  }
+});
+
+test("the desktop landing page empty state stays readable and accessible", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/v1/**", route => route.fulfill({ json: { data: { items: [], sources: [] }, page: { limit: 24, offset: 0, total: 0, hasMore: false } } }));
+  await page.goto("/");
+  await expect(page.getByText("No current listings", { exact: true })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter(item => item.impact === "serious" || item.impact === "critical")
+    .map(item => ({ rule: item.id, elements: item.nodes.map(node => ({ target: node.target, issue: node.failureSummary })) }))).toEqual([]);
+});

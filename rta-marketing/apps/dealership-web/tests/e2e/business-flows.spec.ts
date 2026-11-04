@@ -202,9 +202,9 @@ test("employee completes an overdue follow-up and advances a confirmed appointme
   await page.getByLabel("Notes").fill("Confirm vehicle preparation");
   await page.getByRole("button", { name: "Save appointment" }).click();
   await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByText("confirmed")).toBeVisible();
+  await expect(page.getByText("confirmed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Completed" }).click();
-  await expect(page.getByText("completed")).toBeVisible();
+  await expect(page.getByText("completed", { exact: true })).toBeVisible();
 });
 
 test("employee creates a manager request and sees the resolved admin response", async ({ page }) => {

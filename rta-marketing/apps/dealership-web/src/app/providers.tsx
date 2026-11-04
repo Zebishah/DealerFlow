@@ -26,6 +26,7 @@ function AssistantMount() {
   const { path, navigate } = useNavigation();
   return (
     <RtaAssistant
+      key={user ? `${user.id}:${user.workspaceId ?? "platform"}` : "public"}
       authenticated={Boolean(user)}
       path={path}
       navigate={navigate}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { RtaAssistant, type AssistantAnswer, type AssistantRequest } from "@rta/assistant-ui";
 
 type Site = { id: number; name: string; baseUrl: string; itemCount: number; lastScrapedAt: string | null };
@@ -43,9 +43,22 @@ export function App() {
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
   const [scrapeLimit, setScrapeLimit] = useState(5);
   const [authorized, setAuthorized] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const logoutDialog = useRef<HTMLDialogElement>(null);
+  const sessionVersion = useRef(0);
   const [accessCode, setAccessCode] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
+  useEffect(() => {
+    const dialog = logoutDialog.current;
+    if (logoutOpen && dialog && !dialog.open) dialog.showModal();
+    else if (!logoutOpen && dialog?.open) dialog.close();
+  }, [logoutOpen]);
 
   const loadSites = useCallback(async () => {
     const response = await fetch(`${apiUrl}/api/sites`);
@@ -60,19 +73,21 @@ export function App() {
     if (!response.ok) throw new Error("Could not load scrape status");
     const value = await response.json() as { data: { activeJob: ActiveJob | null } };
     setActiveJob(value.data.activeJob);
+    setStatusLoaded(true);
   }, []);
 
   const loadScrapeSession = useCallback(async () => {
+    const version = sessionVersion.current;
     const response = await fetch(scrapeControlPath("/api/scrape-session"), { credentials: "include" });
     if (!response.ok) return;
     const value = await response.json() as { data: { authenticated: boolean } };
-    setAuthorized(value.data.authenticated);
+    if (version === sessionVersion.current) setAuthorized(value.data.authenticated);
   }, []);
 
   useEffect(() => {
     void loadSites().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "API unavailable"));
     void loadScrapeStatus().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load scrape status"));
-    void loadScrapeSession();
+    void loadScrapeSession().catch(() => setError("Access status could not be checked. Refresh the page to try again."));
   }, [loadScrapeSession, loadScrapeStatus, loadSites]);
 
   useEffect(() => {
@@ -136,6 +151,9 @@ export function App() {
 
   async function unlockScraping(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (unlocking) return;
+    sessionVersion.current += 1;
+    setUnlocking(true);
     setNotice("");
     setError("");
     try {
@@ -145,19 +163,35 @@ export function App() {
         credentials: "include",
         body: JSON.stringify(import.meta.env.PROD ? { accessCode } : { token: accessCode }),
       });
-      setAccessCode("");
       if (!response.ok) throw new Error(response.status === 429 ? "Too many access attempts. Try again later." : "Scrape access was not accepted.");
+      setAccessCode("");
       setAuthorized(true);
       setNotice("Scrape access enabled for this browser session.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not enable scrape access");
+    } finally {
+      setUnlocking(false);
     }
   }
 
   async function logoutScraping(): Promise<void> {
-    await fetch(scrapeControlPath("/api/scrape-session/logout"), { method: "POST", credentials: "include" }).catch(() => undefined);
-    setAuthorized(false);
-    setNotice("Scrape access ended.");
+    if (loggingOut) return;
+    sessionVersion.current += 1;
+    setLoggingOut(true);
+    setLogoutError("");
+    try {
+      const response = await fetch(scrapeControlPath("/api/scrape-session/logout"), { method: "POST", credentials: "include" });
+      if (!response.ok && response.status !== 401) throw new Error("Access could not be ended. Please try again.");
+      setAuthorized(false);
+      setAccessCode("");
+      setLogoutOpen(false);
+      setNotice("Scrape access ended.");
+      setError("");
+    } catch (reason) {
+      setLogoutError(reason instanceof Error ? reason.message : "Access could not be ended. Please try again.");
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   const workerBusy = Boolean(activeJob && ["queued", "scraping", "retrying"].includes(activeJob.status));
@@ -185,21 +219,21 @@ export function App() {
         </label>
         <section className="access-panel">
           {authorized ? (
-            <div className="access-active"><span>Scrape access enabled for this browser session.</span><button type="button" onClick={() => void logoutScraping()}>End access</button></div>
+            <div className="access-active"><span>Scrape access enabled for this browser session.</span><button type="button" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>End access</button></div>
           ) : (
             <form onSubmit={(event) => void unlockScraping(event)}>
               <label>Private acquisition access code
-                <input type="password" autoComplete="off" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="Enter the private access code" />
+                <input type="password" autoComplete="off" disabled={unlocking} required value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="Enter the private access code" />
               </label>
-              <button type="submit" disabled={!accessCode}>Unlock scraping</button>
+              <button type="submit" disabled={!accessCode.trim() || unlocking}>{unlocking ? "Unlocking…" : "Unlock scraping"}</button>
             </form>
           )}
-          <small>Acquisition controls require a private access session. Explore the connected product in the <a href={`${dealershipWebUrl}/login?request=1`}>dealership demo</a> or <a href={`${dealershipWebUrl}/login?request=1`}>request full access</a>.</small>
+          <small>Acquisition controls require a private access session. Explore the connected product in the <a href={`${dealershipWebUrl}/login`}>dealership demo</a> or <a href={`${dealershipWebUrl}/request-access`}>request full access</a>.</small>
         </section>
       </header>
-      {notice && <p className="notice">{notice}</p>}
-      {error && <p className="error">{error}</p>}
-      <section className="monitor-summary" aria-label="Acquisition overview"><article><span>Connected sources</span><strong>{sourcesLoaded ? sites.length : "—"}</strong><small>Available data sources</small></article><article><span>Collected listings</span><strong>{sourcesLoaded ? sites.reduce((total, site) => total + site.itemCount, 0) : "—"}</strong><small>Persisted source records</small></article><article><span>Acquisition status</span><strong>{workerBusy ? "Processing" : "Idle"}</strong><small>{workerBusy ? "A run is in progress" : "No acquisition run in progress"}</small></article></section>
+      {notice && <p className="notice" role="status">{notice}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <section className="monitor-summary" aria-label="Acquisition overview"><article><span>Connected sources</span><strong>{sourcesLoaded ? sites.length : "—"}</strong><small>Available data sources</small></article><article><span>Collected listings</span><strong>{sourcesLoaded ? sites.reduce((total, site) => total + site.itemCount, 0) : "—"}</strong><small>Persisted source records</small></article><article><span>Acquisition status</span><strong>{!statusLoaded ? "Unknown" : workerBusy ? "Processing" : "Idle"}</strong><small>{!statusLoaded ? "Waiting for status" : workerBusy ? "A run is in progress" : "No acquisition run in progress"}</small></article></section>
       <div className="monitor-section-heading"><div><span className="eyebrow">ACQUISITION CONTROL</span><h2>Your vehicle sources</h2></div><p>Inspect listings. Follow each run.</p></div>
       <section className="grid">
         {sites.map((site) => (
@@ -240,6 +274,13 @@ export function App() {
           ) : <p>No scraped items yet.</p>}
         </section>
       )}
+      <dialog ref={logoutDialog} className="access-confirmation" aria-labelledby="end-access-title" aria-describedby="end-access-description" aria-busy={loggingOut} onCancel={(event) => { event.preventDefault(); if (!loggingOut) setLogoutOpen(false); }}>
+        <span className="eyebrow">ACQUISITION ACCESS</span>
+        <h2 id="end-access-title">End access for this browser?</h2>
+        <p id="end-access-description">You’ll need the private access code to start another run. Runs already in progress will continue.</p>
+        {logoutError && <p className="error" role="alert">{logoutError}</p>}
+        <footer><button type="button" autoFocus disabled={loggingOut} onClick={() => setLogoutOpen(false)}>Keep access</button><button type="button" className="confirm-end-access" disabled={loggingOut} onClick={() => void logoutScraping()}>{loggingOut ? "Ending access…" : "End access"}</button></footer>
+      </dialog>
     </main>
   );
 }

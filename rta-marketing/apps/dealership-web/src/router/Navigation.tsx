@@ -15,7 +15,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     navigate(nextPath, options) {
       window.history[options?.replace ? "replaceState" : "pushState"]({}, "", nextPath);
       setPath(nextPath);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "instant" });
     },
   }), [path]);
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
@@ -41,7 +41,7 @@ export function Link({ to, onClick, ...props }: AnchorHTMLAttributes<HTMLAnchorE
 export function NavLink({ to, className, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) {
   const { path } = useNavigation();
   const classes = [typeof className === "string" ? className : "", path === to ? "active" : ""].filter(Boolean).join(" ");
-  return <Link {...props} to={to} className={classes} />;
+  return <Link {...props} to={to} className={classes} aria-current={path === to ? "page" : undefined} />;
 }
 
 export function Redirect({ to }: { to: string }) {

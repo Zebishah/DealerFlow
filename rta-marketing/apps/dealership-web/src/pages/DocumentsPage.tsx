@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Download, Eye, FileText, Pencil, Trash2, Upload, XCircle } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
 import { LoadingButton } from "../components/LoadingButton";
-import { api, ApiError } from "../lib/api";
+import { api } from "../lib/api";
 import type { BootstrapData, EmployeeDocument } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
@@ -40,6 +40,8 @@ export function DocumentsPage() {
   const [kind, setKind] = useState<DocumentKind>("insurance");
   const [userId, setUserId] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [deletingDocument, setDeletingDocument] = useState<EmployeeDocument | null>(null);
+  const deleteCancel = useRef<HTMLButtonElement>(null);
   const [editingDocument, setEditingDocument] = useState<EmployeeDocument | null>(null);
   const [editKind, setEditKind] = useState<DocumentKind>("insurance");
   const [editExpiresAt, setEditExpiresAt] = useState("");
@@ -135,6 +137,7 @@ export function DocumentsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api(`/dealership/documents/${id}`, { method: "DELETE" }),
     onSuccess: async () => {
+      setDeletingDocument(null);
       toast.success("Document deleted");
       await queryClient.invalidateQueries({ queryKey: ["dealership", "documents"] });
     },
@@ -184,25 +187,25 @@ export function DocumentsPage() {
   }
 
   if (documents.isLoading) return <PageSkeleton />;
-  if (documents.isError) {
-    const error = documents.error;
-    const detail = error instanceof ApiError
-      ? ` HTTP ${error.status}, ${error.code}${error.requestId ? `, request ${error.requestId}` : ""}.`
-      : "";
-    return <ErrorState message={`Employee documents could not be loaded.${detail}`} />;
-  }
+  if (documents.isError) return <ErrorState message="Employee documents could not be loaded." error={documents.error} />;
 
   const expiring = documents.data?.filter((document) => document.expiresAt && new Date(document.expiresAt).getTime() < Date.now() + 30 * 86_400_000).length ?? 0;
 
   return <div className="page-stack">
-    <section className="page-intro"><div><span>PRIVATE COMPLIANCE VAULT</span><h2>Employee documents.</h2><p>Private S3 storage, short-lived access links, expiry tracking and recorded administrator review.</p></div>{isDemoRecruiter ? <button className="filter-button" type="button" title="Requires approved access" onClick={() => toast("Document uploads require approved evaluation access.")}>Request approved access</button> : <button className="primary-action" onClick={() => setModalOpen(true)}><Upload size={16} />Upload document</button>}</section>
+    <section className="page-intro"><div><span>PRIVATE COMPLIANCE VAULT</span><h2>Employee documents.</h2><p>Keep employee credentials private, track expiry dates, and manage document reviews.</p></div>{isDemoRecruiter ? <button className="filter-button" type="button" title="Requires approved access" onClick={() => toast("Document uploads require approved evaluation access.")}>Request approved access</button> : <button className="primary-action" onClick={() => setModalOpen(true)}><Upload size={16} />Upload document</button>}</section>
     <section className="inline-metrics"><div><span>Total records</span><strong>{documents.data?.length ?? 0}</strong></div><div><span>Awaiting review</span><strong>{documents.data?.filter((item) => item.status === "pending").length ?? 0}</strong></div><div><span>Expiring within 30 days</span><strong>{expiring}</strong></div></section>
     <section className="surface data-surface">
       <div className="surface-head"><div><span>COMPLIANCE REGISTER</span><h3>Uploaded credentials and policies</h3></div></div>
-      {documents.data?.length ? <div className="responsive-table"><table><thead><tr><th>Employee</th><th>Document</th><th>Uploaded</th><th>Expiry</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{documents.data.map((document) => <tr key={document.id}><td><strong>{[document.firstName, document.lastName].filter(Boolean).join(" ") || document.email}</strong><small>{document.email}</small></td><td><strong>{kindLabels[document.kind]}</strong><small>{document.fileName} · {(document.sizeBytes / 1_000_000).toFixed(2)} MB</small></td><td>{new Date(document.createdAt).toLocaleDateString("en-CA")}</td><td>{document.expiresAt ? new Date(document.expiresAt).toLocaleDateString("en-CA") : "Not specified"}</td><td><span className={`status-chip ${document.status}`}>{document.status}</span></td><td>{isDemoRecruiter ? <span className="restricted-note">Metadata only</span> : <div className="document-actions"><button onClick={() => void viewDocument(document)} title="View private document" aria-label="View private document"><Eye size={15} /></button><button onClick={() => void downloadDocument(document)} title="Download document" aria-label="Download document"><Download size={15} /></button>{(isAdmin || document.status === "pending") && <button className="edit" onClick={() => openEdit(document)} title="Edit document details" aria-label="Edit document details"><Pencil size={15} /></button>}{isAdmin && document.status === "pending" && <><button className="approve" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "verified" })} title="Verify"><CheckCircle size={15} /></button><button className="reject" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "rejected" })} title="Reject"><XCircle size={15} /></button></>}{(isAdmin || document.status === "pending") && <button className="reject" disabled={remove.isPending} onClick={() => remove.mutate(document.id)} title="Delete"><Trash2 size={15} /></button>}</div>}</td></tr>)}</tbody></table></div> : <div className="empty-state"><FileText /><strong>No compliance documents</strong><span>Upload an insurance policy, licence or certification to begin.</span></div>}
+      {documents.data?.length ? <div className="responsive-table"><table><thead><tr><th>Employee</th><th>Document</th><th>Uploaded</th><th>Expiry</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{documents.data.map((document) => <tr key={document.id}><td><strong>{[document.firstName, document.lastName].filter(Boolean).join(" ") || document.email}</strong><small>{document.email}</small></td><td><strong>{kindLabels[document.kind]}</strong><small>{document.fileName} · {(document.sizeBytes / 1_000_000).toFixed(2)} MB</small></td><td>{new Date(document.createdAt).toLocaleDateString("en-CA")}</td><td>{document.expiresAt ? new Date(document.expiresAt).toLocaleDateString("en-CA") : "Not specified"}</td><td><span className={`status-chip ${document.status}`}>{document.status}</span></td><td>{isDemoRecruiter ? <span className="restricted-note">Metadata only</span> : <div className="document-actions"><button onClick={() => void viewDocument(document)} title="View private document" aria-label="View private document"><Eye size={15} /></button><button onClick={() => void downloadDocument(document)} title="Download document" aria-label="Download document"><Download size={15} /></button>{(isAdmin || document.status === "pending") && <button className="edit" onClick={() => openEdit(document)} title="Edit document details" aria-label="Edit document details"><Pencil size={15} /></button>}{isAdmin && document.status === "pending" && <><button className="approve" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "verified" })} title="Verify"><CheckCircle size={15} /></button><button className="reject" disabled={review.isPending} onClick={() => review.mutate({ id: document.id, status: "rejected" })} title="Reject"><XCircle size={15} /></button></>}{(isAdmin || document.status === "pending") && <button className="reject" disabled={remove.isPending} onClick={() => { remove.reset(); setDeletingDocument(document); }} title="Delete" aria-label={`Delete ${document.fileName}`}><Trash2 size={15} /></button>}</div>}</td></tr>)}</tbody></table></div> : <div className="empty-state"><FileText /><strong>No compliance documents</strong><span>Upload an insurance policy, licence or certification to begin.</span></div>}
     </section>
-    <WorkflowModal open={modalOpen} eyebrow="SECURE UPLOAD" title="Upload employee document" description="PDF, JPEG or PNG only. The browser uploads directly to encrypted private S3 storage using a five-minute URL." busy={upload.isPending} onClose={() => !upload.isPending && setModalOpen(false)}>
+    <WorkflowModal open={modalOpen} eyebrow="SECURE UPLOAD" title="Upload employee document" description="Choose a PDF, JPEG or PNG. Your document is stored privately and shared only with authorized reviewers." busy={upload.isPending} onClose={() => !upload.isPending && setModalOpen(false)}>
       <form className="workflow-form" onSubmit={submit}><div className="form-grid">{isAdmin && <label className="form-span">Employee<select required value={userId} onChange={(event) => setUserId(event.target.value)}><option value="">Select employee</option>{bootstrap.data?.team.filter((member) => member.isActive && member.role === "employee").map((member) => <option key={member.id} value={member.id}>{[member.firstName, member.lastName].filter(Boolean).join(" ") || member.email}</option>)}</select></label>}<label>Document type<select value={kind} onChange={(event) => setKind(event.target.value as DocumentKind)}>{Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Expiry date<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label><label className="form-span upload-drop">File<input required type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>{file ? `${file.name} · ${(file.size / 1_000_000).toFixed(2)} MB` : "Choose a PDF, JPEG or PNG document"}</span></label></div><footer className="modal-actions"><button type="button" className="filter-button" disabled={upload.isPending} onClick={() => setModalOpen(false)}>Cancel</button><LoadingButton type="submit" loading={upload.isPending} loadingLabel="Encrypting and uploading…">Upload securely</LoadingButton></footer></form>
+    </WorkflowModal>
+    <WorkflowModal open={Boolean(deletingDocument)} role="alertdialog" className="confirmation-modal" eyebrow="DELETE DOCUMENT" title="Delete this document?" description="This removes the document from the register. This action cannot be undone." busy={remove.isPending} initialFocusRef={deleteCancel} onClose={() => setDeletingDocument(null)}>
+      <div className="confirmation-content"><p className="confirmation-file">{deletingDocument?.fileName}</p>
+        {remove.isError && <p className="form-error" role="alert">{remove.error.message}</p>}
+        <footer className="modal-actions"><button ref={deleteCancel} type="button" className="filter-button" disabled={remove.isPending} onClick={() => setDeletingDocument(null)}>Keep document</button><LoadingButton type="button" className="primary-action danger-action" loading={remove.isPending} loadingLabel="Deleting…" onClick={() => { if (deletingDocument && !remove.isPending) remove.mutate(deletingDocument.id); }}><Trash2 size={16} aria-hidden="true" />Delete document</LoadingButton></footer>
+      </div>
     </WorkflowModal>
     <WorkflowModal open={Boolean(editingDocument)} eyebrow="DOCUMENT DETAILS" title="Edit document" description="Update the document type or expiry date. The private file remains unchanged." busy={edit.isPending} onClose={() => !edit.isPending && setEditingDocument(null)}>
       <form className="workflow-form" onSubmit={(event) => { event.preventDefault(); if (editingDocument) edit.mutate({ id: editingDocument.id, kind: editKind, expiresAt: editExpiresAt }); }}><div className="form-grid"><label className="form-span">File<strong className="document-edit-file">{editingDocument?.fileName}</strong></label><label>Document type<select value={editKind} onChange={(event) => setEditKind(event.target.value as DocumentKind)}>{Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Expiry date<input type="date" value={editExpiresAt} onChange={(event) => setEditExpiresAt(event.target.value)} /></label></div><footer className="modal-actions"><button type="button" className="filter-button" disabled={edit.isPending} onClick={() => setEditingDocument(null)}>Cancel</button><LoadingButton type="submit" loading={edit.isPending} loadingLabel="Saving changes…">Save changes</LoadingButton></footer></form>

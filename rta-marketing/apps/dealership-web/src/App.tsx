@@ -28,16 +28,7 @@ export function App() {
   if (path === "/") return <LandingPage />;
   if (path === "/inventory") return <PublicInventoryPage />;
 
-  if (loading) {
-    return (
-      <div className="boot-screen">
-        <span className="boot-logo">RTA</span>
-        <i />
-        <p>Preparing your workspace…</p>
-      </div>
-    );
-  }
-
+  // Public account flows must stay usable while the session API is waking up.
   if (path === "/login") return <LoginPage />;
   if (path === "/signup") return <SignupPage />;
   if (path === "/verify-email") return <VerifyEmailPage />;
@@ -46,6 +37,17 @@ export function App() {
   if (path === "/reset-password") return <ResetPasswordPage />;
   if (path === "/setup-access") return <SetupAccessPage />;
   if (path === "/request-access") return <AccessRequestPage />;
+
+  if (loading) {
+    return (
+      <div className="boot-screen" role="status" aria-live="polite">
+        <span className="boot-logo">RTA</span>
+        <i />
+        <p>Preparing your workspace…</p>
+      </div>
+    );
+  }
+
   if (!user) return <Redirect to="/login" />;
 
   const normalizedPath = resolveLegacyPath(path);

@@ -27,6 +27,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [verificationEmail, setVerificationEmail] = useState<string | null>(
     null,
   );
@@ -34,7 +35,10 @@ export function LoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
+    setErrorMessage("");
+    setVerificationEmail(null);
     try {
       await login(email, password);
       navigate(loginReturnPath(), { replace: true });
@@ -45,7 +49,7 @@ export function LoginPage() {
         error.code === "EMAIL_VERIFICATION_REQUIRED"
       )
         setVerificationEmail(email.trim());
-      toast.error(error instanceof Error ? error.message : "Sign in failed");
+      setErrorMessage(error instanceof Error ? error.message : "Sign in failed");
     } finally {
       setSubmitting(false);
     }
@@ -88,10 +92,11 @@ export function LoginPage() {
             <h2>Sign in to your workspace</h2>
             <p>Sign in to your dealership workspace and vehicle intelligence.</p>
           </div>
-          <form onSubmit={submit}>
+          <form onSubmit={submit} aria-busy={submitting}>
             <label>
               Email address
               <input
+                disabled={submitting}
                 type="email"
                 autoComplete="email"
                 placeholder="you@dealership.com"
@@ -104,6 +109,7 @@ export function LoginPage() {
               Password
               <div className="password-field">
                 <input
+                  disabled={submitting}
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="Enter your password"
@@ -121,6 +127,7 @@ export function LoginPage() {
                 </button>
               </div>
             </label>
+            {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
             <button className="submit-button" disabled={submitting}>
               {submitting ? (
                 "Signing in…"

@@ -9,6 +9,7 @@
 .landing-page .landing-brand-mark { border-radius: 10px; box-shadow: inset 0 1px 0 #ffffff40; }
 .landing-page .landing-button { min-height: 46px; padding: 13px 20px; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 600; }
 .landing-page .landing-button--primary { color: #241c13; box-shadow: inset 0 1px 0 #ffffff30, 0 6px 24px #f1644520; }
+.public-inventory-login-cta .landing-button--primary { color: #fff; }
 .landing-page .landing-button--ghost { border-color: #ffffff25; background: #ffffff06; color: #fff; }
 .landing-page .landing-button--ghost:hover { border-color: #ffffff70; background: #ffffff12; }
 .landing-hero.landing-hero-immersive { min-height: 970px; padding: 145px 0 34px; isolation: isolate; background: #091719; }
@@ -178,3 +179,36 @@
   .landing-dealership-stage { height: 310px; margin-top: 30px; }
   .landing-immersive-scroll { margin-top: 38px; }
 }
+
+/* Keep supporting copy readable on each of the landing page's surfaces. */
+.landing-page .landing-eyebrow, .landing-page .landing-preview-grid > article > footer > span { color: #963c27; }
+.landing-page .landing-section-heading > p { color: #52604f; }
+.landing-page :is(.landing-section-heading, .landing-team-layout, .landing-visibility-layout, .landing-aws-layout, .landing-tech-inner, .landing-result-panel) h2 span { color: #63745e; }
+.landing-page :is(.landing-audience-grid, .landing-ai-capability-grid, .landing-problem-grid, .landing-product-map, .landing-module-grid, .landing-team-card, .landing-result-panel, .landing-source-grid, .landing-reliability-grid, .landing-engineering-grid) p:not(.landing-eyebrow) { color: #52604f; }
+.landing-page :is(.landing-audience-card-top small, .landing-ai-card-top > span, .landing-ai-capability-grid > article > small, .landing-problem-transition > span, .landing-why-note, .landing-product-map > article > div > span, .landing-module-grid > article > span, .landing-floating-card small, .landing-team-card > small, .landing-team-card > span, .landing-activity-head > span, .landing-activity-list small, .landing-activity-list time, .landing-transformation > article > span, .landing-source-top > span, .landing-reliability-grid > article > span, .landing-tech-groups small, .landing-engineering-index, .landing-flow-caption > span) { color: #52604f; }
+.landing-page :is(.landing-team-copy, .landing-visibility-layout > div > p:not(.landing-eyebrow), .landing-aws-layout > div > p:not(.landing-eyebrow), .landing-inventory-count, .landing-inventory-head > span, .landing-performance-grid > div > p:not(.landing-eyebrow), .landing-transformation > article > p) { color: #52604f; }
+.landing-page .landing-activity-card :is(small, time), .landing-page .landing-inventory-cta > span { color: #52604f; }
+.landing-page .public-inventory-state > a { color: var(--rta-action-text); }
+.landing-page .landing-source-status { color: #28643f; }
+.landing-page .landing-step > span { color: var(--rta-action-text); }
+.landing-page .landing-window-bar > small, .landing-page .landing-window-cards small, .landing-page .landing-window-table > div { color: #52604f; }
+.landing-page .landing-window-cards em, .landing-page .landing-window-table b { color: #28643f; }
+.landing-page .landing-window-avatar { color: #291c13; }
+.landing-page .landing-window-heading > div > small { color: var(--rta-action-text); }
+.landing-page .landing-performance-cta { color: #291c13; }
+.landing-page .landing-button--outline-light { background: transparent; }
+.landing-page :is(.landing-pipeline, .landing-architecture, .public-inventory-hero) .landing-eyebrow,
+.landing-page .landing-audience-grid article:last-child .landing-eyebrow { color: #ffad98; }
+.landing-page .landing-section-heading--light > p, .landing-page .landing-section-heading--light h2 span { color: #b2c3b8; }
+.landing-page .landing-audience-grid article:last-child > p:not(.landing-eyebrow) { color: #adc1b5; }
+.landing-page .landing-audience-grid article:last-child .landing-audience-card-top small { color: #adc1b5; }
+.landing-page .landing-flow-node .landing-flow-number { color: #a4bcb4; }
+.landing-page .landing-flow-node--accent :is(.landing-flow-number, small, strong) { color: #291c13; }
+.landing-page .landing-product-window--scraping :is(.landing-window-cards small, .landing-window-table > div) { color: #b2c3b8; }
+.landing-page .landing-product-window--scraping :is(.landing-window-cards em, .landing-window-table b) { color: #99d5ac; }
+.landing-page .landing-product-window--scraping .landing-window-bar > small { color: #b2c3b8; }
+.landing-page .landing-product-window--scraping .landing-window-heading > div > small { color: #ffad98; }
+.landing-page .landing-product-split-card--dark > .landing-eyebrow { color: #ffad98; }
+.landing-page .landing-product-split-card:not(.landing-product-split-card--dark), .landing-page .landing-final-cta { color: #291c13; }
+.landing-page .landing-product-split-card:not(.landing-product-split-card--dark) :is(.landing-split-number, .landing-eyebrow, h2 span, div > span),
+.landing-page .landing-final-cta :is(.landing-eyebrow, h2 span, p:not(.landing-eyebrow)) { color: #291c13; }

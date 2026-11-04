@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useDialogFocus } from "../lib/useDialogFocus";
 
 interface WorkflowModalProps {
   open: boolean;
@@ -8,18 +9,14 @@ interface WorkflowModalProps {
   title: string;
   description?: string;
   busy?: boolean;
+  dismissible?: boolean;
+  initialFocusRef?: RefObject<HTMLElement>;
+  returnFocusRef?: RefObject<HTMLElement>;
+  role?: "dialog" | "alertdialog";
+  className?: string;
   onClose(): void;
   children: ReactNode;
 }
-
-const focusableSelector = [
-  "a[href]",
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  '[tabindex]:not([tabindex="-1"])',
-].join(",");
 
 export function WorkflowModal({
   open,
@@ -27,75 +24,19 @@ export function WorkflowModal({
   title,
   description,
   busy = false,
+  dismissible = true,
+  initialFocusRef,
+  returnFocusRef,
+  role = "dialog",
+  className = "",
   onClose,
   children,
 }: WorkflowModalProps) {
   const dialogRef = useRef<HTMLElement>(null);
-  const onCloseRef = useRef(onClose);
-  const busyRef = useRef(busy);
   const titleId = useId();
   const descriptionId = useId();
 
-  useEffect(() => {
-    onCloseRef.current = onClose;
-    busyRef.current = busy;
-  }, [busy, onClose]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const previousOverflow = document.body.style.overflow;
-    const previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const dialog = dialogRef.current;
-
-    document.body.style.overflow = "hidden";
-    const initialFocus = window.setTimeout(() => {
-      const firstControl = dialog?.querySelector<HTMLElement>(focusableSelector);
-      (firstControl ?? dialog)?.focus();
-    }, 0);
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busyRef.current) {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab" || !dialog) return;
-
-      const controls = Array.from(
-        dialog.querySelectorAll<HTMLElement>(focusableSelector),
-      ).filter((element) => element.getClientRects().length > 0);
-
-      if (controls.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (!first || !last) return;
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.clearTimeout(initialFocus);
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus();
-    };
-  }, [open]);
+  useDialogFocus(dialogRef, open, { onClose, dismissible: dismissible && !busy, initialFocusRef, returnFocusRef });
 
   if (!open) return null;
 
@@ -105,14 +46,15 @@ export function WorkflowModal({
         type="button"
         className="modal-backdrop"
         aria-label="Close dialog"
-        disabled={busy}
+        disabled={busy || !dismissible}
         onClick={onClose}
         tabIndex={-1}
       />
       <section
         ref={dialogRef}
-        className="workflow-modal"
-        role="dialog"
+        className={`workflow-modal ${className}`.trim()}
+        role={role}
+        aria-busy={busy}
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
@@ -124,7 +66,7 @@ export function WorkflowModal({
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <button
+          {dismissible && <button
             type="button"
             className="modal-close"
             aria-label="Close dialog"
@@ -132,7 +74,7 @@ export function WorkflowModal({
             onClick={onClose}
           >
             <X size={19} aria-hidden="true" />
-          </button>
+          </button>}
         </header>
         <div className="modal-body">{children}</div>
       </section>

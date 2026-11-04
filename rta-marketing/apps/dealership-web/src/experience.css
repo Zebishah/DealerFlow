@@ -228,6 +228,22 @@ body { background: #f3f4ee; }
   .login-form-wrap .recruiter-demo-card .request-access-link { flex-wrap: wrap; row-gap: 3px; font-size: 9px; }
 }
 .auth-page .auth-primary-link { color: #261d14 !important; }
+
+.auth-email-confirmation .auth-email-icon { display: grid; place-items: center; width: 60px; height: 60px; margin-bottom: 24px; border: 1px solid #d8e5da; border-radius: 18px; background: #f0f6ef; color: #32644c; }
+.auth-email-confirmation h1:focus { outline: none; }
+.auth-email-address { display: block; margin: 12px 0 16px; color: #18362b; font-size: 15px; overflow-wrap: anywhere; }
+.auth-email-help { margin-top: 24px; padding: 16px; border: 1px solid #e0e7dc; border-radius: 12px; background: #f7f9f4; }
+.auth-email-help > strong { display: block; margin-bottom: 6px; color: #334c3d; font-size: 13px; }
+.auth-email-confirmation .auth-email-help p { color: var(--rta-muted); }
+.auth-email-feedback:not(:empty) { margin-top: 16px; color: #32644c; font-size: 13px; line-height: 1.6; }
+.auth-page .auth-email-error { margin: 12px 0 0; color: #a33526; font-size: 13px; line-height: 1.6; }
+.auth-email-actions { display: grid; gap: 12px; margin-top: 24px; }
+.auth-email-actions .submit-button, .auth-email-actions .auth-primary-link { display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; width: 100%; min-height: 47px; margin: 0; font: inherit; font-size: 13px; font-weight: 600; }
+.auth-email-actions .submit-button { border: 1px solid #d4dfd2; color: #334c3d; background: #fff; box-shadow: none; }
+.auth-email-actions .submit-button:hover:enabled { background: #f0f6ef; }
+.auth-email-actions .submit-button:disabled { cursor: default; opacity: .65; }
+.auth-email-actions :focus-visible, .auth-email-change:focus-visible { outline: 3px solid #32644c; outline-offset: 3px; }
+.auth-email-change { min-height: 44px; margin-top: 12px; font-size: 13px; text-align: left; }
 /* Finish the shared brand treatment on the secondary workspace surfaces. */
 .app-frame .primary-action { color: var(--rta-on-coral); background: var(--rta-coral); }
 .app-frame .primary-action:hover:enabled { color: #fff; background: var(--rta-action-hover); }
@@ -260,3 +276,70 @@ body { background: #f3f4ee; }
 .app-frame .analytics-legend-deals { background: var(--rta-chart-profit); }
 
 .error-sign-in { display: inline-flex; padding: 9px 14px; border-radius: 8px; color: #fff; background: var(--rta-action); font-size: 11px; font-weight: 600; }
+
+:is(button, a, input, select, textarea, [tabindex="0"]):focus-visible { outline: 3px solid var(--rta-teal-text); outline-offset: 3px; }
+.side-nav :is(button, a):focus-visible { outline-color: var(--rta-coral-light); }
+.skip-link { position: fixed; top: 12px; left: 16px; z-index: 200; padding: 12px 16px; border-radius: 8px; color: #fff; background: var(--rta-teal); transform: translateY(-160%); }
+.skip-link:focus { transform: none; }
+.top-nav h1:focus, #workspace-content:focus { outline: none; }
+.profile-control { max-width: 230px; min-height: 44px; }
+.profile-control > b { flex: none; }
+.profile-control > span { min-width: 0; }
+.profile-control strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-menu button { min-height: 44px; font-size: 13px; }
+.notification-menu { box-sizing: border-box; max-width: calc(100vw - 32px); max-height: min(70dvh, 480px); overflow: auto; }
+.notification-menu header button { min-height: 36px; font-size: 11px; }
+.notification-item { min-height: 44px; }
+.notification-item strong { font-size: 12px; }
+.notification-item span, .notification-empty { color: var(--rta-muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.workflow-modal { display: flex; flex-direction: column; max-height: calc(100dvh - 48px); border-color: var(--rta-border); background: var(--rta-surface); }
+.workflow-modal .modal-header { flex: none; background: var(--rta-surface-tint); }
+.workflow-modal .modal-header h2 { color: var(--rta-text); }
+.workflow-modal .modal-header span { color: var(--rta-action-text); }
+.workflow-modal .modal-header p { color: var(--rta-muted); font-size: 13px; }
+.workflow-modal .modal-body { min-height: 0; max-height: none; }
+.workflow-modal .form-grid label { color: var(--rta-text); font-size: 12px; }
+.workflow-modal .form-grid :is(input, select, textarea) { font-size: 14px; }
+.workflow-modal .modal-actions { background: var(--rta-surface); }
+.app-frame .settings-card header p { color: var(--rta-muted); font-size: 12px; line-height: 1.6; }
+.app-frame .settings-fields label { font-size: 12px; }
+.workflow-modal :is(.primary-action, .filter-button) { min-height: 44px; font-size: 13px; }
+.workflow-modal .primary-action { border-color: var(--rta-action); color: #fff; background: var(--rta-action); }
+.workflow-modal .primary-action:hover:enabled { background: var(--rta-action-hover); }
+.confirmation-modal { width: min(480px, 100%); }
+.confirmation-content { padding: 20px 26px 0; }
+.access-review-content { padding: 0 26px; }
+.access-review-content .request-review-detail { padding-inline: 0; }
+.confirmation-content > .modal-actions:first-child { margin-top: 0; border-top: 0; }
+.confirmation-file { margin: 0; color: var(--rta-text); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.form-error { padding: 12px 14px; border: 1px solid #edc9bf; border-radius: 8px; color: #9e3526; background: #fff5ef; font-size: 13px; line-height: 1.6; }
+.choice-card:has(input:checked) { color: var(--rta-action-text) !important; }
+.choice-card:focus-within { outline: 3px solid var(--rta-teal-text); outline-offset: 3px; }
+.workflow-modal .danger-action { border-color: #a33426; color: #fff; background: #a33426; }
+.auth-state button.auth-primary-link { border: 0; cursor: pointer; font: inherit; }
+.auth-state h1:focus { outline: none; }
+@media (max-width: 800px) {
+  .mobile-menu { width: 44px; height: 44px; top: 18px; left: 12px; }
+  .top-actions { gap: 6px; }
+  .profile-control { gap: 5px; padding: 0; }
+  .notification-control { min-width: 44px; min-height: 44px; }
+  .notification-wrap { position: static; }
+  .notification-menu { top: 74px; right: 12px; width: min(320px, calc(100vw - 24px)); }
+  .app-frame .top-nav h1 { font-size: clamp(15px, 4.5vw, 20px); overflow-wrap: anywhere; }
+  .top-nav > div:first-child { min-width: 0; }
+  .side-nav nav a { min-height: 44px; }
+  .document-actions button { min-width: 36px; min-height: 36px; }
+}
+@media (max-width: 560px) {
+  .modal-layer { padding: 12px; align-items: center; }
+  .workflow-modal { max-height: calc(100dvh - 24px); border-radius: 16px; }
+  .workflow-modal .modal-header { gap: 12px; padding: 20px; }
+  .workflow-modal .workflow-form, .confirmation-content { padding: 20px 20px 0; }
+  .access-review-content { padding-inline: 20px; }
+  .workflow-modal .modal-actions { flex-wrap: wrap; margin-inline: -20px; padding: 16px 20px; }
+  .workflow-modal .modal-actions > button { flex: 1 1 auto; }
+  .auth-form input, .login-form-wrap input, .settings-fields input { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
