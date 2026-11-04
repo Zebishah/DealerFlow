@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { openRtaAssistant } from "@rta/assistant-ui";
 import { useAuth } from "../auth/AuthContext";
 import { Link } from "../router/Navigation";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { BootstrapData, DealershipSummary, MyDayData } from "../types/domain";
 
 const currency = (cents: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(cents / 100);
@@ -37,7 +37,7 @@ export function OverviewPage() {
     ? data?.leads.total ? Math.min(100, Math.round((data.leads.qualified / data.leads.total) * 100)) : 0
     : targetTotal ? Math.min(100, Math.round(((data?.sales.funded ?? 0) / targetTotal) * 100)) : 0;
   if (summary.isLoading || bootstrap.isLoading) return <PageSkeleton />;
-  if (summary.isError || bootstrap.isError) return <ErrorState message="The workspace summary could not be loaded." />;
+  if (summary.isError || bootstrap.isError) return <ErrorState message="The workspace summary could not be loaded." error={summary.error ?? bootstrap.error} />;
   const activeMembers = bootstrap.data?.team.filter((member) => member.isActive).length ?? 0;
   const salespeople = bootstrap.data?.team.filter((member) => member.isActive && member.role === "employee").length ?? 0;
   const hero = isEmployee
@@ -95,4 +95,7 @@ export function OverviewPage() {
 }
 
 export function PageSkeleton() { return <div className="page-stack"><div className="skeleton hero" /><div className="kpi-grid">{[1,2,3,4].map((item) => <div className="skeleton card" key={item} />)}</div><div className="skeleton table" /></div>; }
-export function ErrorState({ message }: { message: string }) { return <div className="error-state"><strong>We could not load this workspace</strong><p>{message} Confirm the API is running and your local CORS origins match.</p><button onClick={() => location.reload()}>Try again</button></div>; }
+export function ErrorState({ message, error }: { message: string; error?: unknown }) {
+  const signInRequired = error instanceof ApiError && error.status === 401;
+  return <div className="error-state"><strong>{signInRequired ? "Please sign in again" : "We could not load this workspace"}</strong><p>{signInRequired ? "Your session has ended. Sign in again to load your workspace." : `${message} Please try again.`}</p>{signInRequired ? <a className="error-sign-in" href="/login">Sign in again</a> : <button onClick={() => location.reload()}>Try again</button>}</div>;
+}

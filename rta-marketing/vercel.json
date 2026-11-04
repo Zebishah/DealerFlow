@@ -1,8 +1,32 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/((?!api(?:/|$)).*)",
+      "source": "/rta-api/:path*",
+      "destination": "https://rta-dealership-api.onrender.com/api/v1/:path*"
+    },
+    {
+      "source": "/((?!(?:api|rta-api)(?:/|$)).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/rta-api/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store"
+        },
+        {
+          "key": "Vercel-CDN-Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
     }
   ]
 }

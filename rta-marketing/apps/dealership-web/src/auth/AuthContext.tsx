@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, setCsrfToken } from "../lib/api";
+import { startSession } from "./start-session";
 import type { SessionUser } from "../types/domain";
 
 interface AuthValue {
@@ -41,24 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     async login(email, password) {
-      const result = await api<{ data: { user: SessionUser; csrfToken: string } }>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      const session = await startSession("/auth/login", { email, password });
       queryClient.clear();
-      setCsrfToken(result.data.csrfToken);
-      setUser(result.data.user);
-      return result.data.user;
+      setCsrfToken(session.csrfToken);
+      setUser(session.user);
+      return session.user;
     },
     async demoLogin(role = "recruiter") {
-      const result = await api<{ data: { user: SessionUser; csrfToken: string } }>("/auth/demo-login", {
-        method: "POST",
-        body: JSON.stringify({ role }),
-      });
+      const session = await startSession("/auth/demo-login", { role });
       queryClient.clear();
-      setCsrfToken(result.data.csrfToken);
-      setUser(result.data.user);
-      return result.data.user;
+      setCsrfToken(session.csrfToken);
+      setUser(session.user);
+      return session.user;
     },
     async refresh() {
       const result = await api<{ data: { user: SessionUser; csrfToken: string } }>("/auth/session");

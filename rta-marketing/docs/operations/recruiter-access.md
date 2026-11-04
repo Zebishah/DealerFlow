@@ -38,11 +38,25 @@ SEED_RECRUITER_EMAIL=recruiter.demo@rta.local
 
 ## Vercel variables
 
-Dealership web:
+Dealership web uses the same-origin `/rta-api` gateway automatically on
+production `*.vercel.app` hosts. Both the repository-level and
+`apps/dealership-web/vercel.json` configurations forward that path to
+`https://rta-dealership-api.onrender.com/api/v1` and disable response caching.
+This lets the browser retain the HttpOnly session as a first-party cookie
+without permitting third-party cookies. Existing absolute `VITE_API_URL`
+settings do not bypass that gateway on Vercel.
+
+For a custom domain on the same Vercel project:
 
 ```ini
-VITE_API_URL=https://rta-dealership-api.onrender.com/api/v1
+VITE_API_SAME_ORIGIN=true
 ```
+
+For local development or another host without the gateway, `VITE_API_URL`
+continues to select the direct API. If the Render hostname changes, update
+both Vercel rewrite destinations. Deploy the Vercel routing configuration
+and the frontend build together, then sign in again; the old API-domain
+cookie does not become a website-domain cookie automatically.
 
 Scraping web:
 
@@ -86,3 +100,34 @@ Migration `0008_auth_email_flows.sql` adds hashed verification, reset and invita
 Raw email tokens are never stored. Approval keeps the recruiter role separate from admin and records the exact grant list plus `approvedUntil`. Revocation deactivates the account and invalidates sessions. A temporary invitation link is single-use; no plaintext password is emailed.
 
 Email delivery failures do not roll back signup or approval. The account remains recoverable through resend/notification actions, and logs contain only the use case, provider status and recipient domain—not tokens, passwords or API keys.
+
+## Dashboard login succeeds but data requests return 401
+
+The former cross-origin deployment could return `200` from `/auth/demo-login`
+while the browser blocked the Render session cookie. The UI then entered the
+workspace from the login response, but summary, bootstrap, and other protected
+requests returned `401 AUTH_REQUIRED`.
+
+The gateway removes this dependency on third-party cookies. Login and demo
+login also verify `/auth/session` before updating the frontend user or redirecting.
+A failed session check leaves the visitor on the sign-in screen with an error.
+Session, CSRF, role, and workspace checks remain enforced by the API.
+
+Verify after deployment:
+
+1. In a browser that blocks third-party cookies, open `/login` and use a role preview.
+2. Confirm `/rta-api/auth/demo-login`, `/rta-api/auth/session`, and the dashboard
+   data requests return `200`.
+3. Reload a protected page; the session and workspace data should still load.
+4. Confirm `/rta-api/*` responses are not cached and the session cookie remains HttpOnly.
+
+The deployment mechanism follows [Vercel external rewrites](https://vercel.com/docs/routing/rewrites#rewrites-to-external-origins).
+The gateway uses a distinct prefix so it does not collide with the scraping
+monitor's existing `/api` serverless function.
+
+The fix was verified using the production frontend build with its configured
+rewrite applied in a browser test, forwarding to the actual hosted API. With
+Chromium third-party cookie restrictions enabled, the cookie was retained on
+the frontend host, six seeded demo leads loaded, protected data requests
+returned 200, and a page reload preserved the session. Hosted Vercel routing
+still needs deployment and a post-deployment check.

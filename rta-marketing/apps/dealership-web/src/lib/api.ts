@@ -1,4 +1,11 @@
-export const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1").replace(/\/$/, "");
+import { resolveApiBase } from "./api-base";
+
+export const API_URL = resolveApiBase({
+  apiUrl: import.meta.env.VITE_API_URL,
+  production: import.meta.env.PROD,
+  hostname: window.location.hostname,
+  sameOrigin: import.meta.env.VITE_API_SAME_ORIGIN === "true",
+});
 
 export class ApiError extends Error {
   constructor(
