@@ -109,7 +109,7 @@ const envSchema = z
     ALLOW_LIVE_SCRAPING: optionalBooleanString.default(true),
     DEMO_RECRUITER_EMAIL: z.string().trim().email().default("recruiter.demo@rta.local"),
     DEMO_RECRUITER_PASSWORD: z.string().min(14).optional(),
-    BREVO_API_KEY: z.string().min(1).optional(),
+    RESEND_API_KEY: optionalSecret,
     EMAIL_FROM: z.string().email().optional(),
     EMAIL_FROM_NAME: z.string().trim().min(1).max(120).default("RTA Automotive Group"),
     DEALERSHIP_WEB_URL: z.string().url().optional(),

@@ -23,7 +23,7 @@ cache failure falls back to PostgreSQL; a configured rate-limit/quota failure
 fails closed with a safe 503. Redis is not a scraper queue in this topology.
 
 Gemini, Groq, and OpenRouter are optional AI providers behind the API's bounded
-fallback chain and circuit suppression. Brevo handles transactional email when
+fallback chain and circuit suppression. Resend handles transactional email when
 configured. S3 is used for document storage when configured. None of these
 providers receives browser credentials.
 

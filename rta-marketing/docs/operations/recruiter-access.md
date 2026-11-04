@@ -5,15 +5,15 @@ The dealership API owns the primary account boundary. It uses database-backed, H
 ## User experiences
 
 - **Recruiter demo:** `/login` → **Enter recruiter demo**. This is a seeded, verified `recruiter` account with broad read access and no destructive privileges.
-- **Normal signup:** `/signup` → email verification through Brevo → normal `viewer` access to a private demo workspace.
-- **Requested recruiter access:** **Request full access** → admin review → exact, expiring grants → secure Brevo invitation/setup link.
+- **Normal signup:** `/signup` → email verification through Resend → normal `viewer` access to a private demo workspace.
+- **Requested recruiter access:** **Request full access** → admin review → exact, expiring grants → secure Resend invitation/setup link.
 
 ## Render dealership API variables
 
 Set these on the Render dealership API only:
 
 ```ini
-BREVO_API_KEY=your_brevo_transactional_api_key
+RESEND_API_KEY=your_resend_api_key
 EMAIL_FROM=verified-sender@your-domain.example
 EMAIL_FROM_NAME=RTA Automotive Group
 DEALERSHIP_WEB_URL=https://rta-dealership-web.vercel.app
@@ -26,7 +26,20 @@ DEMO_RECRUITER_EMAIL=recruiter.demo@rta.local
 DEMO_RECRUITER_PASSWORD=the_same_password_as_the_seeded_recruiter
 ```
 
-`BREVO_API_KEY` is server-only. The implementation calls Brevo's HTTPS endpoint `https://api.brevo.com/v3/smtp/email`; it does not use SMTP, Nodemailer or Resend.
+`RESEND_API_KEY` is server-only. The implementation calls Resend's HTTPS endpoint `https://api.resend.com/emails` with Bearer authentication; no SMTP credentials or browser-side email key are required.
+
+Use an `EMAIL_FROM` address on a domain verified in your Resend account.
+The `onboarding@resend.dev` sender is for testing and can only deliver to the
+email address associated with that Resend account; it is unsuitable for normal
+customer verification, reset, or invitation messages.
+
+To migrate an existing deployment, add `RESEND_API_KEY` to the **Render dealership
+API** environment, verify the sending domain in Resend, update `EMAIL_FROM` if
+needed, and redeploy the API. Remove the old `BREVO_API_KEY` variable after
+switching. `EMAIL_FROM_NAME`, `ADMIN_NOTIFICATION_EMAIL`, and the frontend link
+URLs keep their existing meanings. Vercel needs no Resend credentials.
+
+Provider reference: [Resend Send Email API](https://resend.com/docs/api-reference/emails/send-email).
 
 For a fresh demo database, provide the seed values while explicitly running the seed command. Render does not run `db:seed` automatically when these variables are saved:
 
@@ -65,7 +78,7 @@ VITE_API_URL=https://rta-scraping-api.onrender.com
 VITE_DEALERSHIP_WEB_URL=https://rta-dealership-web.vercel.app
 ```
 
-Never add `BREVO_API_KEY`, database credentials, session secrets or scraping tokens to Vercel or any `VITE_*` variable.
+Never add `RESEND_API_KEY`, database credentials, session secrets or scraping tokens to Vercel or any `VITE_*` variable.
 
 ## Migration and seed
 

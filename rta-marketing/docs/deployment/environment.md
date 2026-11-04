@@ -53,6 +53,21 @@ not disable `/scraping-results/:siteId/trigger`, the Apify route.
 
 Do not add `AWS_PROFILE` to a deployed service. Remove `SEED_OPERATOR_PASSWORD` after running the explicit seed command.
 
+### Transactional email (Render dealership API only)
+
+| Variable | Value |
+|---|---|
+| `RESEND_API_KEY` | Server-only Resend API key with sending permission |
+| `EMAIL_FROM` | An email address on a domain verified in Resend |
+| `EMAIL_FROM_NAME` | Sender display name, default `RTA Automotive Group` |
+| `ADMIN_NOTIFICATION_EMAIL` | Optional inbox for access-request notifications |
+| `DEALERSHIP_WEB_URL` | Live frontend origin used in verification, reset, and setup links |
+
+Redeploy the API after changing its email configuration. Remove the former
+`BREVO_API_KEY` setting after migration. Do not add `RESEND_API_KEY` to Vercel,
+the frontend `.env`, or a `VITE_*` variable. The existing verification, password
+reset, and access-decision templates are sent through Resend's HTTPS API.
+
 ### Lambda worker
 
 | Variable | Production value |

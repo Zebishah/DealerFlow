@@ -18,34 +18,55 @@ function recipientDomain(email: string): string {
   return email.split("@")[1] ?? "unknown";
 }
 
+function mailbox({ email, name }: EmailRecipient): string {
+  const displayName = name?.replace(/[\r\n]+/g, " ").trim();
+  if (!displayName) return email;
+  // Quote mailbox display names containing punctuation, such as "Doe, Jane".
+  const formattedName = /[",;<>@()[\]\\]/.test(displayName)
+    ? `"${displayName.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+    : displayName;
+  return `${formattedName} <${email}>`;
+}
+
 export function addressEmail(message: Omit<TransactionalEmail, "to">, recipient: EmailRecipient): TransactionalEmail {
   return { ...message, to: [recipient] };
 }
 
-export function createEmailService(config: EmailServiceConfig, fetcher: typeof fetch = fetch) {
+export function createEmailService(config: EmailServiceConfig, fetcher?: typeof fetch) {
   return {
     async send(message: TransactionalEmail, useCase: EmailUseCase): Promise<void> {
-      if (!config.apiKey || !config.from) throw new EmailServiceError("EMAIL_NOT_CONFIGURED");
+      const apiKey = config.apiKey?.trim();
+      const from = config.from?.trim();
+      if (!apiKey || !from) throw new EmailServiceError("EMAIL_NOT_CONFIGURED");
       let response: Response;
       try {
-        response = await fetcher("https://api.brevo.com/v3/smtp/email", {
+        response = await (fetcher ?? fetch)("https://api.resend.com/emails", {
           method: "POST",
-          headers: { accept: "application/json", "content-type": "application/json", "api-key": config.apiKey },
-          body: JSON.stringify({ sender: { email: config.from, name: config.fromName }, to: message.to, subject: message.subject, htmlContent: message.htmlContent, textContent: message.textContent, tag: message.tag ?? useCase }),
+          headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            from: mailbox({ email: from, name: config.fromName }),
+            to: message.to.map(mailbox),
+            subject: message.subject,
+            html: message.htmlContent,
+            text: message.textContent,
+            tags: [{ name: "use_case", value: message.tag ?? useCase }],
+          }),
+          signal: AbortSignal.timeout(10_000),
         });
       } catch (error) {
-        logger.warn({ event: "email.provider_unreachable", useCase, err: error instanceof Error ? error.message : "unknown" }, "Transactional email provider was unreachable");
+        const reason = error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name) ? "timeout" : "network_error";
+        logger.warn({ event: "email.provider_unreachable", provider: "resend", useCase, reason }, "Transactional email provider was unreachable");
         throw new EmailServiceError("EMAIL_PROVIDER_FAILED");
       }
       if (!response.ok) {
-        logger.warn({ event: "email.provider_rejected", useCase, status: response.status }, "Transactional email provider rejected a message");
+        logger.warn({ event: "email.provider_rejected", provider: "resend", useCase, status: response.status }, "Transactional email provider rejected a message");
         throw new EmailServiceError("EMAIL_PROVIDER_FAILED");
       }
     },
   };
 }
 
-const emailService = createEmailService({ apiKey: env.BREVO_API_KEY, from: env.EMAIL_FROM, fromName: env.EMAIL_FROM_NAME });
+const emailService = createEmailService({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM, fromName: env.EMAIL_FROM_NAME });
 
 export function sendTransactionalEmail(message: TransactionalEmail, useCase: EmailUseCase): Promise<void> {
   return emailService.send(message, useCase);
@@ -56,7 +77,7 @@ export async function sendEmailSafely(message: TransactionalEmail, useCase: Emai
     await sendTransactionalEmail(message, useCase);
     return true;
   } catch (error) {
-    logger.warn({ event: "email.delivery_failed", useCase, recipientDomain: message.to[0] ? recipientDomain(message.to[0].email) : "unknown", code: error instanceof EmailServiceError ? error.code : "EMAIL_PROVIDER_FAILED" }, "Transactional email delivery failed; application state remains recoverable");
+    logger.warn({ event: "email.delivery_failed", provider: "resend", useCase, recipientDomain: message.to[0] ? recipientDomain(message.to[0].email) : "unknown", code: error instanceof EmailServiceError ? error.code : "EMAIL_PROVIDER_FAILED" }, "Transactional email delivery failed; application state remains recoverable");
     return false;
   }
 }

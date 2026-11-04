@@ -13,8 +13,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --env-file=.env.test --import tsx --test src/*.test.ts src/**/*.test.ts src/modules/acquisition/scraping-client.test.ts src/modules/acquisition/image-proxy.test.ts src/modules/acquisition/reconciliation.test.ts src/modules/operations/service.test.ts",
-    "test:coverage": "node --env-file=.env.test --import tsx --test --experimental-test-coverage src/*.test.ts src/**/*.test.ts"
+    "test": "node --env-file=.env.test --import tsx --test src/*.test.ts src/**/*.test.ts src/modules/acquisition/scraping-client.test.ts src/modules/acquisition/image-proxy.test.ts src/modules/acquisition/reconciliation.test.ts src/modules/operations/service.test.ts src/services/email/email.service.test.ts",
+    "test:coverage": "node --env-file=.env.test --import tsx --test --experimental-test-coverage src/*.test.ts src/**/*.test.ts src/services/email/email.service.test.ts"
   },
   "private": true,
   "engines": {
