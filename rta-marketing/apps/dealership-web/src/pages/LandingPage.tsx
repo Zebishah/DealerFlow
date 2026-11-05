@@ -1,20 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle,
-  ArrowDown,
-  ArrowRight,
-  ArrowUpRight,
-  Car,
-  ChevronDown,
-  ExternalLink,
-  Layers,
-  Loader2,
-  Menu,
-  MessageSquare,
-  Sparkles,
-  Users,
-  X,
+  AlertCircle, ArrowDown, ArrowRight, ArrowUpRight, BarChart3, CalendarDays,
+  Car, Check, Columns, ExternalLink, Heart, LayoutDashboard, Menu, Plus,
+  Search, ShieldCheck, Sparkles, Users, X,
 } from "lucide-react";
 import { Link } from "../router/Navigation";
 import { openRtaAssistant } from "@rta/assistant-ui";
@@ -114,638 +103,171 @@ export function LandingNav({ browsePage = false }: { browsePage?: boolean }) {
   );
 }
 
-const chapters = [
-  { id: "top", number: "01", label: "The cover" },
-  { id: "solutions", number: "02", label: "The thought" },
-  { id: "operations", number: "03", label: "The hand-off" },
-  { id: "ai-intelligence", number: "04", label: "The signal" },
-  { id: "inventory", number: "05", label: "The collection" },
-  { id: "workspace", number: "06", label: "Inside the workspace" },
-  { id: "architecture", number: "07", label: "The craft" },
-] as const;
-
-function JournalHeader() {
+function StudioHeader() {
   const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const header = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); trigger.current?.focus(); }
+    };
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !header.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("keydown", dismiss);
+    document.addEventListener("pointerdown", outside);
+    return () => { document.removeEventListener("keydown", dismiss); document.removeEventListener("pointerdown", outside); };
+  }, [open]);
   return (
-    <header className="journal-header">
-      <a className="journal-wordmark" href="#top" aria-label="RTA home">
-        <span className="journal-logo-icon">
-          <Car size={19} />
-        </span>
-        <span>
-          RTA<span>.</span>
-        </span>
-        <small>THE DEALERSHIP JOURNAL</small>
-      </a>
-      <button
-        className="journal-menu-toggle"
-        type="button"
-        aria-controls="journal-navigation"
-        aria-expanded={open}
-        aria-label={open ? "Close navigation" : "Open navigation"}
-        onClick={() => setOpen(!open)}
-      >
-        {open ? <X size={20} /> : <Menu size={20} />}
-      </button>
-      <nav
-        id="journal-navigation"
-        className={`journal-nav-links${open ? " is-open" : ""}`}
-        aria-label="Journal chapters"
-      >
-        <a href="#solutions" onClick={close}>
-          The idea <span>01</span>
-        </a>
-        <a href="#operations" onClick={close}>
-          The hand-off <span>02</span>
-        </a>
-        <a href="#ai-intelligence" onClick={close}>
-          Intelligence <span>03</span>
-        </a>
-        <a href="#workspace" onClick={close}>
-          Inside RTA <span>04</span>
-        </a>
-        <Link to="/inventory" onClick={close}>
-          The collection <ArrowUpRight size={12} />
-        </Link>
-        <Link className="journal-nav-entry" to="/login" onClick={close}>
-          Enter RTA <ArrowUpRight size={14} />
-        </Link>
+    <header className="studio-header" ref={header}>
+      <a className="studio-brand" href="#top" aria-label="RTA home"><span><Car size={23} /></span>RTA<span className="studio-brand-dot">.</span></a>
+      <button ref={trigger} className="studio-menu" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-controls="studio-navigation" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X /> : <Menu />}</button>
+      <nav id="studio-navigation" className={open ? "is-open" : ""} aria-label="Primary navigation">
+        <a href="#solutions" onClick={() => setOpen(false)}>The platform</a>
+        <a href="#operations" onClick={() => setOpen(false)}>For dealerships</a>
+        <a href="#ai-intelligence" onClick={() => setOpen(false)}>Intelligence</a>
+        <a href="#architecture" onClick={() => setOpen(false)}>The engineering</a>
+        <Link to="/login" className="studio-nav-cta" onClick={() => setOpen(false)}>Explore the demo <ArrowUpRight size={17} /></Link>
       </nav>
     </header>
   );
 }
 
-function ChapterRail({ active }: { active: string }) {
+function StudioHero() {
   return (
-    <nav className="chapter-rail" aria-label="Page chapters">
-      <span className="chapter-rail-label">CHAPTER</span>
-      {chapters.map((chapter) => (
-        <a
-          key={chapter.id}
-          href={`#${chapter.id}`}
-          className={chapter.id === active ? "is-current" : ""}
-          aria-label={`${chapter.number}. ${chapter.label}`}
-          aria-current={chapter.id === active ? "location" : undefined}
-        >
-          <span>{chapter.number}</span>
-          <i />
-        </a>
-      ))}
-      <span className="chapter-rail-tail">RTA / MMXXVI</span>
-    </nav>
-  );
-}
-
-function CoverChapter() {
-  return (
-    <section className="journal-cover" id="top" aria-labelledby="journal-title">
-      <img
-        className="journal-cover-image"
-        src="/rta-journal-cover.webp"
-        alt="A graphite grand tourer outside a glass showroom at blue hour, reflected in the rain-dark street"
-        width={1774}
-        height={887}
-        fetchPriority="high"
-        decoding="async"
-      />
-      <div className="journal-cover-shade" aria-hidden="true" />
-      <div className="journal-cover-caption">
-        <span>RTA JOURNAL</span>
-        <span>FIELD NOTES / 001</span>
-        <span>DEALERSHIP, RECONSIDERED</span>
+    <section className="studio-hero studio-frame" id="top" aria-labelledby="studio-title">
+      <div className="studio-hero-copy">
+        <span className="studio-eyebrow"><i /> THE DEALERSHIP. CONNECTED.</span>
+        <h1 id="studio-title">Great deals<br />start with<br /><span>real connections.</span></h1>
+        <p>From the first enquiry to handing over the keys. RTA connects your leads, sales, people, and vehicles in one clear workspace.</p>
+        <div className="studio-actions"><Link className="studio-button studio-button--dark" to="/login">Step inside RTA <ArrowUpRight size={19} /></Link><a className="studio-text-link" href="#solutions">See how it works <ArrowDown size={17} /></a></div>
+        <span className="studio-hero-note">Built for dealership teams. Open for you to explore.</span>
       </div>
-      <div className="journal-cover-body">
-        <span className="journal-overline">
-          <i /> AN OPERATING SYSTEM FOR THE MODERN DEALERSHIP
-        </span>
-        <h1 id="journal-title">
-          The dealership,
-          <br />
-          in a different
-          <br />
-          <em>gear.</em>
-        </h1>
-        <p>
-          There’s a better way to connect the people, the cars, and every
-          conversation in between.
-        </p>
-        <div className="journal-cover-actions">
-          <Link to="/login">
-            Step inside RTA <ArrowUpRight size={17} />
-          </Link>
-          <span>BUILT FOR THE PEOPLE WHO MOVE IT FORWARD.</span>
-        </div>
+      <div className="studio-hero-visual">
+        <img src="/images/dealership-handover.jpg" alt="A dealership adviser handing car keys to a smiling customer in a showroom" width={1800} height={1200} fetchPriority="high" />
+        <span className="studio-photo-label">PEOPLE FIRST. EVERY STEP OF THE DEAL.</span>
+        <div className="studio-handover"><span><Check size={21} /></span><div><strong>More than a transaction.</strong><p>A customer. A conversation. A new beginning.</p></div><ArrowUpRight size={21} /></div>
       </div>
-      <div className="journal-cover-vertical" aria-hidden="true">
-        RTA / 01 — THE CONNECTED EDITION
-      </div>
-      <a className="journal-scroll-note" href="#solutions">
-        <span>TURN THE PAGE</span>
-        <ArrowDown size={16} />
-      </a>
-      <span className="journal-cover-folio" aria-hidden="true">
-        01
-      </span>
+      <div className="studio-hero-baseline"><span>ONE PLATFORM. THE WHOLE DEALERSHIP.</span><div><span>Customer relationships</span><i /><span>Vehicle intelligence</span><i /><span>Team performance</span></div></div>
     </section>
   );
 }
 
-function ThoughtChapter() {
-  const ideas = [
-    {
-      number: "01",
-      verb: "Notice",
-      text: "An enquiry is a person starting a conversation.",
-      Icon: MessageSquare,
-    },
-    {
-      number: "02",
-      verb: "Connect",
-      text: "The right vehicle turns interest into possibility.",
-      Icon: Car,
-    },
-    {
-      number: "03",
-      verb: "Move",
-      text: "A prepared team carries that moment forward.",
-      Icon: Users,
-    },
-  ];
-  return (
-    <section
-      className="journal-chapter thought-chapter"
-      id="solutions"
-      aria-labelledby="thought-title"
-    >
-      <div className="journal-index">
-        <span>02</span>
-        <i />
-        THE IDEA
-      </div>
-      <div className="thought-head">
-        <h2 id="thought-title">
-          A customer doesn’t
-          <br />
-          think in <em>departments.</em>
-        </h2>
-        <p>
-          They just want the right answer, the right car, and a team that
-          already knows the story.
-        </p>
-      </div>
-      <div className="journey-notes">
-        {ideas.map(({ number, verb, text, Icon }) => (
-          <article className="journey-note" key={number}>
-            <span className="journey-note-number">{number}</span>
-            <Icon size={19} strokeWidth={1.5} />
-            <h3>
-              {verb}
-              <span>.</span>
-            </h3>
-            <p>{text}</p>
-          </article>
-        ))}
-      </div>
-      <div className="thought-route" aria-hidden="true">
-        <span>ONE CUSTOMER</span>
-        <svg viewBox="0 0 960 52" preserveAspectRatio="none">
-          <path d="M1 27h225l35-14h245l31 18h216l32-14h174" />
-          <circle cx="1" cy="27" r="4" />
-          <circle cx="226" cy="27" r="4" />
-          <circle cx="506" cy="31" r="4" />
-          <circle cx="753" cy="31" r="4" />
-          <circle cx="959" cy="17" r="4" />
-        </svg>
-        <span>ONE CONNECTED JOURNEY</span>
-      </div>
-    </section>
-  );
-}
-
-const journeyStages = [
-  {
-    name: "First contact",
-    note: "A new enquiry arrives. Its story begins.",
-    signal: "A person, not a record.",
-  },
-  {
-    name: "The right follow-up",
-    note: "Give your team the context to make it personal.",
-    signal: "The next conversation.",
-  },
-  {
-    name: "A better match",
-    note: "Connect what matters to the vehicles worth seeing.",
-    signal: "The right vehicle.",
-  },
-  {
-    name: "A sale that stays visible",
-    note: "Keep the deal, the team, and its progress in view.",
-    signal: "A shared result.",
-  },
+const tourPanels = [
+  { id: "leads", name: "Sales pipeline", Icon: Users, heading: "Every opportunity has a next move.", text: "Keep lead ownership, customer interest, and deal progress together. Give the next conversation the context it deserves." },
+  { id: "daily", name: "Daily operations", Icon: CalendarDays, heading: "Know what needs your attention today.", text: "Move from a role-aware overview into appointments, follow-ups, and customer handoffs. A clear daily queue keeps the team moving." },
+  { id: "performance", name: "Team performance", Icon: BarChart3, heading: "See the work. Understand the result.", text: "Bring sales, funded deals, target pacing, commissions, and personal performance into the same picture." },
+  { id: "vehicles", name: "Vehicle intelligence", Icon: Car, heading: "The right car starts with a clearer search.", text: "Explore approved-source listings, save a shortlist, and compare vehicles side by side before the next customer conversation." },
 ] as const;
 
-function HandoffChapter() {
+function WorkspacePreview({ mode }: { mode: typeof tourPanels[number]["id"] }) {
+  const title = tourPanels.find((panel) => panel.id === mode)!.name;
+  return (
+    <div className="studio-app-preview">
+      <div className="studio-preview-top"><span className="studio-preview-brand">RTA<span>.</span></span><span>Dealership workspace</span><span className="studio-demo-tag">Example view</span></div>
+      <div className="studio-preview-body">
+        <aside aria-hidden="true"><span className="is-selected"><LayoutDashboard size={18} /></span><Users size={18} /><CalendarDays size={18} /><Car size={18} /><BarChart3 size={18} /></aside>
+        <div className="studio-preview-main">
+          <div className="studio-preview-title"><div><span>YOUR WORKSPACE / OVERVIEW</span><h3>{title}</h3></div><span className="studio-avatar">RT</span></div>
+          {mode === "leads" && <>
+            <div className="studio-mini-stats"><div><span>New enquiry</span><strong>Connect</strong></div><div><span>Follow-up</span><strong>Progress</strong></div><div><span>Sale</span><strong>Complete</strong></div></div>
+            <div className="studio-preview-table"><div><span>Opportunity</span><span>Next step</span><span>Stage</span></div>{[["Vehicle enquiry", "First conversation", "New"], ["Customer shortlist", "Arrange a viewing", "Contacted"], ["Showroom appointment", "Confirm follow-up", "Qualified"]].map(([lead, step, stage]) => <div key={lead}><strong>{lead}</strong><span>{step}</span><span className="studio-status">{stage}</span></div>)}</div>
+          </>}
+          {mode === "daily" && <div className="studio-day-list">{[["09:00", "Start with your priorities", "My day · next actions"], ["11:30", "Meet the customer", "Appointments · showroom visit"], ["14:00", "Keep the conversation going", "Follow-ups · customer callback"], ["Next", "Give the team the context", "Inbox · handoffs & escalations"]].map(([time, name, detail]) => <div key={time}><span>{time}</span><div><strong>{name}</strong><p>{detail}</p></div><ArrowUpRight size={17} /></div>)}</div>}
+          {mode === "performance" && <>
+            <div className="studio-mini-stats"><div><span>Deal progress</span><strong>Sales</strong></div><div><span>Goal pacing</span><strong>Targets</strong></div><div><span>Team rewards</span><strong>Commissions</strong></div></div>
+            <div className="studio-chart"><span>Activity & outcomes</span><div aria-hidden="true">{[30, 49, 39, 66, 52, 78, 64, 88, 72, 96].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div><p>Illustrative trend · explore your workspace for actual reporting</p></div>
+          </>}
+          {mode === "vehicles" && <div className="studio-preview-vehicles">{[["Romans International", "Source listings", "/vehicle-preview-q5.webp"], ["Tom Hartley", "Saved & compared", "/vehicle-preview-a4.webp"]].map(([source, label, img]) => <div key={source}><img src={img} alt="Illustrative vehicle in the inventory workspace" loading="lazy" /><strong>{source}</strong><span>{label}</span></div>)}<p><Search size={16} /> Search · shortlist · compare up to four vehicles</p></div>}
+          <div className="studio-preview-bottom"><ShieldCheck size={14} /><span>Role-aware views. Shared dealership context.</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductTour() {
   const [active, setActive] = useState(0);
-  const stage = journeyStages[active]!;
+  const panel = tourPanels[active]!;
   return (
-    <section
-      className="journal-chapter handoff-chapter"
-      id="operations"
-      aria-labelledby="handoff-title"
-    >
-      <div className="handoff-backdrop" aria-hidden="true">
-        <img src="/rta-dealership-showroom.webp" alt="" loading="lazy" />
-        <span />
-      </div>
-      <div className="journal-index journal-index--light">
-        <span>03</span>
-        <i />
-        THE HAND-OFF
-      </div>
-      <div className="handoff-content">
-        <div className="handoff-title">
-          <h2 id="handoff-title">
-            A lead is
-            <br />
-            never <em>just a lead.</em>
-          </h2>
-          <p>
-            Good dealerships understand what happens between first contact and
-            the keys.
-          </p>
-        </div>
-        <div className="handoff-sequence">
-          <div className="handoff-wordmark">
-            <span>RTA / CUSTOMER JOURNEY</span>
-            <strong>{stage.signal}</strong>
-            <i>{String(active + 1).padStart(2, "0")}</i>
+    <section className="studio-tour" id="solutions" aria-labelledby="tour-title">
+      <div className="studio-frame">
+        <div className="studio-section-heading"><div><span className="studio-eyebrow">A CLOSER LOOK AT THE PRODUCT</span><h2 id="tour-title">One workspace.<br />A better working day.</h2></div><p>Sales teams, managers, and virtual assistants get a connected view of the work—with the right access for their role.</p></div>
+        <div className="studio-tour-layout">
+          <div className="studio-tour-controls">
+            <div className="studio-tour-tabs" role="tablist" aria-label="Explore the RTA workspace" aria-orientation="vertical">{tourPanels.map(({ id, name, Icon }, index) => <button key={id} id={`workspace-tab-${id}`} type="button" role="tab" aria-selected={active === index} aria-controls="workspace-tour-panel" tabIndex={active === index ? 0 : -1} className={active === index ? "is-active" : ""} onClick={() => setActive(index)} onKeyDown={(event) => {
+              let next = index;
+              if (["ArrowDown", "ArrowRight"].includes(event.key)) next = (index + 1) % tourPanels.length;
+              else if (["ArrowUp", "ArrowLeft"].includes(event.key)) next = (index - 1 + tourPanels.length) % tourPanels.length;
+              else if (event.key === "Home") next = 0;
+              else if (event.key === "End") next = tourPanels.length - 1;
+              else return;
+              event.preventDefault(); setActive(next); document.getElementById(`workspace-tab-${tourPanels[next]!.id}`)?.focus();
+            }}><Icon size={21} /><span>{name}</span><ArrowUpRight size={17} /></button>)}</div>
+            <div className="studio-tour-caption"><h3>{panel.heading}</h3><p>{panel.text}</p><Link to="/login">Explore the live demo <ArrowRight size={17} /></Link></div>
           </div>
-          <div
-            className="handoff-tabs"
-            role="tablist"
-            aria-label="Explore a connected customer journey"
-            aria-orientation="vertical"
-          >
-            {journeyStages.map((item, index) => (
-              <button
-                type="button"
-                role="tab"
-                id={`journey-tab-${index}`}
-                aria-selected={active === index}
-                aria-controls="journey-panel"
-                tabIndex={active === index ? 0 : -1}
-                className={active === index ? "is-active" : ""}
-                key={item.name}
-                onClick={() => setActive(index)}
-                onKeyDown={(event) => {
-                  let next = index;
-                  if (event.key === "ArrowDown" || event.key === "ArrowRight")
-                    next = (index + 1) % journeyStages.length;
-                  else if (event.key === "ArrowUp" || event.key === "ArrowLeft")
-                    next =
-                      (index - 1 + journeyStages.length) % journeyStages.length;
-                  else if (event.key === "Home") next = 0;
-                  else if (event.key === "End") next = journeyStages.length - 1;
-                  else return;
-                  event.preventDefault();
-                  setActive(next);
-                  document.getElementById(`journey-tab-${next}`)?.focus();
-                }}
-              >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <span>{item.name}</span>
-                <ArrowUpRight size={14} />
-              </button>
-            ))}
-          </div>
-          <div
-            className="handoff-note"
-            role="tabpanel"
-            id="journey-panel"
-            aria-labelledby={`journey-tab-${active}`}
-          >
-            <h3>{stage.name}.</h3>
-            <p>{stage.note}</p>
-          </div>
-        </div>
-      </div>
-      <div className="handoff-baseline">
-        <span>LEADS / INVENTORY / PEOPLE / PERFORMANCE</span>
-        <span>ALL PART OF THE SAME STORY.</span>
-      </div>
-    </section>
-  );
-}
-
-function SignalChapter() {
-  const prompts = [
-    "Which opportunities need my attention?",
-    "Find a vehicle for this customer.",
-    "What should the team focus on today?",
-  ];
-  return (
-    <section
-      className="journal-chapter signal-chapter"
-      id="ai-intelligence"
-      aria-labelledby="signal-title"
-    >
-      <div className="journal-index">
-        <span>04</span>
-        <i />
-        THE SIGNAL
-      </div>
-      <div className="signal-layout">
-        <div className="signal-editorial">
-          <span className="signal-kicker">
-            <Sparkles size={14} /> RTA INTELLIGENCE / BUILT IN
-          </span>
-          <h2 id="signal-title">
-            The better
-            <br />
-            question is
-            <br />
-            <em>closer.</em>
-          </h2>
-          <p>
-            A grounded, read-only assistant helps your team understand its
-            leads, inventory, and performance in everyday language.
-          </p>
-          <button
-            type="button"
-            className="signal-open"
-            onClick={() => openRtaAssistant(prompts[0])}
-          >
-            Ask RTA a question <ArrowUpRight size={17} />
-          </button>
-        </div>
-        <div className="signal-conversation">
-          <span className="signal-conversation-label">
-            A QUESTION FROM THE FLOOR <i>↗</i>
-          </span>
-          <blockquote>“{prompts[0]}”</blockquote>
-          <div className="signal-answer">
-            <span className="signal-answer-mark">
-              <Sparkles size={17} />
-            </span>
-            <p>
-              Connect lead context with recent conversations and current vehicle
-              interest, then agree on the follow-up together.
-            </p>
-          </div>
-          <span className="signal-context">
-            READ-ONLY CONTEXT / YOUR WORKSPACE
-          </span>
-          <div className="signal-prompts">
-            {prompts.slice(1).map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => openRtaAssistant(prompt)}
-              >
-                {prompt}
-                <ArrowUpRight size={14} />
-              </button>
-            ))}
-          </div>
+          <div role="tabpanel" id="workspace-tour-panel" aria-labelledby={`workspace-tab-${panel.id}`} tabIndex={0}><WorkspacePreview mode={panel.id} /><p className="studio-preview-disclaimer">Illustrative workspace preview. Sign in to explore the working product.</p></div>
         </div>
       </div>
     </section>
   );
 }
 
-function InventoryChapter() {
-  const inventory = useQuery({
-    queryKey: ["public-inventory", "featured"],
-    queryFn: () =>
-      api<PublicInventoryResponse>("/scraping-results/public?limit=8"),
-    staleTime: 60_000,
-  });
-  const vehicles = inventory.data?.data.items ?? [];
+function OperationsStory() {
   return (
-    <section
-      className="journal-chapter collection-chapter"
-      id="inventory"
-      aria-labelledby="collection-title"
-    >
-      <div className="journal-index">
-        <span>05</span>
-        <i />
-        THE COLLECTION
-      </div>
-      <div className="collection-heading">
-        <h2 id="collection-title">
-          Good finds.
-          <br />
-          <em>Clear choices.</em>
-        </h2>
-        <p>
-          Explore recently collected listings from Romans International, Tom
-          Hartley, and Redline Specialist Cars. Open source listings freely;
-          sign in to save and compare.
-        </p>
-      </div>
-      <div className="collection-toolbar">
-        <div>
-          <span className="collection-live-mark" />
-          <span>LIVE SOURCE LISTINGS</span>
-        </div>
-        <Link to="/inventory">
-          Browse every vehicle <ArrowUpRight size={15} />
-        </Link>
-      </div>
-      {vehicles.length > 0 && (
-        <div className="landing-vehicle-cards" aria-busy={inventory.isFetching}>
-          {vehicles.map((vehicle) => (
-            <PublicVehicleCard key={vehicle.id} item={vehicle} />
-          ))}
-        </div>
-      )}
-      {inventory.isFetching && !inventory.isLoading && (
-        <div className="public-inventory-refresh" role="status">
-          <Loader2 size={14} className="spin" /> Refreshing source listings…
-        </div>
-      )}
-      {inventory.isLoading && (
-        <PublicVehicleGridSkeleton count={4} variant="featured" />
-      )}
-      {inventory.isError && (
-        <div className="public-inventory-state" role="alert">
-          <AlertCircle size={24} />
-          <strong>Live listings aren’t available right now.</strong>
-          <span>Try again or browse all vehicles.</span>
-          <button
-            type="button"
-            disabled={inventory.isFetching}
-            onClick={() => void inventory.refetch()}
-          >
-            {inventory.isFetching ? "Retrying…" : "Try again"}
-          </button>
-          <Link to="/inventory">
-            Browse all vehicles <ArrowRight size={14} />
-          </Link>
-        </div>
-      )}
-      {!inventory.isLoading && !inventory.isError && vehicles.length === 0 && (
-        <div className="public-inventory-state">
-          <Car size={25} />
-          <strong>No vehicles have landed just yet.</strong>
-          <span>Current source listings appear here when available.</span>
-          <Link to="/inventory">
-            Open the collection <ArrowRight size={14} />
-          </Link>
-        </div>
-      )}
-      {!inventory.isLoading && !inventory.isError && vehicles.length > 0 && (
-        <p className="collection-footnote">
-          <span>01 — 0{vehicles.length}</span>
-          <span>RECENT LISTINGS, DIRECT FROM THE SOURCE</span>
-          <Link to="/inventory">
-            See the full collection <ArrowUpRight size={14} />
-          </Link>
-        </p>
-      )}
+    <section className="studio-operations studio-frame" id="operations" aria-labelledby="operations-title">
+      <div className="studio-story-photo"><img src="/images/dealership-documents.jpg" alt="A dealership adviser reviewing paperwork with a customer beside a car" width={1400} height={933} loading="lazy" /><span>THE CONVERSATION IS WHERE IT STARTS.</span></div>
+      <div className="studio-story-copy"><span className="studio-eyebrow">CUSTOMER RELATIONSHIPS & DAILY OPERATIONS</span><h2 id="operations-title">Make the next<br />conversation<br /><em>a better one.</em></h2><p>A lead is more than a name in a list. It’s a customer with questions, a vehicle in mind, and a next step your team needs to remember.</p><div className="studio-story-points"><div><span>01</span><p><strong>Keep ownership clear.</strong> Work leads through the pipeline with visible status and responsibility.</p></div><div><span>02</span><p><strong>Follow through.</strong> Plan appointments and follow-ups from a focused daily queue.</p></div><div><span>03</span><p><strong>Hand over the context.</strong> Keep inbox items, escalations, and assistant handoffs visible.</p></div></div><Link className="studio-text-link" to="/login">See customer operations <ArrowUpRight size={18} /></Link></div>
     </section>
   );
 }
 
-function WorkspaceChapter() {
-  const departments = [
-    {
-      number: "01",
-      name: "The customer desk",
-      summary: "Keep every conversation moving.",
-      modules: ["Lead pipeline", "My day & priorities", "Appointments", "Follow-ups", "Team inbox & handoffs"],
-      note: "From first enquiry to the next promised call.",
-    },
-    {
-      number: "02",
-      name: "The deal room",
-      summary: "Make progress visible to the whole team.",
-      modules: ["Sales & funded deals", "Targets", "Commissions", "Personal performance", "Team performance board"],
-      note: "Track activity, outcomes, and the pace toward a goal.",
-    },
-    {
-      number: "03",
-      name: "The vehicle desk",
-      summary: "Turn a broad search into a considered choice.",
-      modules: ["Live inventory search", "Saved vehicles", "Side-by-side comparison", "Approved-source acquisition", "Source operations"],
-      note: "Find, shortlist, compare, and inspect source listings.",
-    },
-    {
-      number: "04",
-      name: "The team & the record",
-      summary: "Give each role a clear, accountable view.",
-      modules: ["Role-aware overview", "Team & configuration", "Documents", "Audit history", "Virtual-assistant operations"],
-      note: "Workspace access follows role permissions and recorded activity.",
-    },
-  ];
+function PerformanceStory() {
   return (
-    <section className="journal-chapter workspace-chapter" id="workspace" aria-labelledby="workspace-title">
-      <div className="journal-index">
-        <span>06</span><i /> INSIDE THE WORKSPACE
-      </div>
-      <div className="workspace-heading">
-        <div>
-          <span className="workspace-kicker">A FIELD GUIDE TO RTA</span>
-          <h2 id="workspace-title">The whole floor,<br />in <em>clear view.</em></h2>
-        </div>
-        <p>RTA brings the working parts of a dealership into one role-aware platform—from the first lead to team performance, live vehicle discovery, and the records behind each decision.</p>
-      </div>
-      <div className="workspace-index">
-        <div className="workspace-index-head"><span>THE WORK / FOUR DESKS</span><span>OPEN THE LIVE WORKSPACE <ArrowUpRight size={13} /></span></div>
-        {departments.map((department) => (
-          <article className="workspace-row" key={department.number}>
-            <span className="workspace-number">{department.number}</span>
-            <div className="workspace-desk">
-              <h3>{department.name}</h3>
-              <p>{department.summary}</p>
-              <span>{department.note}</span>
-            </div>
-            <ul>{department.modules.map((module) => <li key={module}>{module}</li>)}</ul>
-            <Link className="workspace-open" to="/login" aria-label={`Explore ${department.name} in the RTA demo`}><ArrowUpRight size={17} /></Link>
-          </article>
-        ))}
-      </div>
-      <div className="workspace-foot">
-        <span><i /> ROLE-AWARE VIEWS / SHARED WORKSPACE</span>
-        <Link to="/login">Explore the recruiter demo <ArrowUpRight size={14} /></Link>
-      </div>
+    <section className="studio-performance" aria-labelledby="performance-title"><div className="studio-frame studio-performance-layout">
+      <div className="studio-story-copy"><span className="studio-eyebrow">SALES, PEOPLE & PERFORMANCE</span><h2 id="performance-title">From a good<br />conversation<br /><em>to a clear result.</em></h2><p>See how the work is progressing, where the team stands, and what needs attention. RTA connects the sales ledger with the people behind each deal.</p><ul className="studio-check-list"><li><Check size={18} /> Sales records and funded deal tracking</li><li><Check size={18} /> Targets, pacing, and commissions</li><li><Check size={18} /> Analytics and personal performance</li><li><Check size={18} /> A shared team performance board</li></ul><Link className="studio-text-link" to="/login">Explore sales & performance <ArrowUpRight size={18} /></Link></div>
+      <div className="studio-performance-photo"><img src="/images/dealership-consultation.jpg" alt="A sales adviser and customer discussing a vehicle together inside a dealership" width={1400} height={933} loading="lazy" /><div><span><Users size={22} /></span><p><strong>A shared view of progress.</strong>From the showroom floor to the manager’s desk.</p></div></div>
+    </div></section>
+  );
+}
+
+const workspaceAreas = [
+  { title: "Your day & your customers", description: "The work that keeps relationships moving.", items: ["Role-aware overview dashboard", "Lead pipeline & ownership", "My day priority queue", "Appointments", "Follow-ups", "Operations inbox & handoffs"] },
+  { title: "Sales & team performance", description: "A connected view of activity and outcomes.", items: ["Sales & funded deals", "Targets & goal pacing", "Commission records", "Analytics", "My performance", "Team performance board"] },
+  { title: "Vehicles & acquisition", description: "Find the options. Understand the source.", items: ["Public vehicle discovery", "Workspace inventory", "Saved vehicle shortlist", "Compare up to four vehicles", "On-demand acquisition", "Source controls & run diagnostics"] },
+  { title: "People, access & records", description: "The structure behind a well-run workspace.", items: ["Team management & roles", "Virtual-assistant operations", "Workspace configuration", "Private documents", "Audit history", "Access request review"] },
+];
+function WorkspaceMap() {
+  return (
+    <section className="studio-map studio-frame" id="workspace" aria-labelledby="map-title"><div className="studio-section-heading"><div><span className="studio-eyebrow">THE FULL PICTURE</span><h2 id="map-title">A place for every part<br />of your dealership.</h2></div><p>Explore what’s already inside RTA. Each workspace view is available according to role and permissions.</p></div><div className="studio-map-list">{workspaceAreas.map((area, index) => <details key={area.title} open={index === 0}><summary><span className="studio-map-number">0{index + 1}</span><span><strong>{area.title}</strong><small>{area.description}</small></span><Plus size={24} /></summary><div className="studio-map-detail"><ul>{area.items.map((item) => <li key={item}><Check size={17} />{item}</li>)}</ul></div></details>)}</div></section>
+  );
+}
+
+function IntelligenceSection() {
+  const prompts = ["Which leads need attention?", "What should the team focus on today?", "Help me understand our sales performance."];
+  return (
+    <section className="studio-intelligence" id="ai-intelligence" aria-labelledby="intelligence-title"><div className="studio-frame studio-intelligence-layout"><div><span className="studio-eyebrow"><Sparkles size={17} /> RTA INTELLIGENCE</span><h2 id="intelligence-title">Your workspace.<br /><em>In conversation.</em></h2><p>Ask about leads, inventory, sales, and performance in everyday language. RTA’s built-in assistant uses authorized workspace data to help you understand what’s happening.</p><span className="studio-ai-note"><ShieldCheck size={18} /> Read-only assistance. Access follows your permissions.</span></div><div className="studio-questions"><span>START WITH A QUESTION</span>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => openRtaAssistant(prompt)}>{prompt}<ArrowUpRight size={21} /></button>)}<p>Try the assistant here. Sign in for workspace-specific answers.</p></div></div></section>
+  );
+}
+
+function LiveInventory() {
+  const inventory = useQuery({ queryKey: ["public-inventory", "featured"], queryFn: () => api<PublicInventoryResponse>("/scraping-results/public?limit=4"), staleTime: 60_000 });
+  const vehicles = inventory.data?.data.items.slice(0, 4) ?? [];
+  return (
+    <section className="studio-inventory studio-frame" id="inventory" aria-labelledby="inventory-title"><div className="studio-section-heading"><div><span className="studio-eyebrow">VEHICLE DISCOVERY, CONNECTED</span><h2 id="inventory-title">Find the car.<br />Keep the possibilities.</h2></div><div><p>Browse collected listings from Romans International, Tom Hartley, and Redline Specialist Cars. Sign in to save and compare your shortlist.</p><Link className="studio-text-link" to="/inventory">Browse all vehicles <ArrowUpRight size={18} /></Link></div></div>
+      {vehicles.length > 0 && <div className="landing-vehicle-cards studio-live-grid" aria-busy={inventory.isFetching}>{vehicles.map((vehicle) => <PublicVehicleCard key={vehicle.id} item={vehicle} />)}</div>}
+      {inventory.isLoading && <PublicVehicleGridSkeleton count={4} variant="featured" />}
+      {inventory.isError && <div className="studio-inventory-state" role="alert"><AlertCircle size={28} /><div><strong>Live listings are unavailable right now.</strong><p>You can retry or open the vehicle collection.</p></div><button type="button" disabled={inventory.isFetching} onClick={() => void inventory.refetch()}>{inventory.isFetching ? "Retrying…" : "Try again"}</button><Link to="/inventory">Browse vehicles <ArrowRight size={17} /></Link></div>}
+      {!inventory.isLoading && !inventory.isError && vehicles.length === 0 && <div className="studio-inventory-state"><Car size={30} /><div><strong>The collection is waiting for its next arrivals.</strong><p>Collected source listings appear here when available.</p></div><Link to="/inventory">Explore vehicle discovery <ArrowUpRight size={17} /></Link></div>}
+      <div className="studio-inventory-foot"><span><Search size={18} /> Discover</span><span><Heart size={18} /> Save your shortlist</span><span><Columns size={18} /> Compare side by side</span><span><ExternalLink size={18} /> Visit the original source</span></div>
     </section>
   );
 }
 
-function CraftChapter() {
-  const links = [
-    {
-      name: "People & records",
-      hint: "Roles, private documents, and an audit trail.",
-    },
-    {
-      name: "Approved sources",
-      hint: "Collection starts with a deliberate operator request.",
-    },
-    {
-      name: "Grounded AI",
-      hint: "Read-only tools, workspace permissions, no guessing.",
-    },
-  ];
+function EngineeringSection() {
   return (
-    <section
-      className="journal-chapter craft-chapter"
-      id="architecture"
-      aria-labelledby="craft-title"
-    >
-      <div className="journal-index journal-index--light">
-        <span>07</span>
-        <i />
-        THE CRAFT
-      </div>
-      <div className="craft-heading">
-        <h2 id="craft-title">
-          Good design
-          <br />
-          has <em>good bones.</em>
-        </h2>
-        <p>Considered on the surface. Carefully engineered beneath.</p>
-      </div>
-      <div className="craft-ledger" id="pipeline">
-        <div className="craft-ledger-head">
-          <span>HOW RTA HOLDS TOGETHER</span>
-          <span>THREE QUIETLY IMPORTANT THINGS</span>
-        </div>
-        {links.map(({ name, hint }, index) => (
-          <div className="craft-ledger-row" key={name}>
-            <span>0{index + 1}</span>
-            <h3>{name}</h3>
-            <p>{hint}</p>
-            <span className="craft-ledger-arrow">
-              <ArrowUpRight size={17} />
-            </span>
-          </div>
-        ))}
-      </div>
-      <details className="craft-footnote">
-        <summary>
-          <span>
-            <Layers size={16} /> A little further under the hood
-          </span>
-          <ChevronDown size={16} />
-        </summary>
-        <div>
-          <p>
-            React and TypeScript on the surface; Node.js, Express, and
-            PostgreSQL behind the operation. Apify runs are explicitly requested
-            and bounded. Workspace isolation, role checks, input validation, and
-            rate limits protect authorized data.
-          </p>
-          <a href={githubUrl} target="_blank" rel="noreferrer">
-            Look through the engineering <ExternalLink size={13} />
-          </a>
-        </div>
-      </details>
-    </section>
+    <section className="studio-engineering studio-frame" id="architecture" aria-labelledby="engineering-title"><div><span className="studio-eyebrow">FOR THE CURIOUS. AND THE TECHNICALLY CURIOUS.</span><h2 id="engineering-title">Thought through.<br />From interface to infrastructure.</h2><p>RTA is a working full-stack product: dealership operations, vehicle acquisition, and a grounded assistant connected through a shared platform.</p><a className="studio-text-link" href={githubUrl} target="_blank" rel="noreferrer">Explore the code <ExternalLink size={17} /></a></div><div className="studio-engineering-details"><details><summary>The application <Plus size={20} /></summary><p>React and TypeScript interfaces backed by Node.js, Express, and PostgreSQL. Separate workflows support dealership teams, public vehicle discovery, and acquisition operations.</p></details><details><summary>Data & vehicle sourcing <Plus size={20} /></summary><p>Explicit, on-demand Apify collection from approved vehicle sources. Stored listings preserve their original source details, and acquisition views expose run status and diagnostics.</p></details><details><summary>Workspace boundaries <Plus size={20} /></summary><p>Role checks and workspace isolation control access. Private documents, access request review, and an audit history support accountable operations.</p></details><details><summary>The recruiter walkthrough <Plus size={20} /></summary><p>Use the recruiter demo on the sign-in screen to explore the implemented workflows. Source controls and administrator actions retain their role restrictions.</p><Link to="/login">Open the demo <ArrowUpRight size={16} /></Link></details></div></section>
   );
 }
 
@@ -773,14 +295,14 @@ export function LandingFooter({
               </span>
             </a>
             <p>
-              AI-powered dealership operations and vehicle intelligence,
-              connected with intent.
+              Leads, sales, vehicles, and people. One connected dealership workspace.
             </p>
           </div>
           <div className="landing-footer-links">
             <a href={section("ai-intelligence")}>AI intelligence</a>
             <a href={section("inventory")}>Inventory</a>
             <a href={section("operations")}>Operations</a>
+            <a href={section("workspace")}>All features</a>
             <a href={section("architecture")}>How it works</a>
             <a href={githubUrl} target="_blank" rel="noreferrer">
               GitHub <ExternalLink size={13} />
@@ -802,52 +324,18 @@ export function LandingFooter({
 }
 
 export function LandingPage() {
-  const [activeChapter, setActiveChapter] = useState("top");
-  useEffect(() => {
-    const sections = chapters
-      .map((chapter) => document.getElementById(chapter.id))
-      .filter((section): section is HTMLElement => section !== null);
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries)
-          if (entry.isIntersecting) setActiveChapter(entry.target.id);
-      },
-      { rootMargin: "-35% 0px -55% 0px", threshold: 0 },
-    );
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, []);
   return (
-    <main className="landing-page rta-journal">
-      <JournalHeader />
-      <ChapterRail active={activeChapter} />
-      <CoverChapter />
-      <ThoughtChapter />
-      <HandoffChapter />
-      <SignalChapter />
-      <InventoryChapter />
-      <WorkspaceChapter />
-      <CraftChapter />
-      <section className="journal-closer">
-        <span className="journal-index journal-index--light">
-          <span>07</span>
-          <i />
-          THE NEXT MOVE
-        </span>
-        <div>
-          <h2>
-            Tomorrow starts
-            <br />
-            with a <em>better move.</em>
-          </h2>
-          <Link to="/signup">
-            Find your next gear <ArrowUpRight size={17} />
-          </Link>
-        </div>
-        <span className="journal-closer-aside">
-          RTA — BUILT AROUND THE WAY DEALERSHIPS ACTUALLY WORK.
-        </span>
-      </section>
+    <main className="landing-page rta-studio">
+      <StudioHeader />
+      <StudioHero />
+      <ProductTour />
+      <OperationsStory />
+      <PerformanceStory />
+      <WorkspaceMap />
+      <IntelligenceSection />
+      <LiveInventory />
+      <EngineeringSection />
+      <section className="studio-final"><div className="studio-frame"><span className="studio-eyebrow">THE NEXT CONVERSATION STARTS HERE.</span><h2>Meet your dealership’s<br /><em>next working day.</em></h2><div className="studio-actions"><Link className="studio-button studio-button--orange" to="/login">Explore the live demo <ArrowUpRight size={20} /></Link><Link className="studio-button studio-button--outline" to="/signup">Get started with RTA <ArrowUpRight size={20} /></Link></div><p>Exploring for your dealership? Start with the demo.<br />Reviewing the project? Use recruiter access on the sign-in screen.</p></div></section>
       <LandingFooter />
     </main>
   );
