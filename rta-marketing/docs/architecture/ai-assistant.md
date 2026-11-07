@@ -1,4 +1,4 @@
-# RTA Assistant architecture
+# Dealer Flow Assistant architecture
 
 The site-wide assistant is a read-only product and dealership operations
 surface. It is available in the main dealership web app and the separate

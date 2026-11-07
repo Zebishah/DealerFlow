@@ -6,4 +6,4 @@ Real dealership photography licensed under the [Pexels License](https://www.pexe
 - `dealership-documents.jpg`: [Gustavo Fring — Friendly Car Dealer Showing the Contract to a Customer](https://www.pexels.com/photo/friendly-car-dealer-showing-the-contract-to-a-customer-4173201/)
 - `dealership-consultation.jpg`: [Antoni Shkraba — Photo of a Salesman Talking to a Customer](https://www.pexels.com/photo/photo-of-a-salesman-talking-to-a-customer-7144226/)
 
-Images illustrate dealership workflows. People pictured are models, not represented as RTA customers or endorsers.
+Images illustrate dealership workflows. People pictured are models, not represented as Dealer Flow customers or endorsers.

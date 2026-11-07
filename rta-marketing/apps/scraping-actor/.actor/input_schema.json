@@ -1,5 +1,5 @@
 {
-  "title": "RTA Luxury Vehicle Scraper input",
+  "title": "Dealer Flow Luxury Vehicle Scraper input",
   "description": "Choose an approved public vehicle source and the maximum number of listings to collect.",
   "type": "object",
   "schemaVersion": 1,

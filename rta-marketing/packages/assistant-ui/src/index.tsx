@@ -67,7 +67,7 @@ function entityType(path: string): AssistantRequest["context"]["entityType"] {
 function initialSuggestions(authenticated: boolean): string[] {
   return authenticated
     ? ["Summarize my dashboard", "Find vehicles in inventory", "How does lead visibility work?"]
-    : ["What does RTA do?", "How does the recruiter demo work?", "How is the platform secured?"];
+    : ["What does Dealer Flow do?", "How does the recruiter demo work?", "How is the platform secured?"];
 }
 
 type AssistantIconName = "sparkles" | "arrow" | "close" | "reset" | "shield" | "grid" | "play" | "chart" | "search" | "book";
@@ -88,7 +88,7 @@ function AssistantIcon({ name, className = "" }: { name: AssistantIconName; clas
   return <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-export function RtaAssistant({ authenticated, path, request, navigate, productLabel = "RTA Assistant" }: RtaAssistantProps) {
+export function RtaAssistant({ authenticated, path, request, navigate, productLabel = "Dealer Flow Assistant" }: RtaAssistantProps) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<AssistantHistoryMessage[]>([]);
@@ -174,7 +174,7 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
           <header className="rta-assistant-header">
             <span className="rta-assistant-brand-icon"><AssistantIcon name="sparkles" /></span>
             <div className="rta-assistant-heading">
-              <span className="rta-assistant-kicker">RTA INTELLIGENCE</span>
+              <span className="rta-assistant-kicker">Dealer Flow INTELLIGENCE</span>
               <h2>{productLabel}<span className="rta-assistant-ai-badge">AI</span></h2>
             </div>
             <div className="rta-assistant-header-actions">
@@ -182,7 +182,7 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
               <button type="button" onClick={close} aria-label="Close assistant" title="Close assistant"><AssistantIcon name="close" /></button>
             </div>
           </header>
-          <div className="rta-assistant-context"><span className="rta-assistant-context-dot" />{authenticated ? "Connected to your workspace" : "Your guide to everything RTA"}<span className="rta-assistant-readonly"><AssistantIcon name="shield" />Read-only</span></div>
+          <div className="rta-assistant-context"><span className="rta-assistant-context-dot" />{authenticated ? "Connected to your workspace" : "Your guide to everything Dealer Flow"}<span className="rta-assistant-readonly"><AssistantIcon name="shield" />Read-only</span></div>
           <div className="rta-assistant-body" ref={bodyRef}>
             {empty && (
               <div className="rta-assistant-welcome">
@@ -230,16 +230,16 @@ export function RtaAssistant({ authenticated, path, request, navigate, productLa
           </div>}
           <div className="rta-assistant-composer">
             <form className="rta-assistant-form" onSubmit={onSubmit}>
-              <label className="rta-assistant-sr-only" htmlFor={`${panelId}-input`}>Ask the RTA assistant</label>
-              <textarea id={`${panelId}-input`} ref={inputRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(input); } }} maxLength={2_000} placeholder={messages.length ? "Ask a follow-up…" : "Ask anything about RTA…"} disabled={loading} />
-              <div className="rta-assistant-composer-actions"><span><AssistantIcon name="sparkles" />{authenticated ? "Workspace intelligence" : "Powered by RTA intelligence"}</span><button type="submit" disabled={!input.trim() || loading} aria-label="Send question"><AssistantIcon name="arrow" /></button></div>
+              <label className="rta-assistant-sr-only" htmlFor={`${panelId}-input`}>Ask the Dealer Flow assistant</label>
+              <textarea id={`${panelId}-input`} ref={inputRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(input); } }} maxLength={2_000} placeholder={messages.length ? "Ask a follow-up…" : "Ask anything about Dealer Flow…"} disabled={loading} />
+              <div className="rta-assistant-composer-actions"><span><AssistantIcon name="sparkles" />{authenticated ? "Workspace intelligence" : "Powered by Dealer Flow intelligence"}</span><button type="submit" disabled={!input.trim() || loading} aria-label="Send question"><AssistantIcon name="arrow" /></button></div>
             </form>
             <footer className="rta-assistant-footer"><AssistantIcon name="shield" />Read-only assistance<span>·</span>Verify important details</footer>
           </div>
         </section>
       )}
-      <button ref={launcherRef} className="rta-assistant-launcher" type="button" onClick={() => open ? close() : setOpen(true)} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-label={open ? "Close RTA Assistant" : "Open RTA Assistant"}>
-        <span className="rta-assistant-launcher-icon"><AssistantIcon name={open ? "close" : "sparkles"} /></span><b>{open ? "Close assistant" : "Ask RTA"}</b>{!open && <span className="rta-assistant-launcher-badge">AI</span>}
+      <button ref={launcherRef} className="rta-assistant-launcher" type="button" onClick={() => open ? close() : setOpen(true)} aria-expanded={open} aria-controls={open ? panelId : undefined} aria-label={open ? "Close Dealer Flow Assistant" : "Open Dealer Flow Assistant"}>
+        <span className="rta-assistant-launcher-icon"><AssistantIcon name={open ? "close" : "sparkles"} /></span><b>{open ? "Close assistant" : "Ask Dealer Flow"}</b>{!open && <span className="rta-assistant-launcher-badge">AI</span>}
       </button>
     </div>
   );

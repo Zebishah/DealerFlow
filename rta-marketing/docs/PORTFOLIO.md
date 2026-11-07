@@ -1,8 +1,8 @@
-# RTA portfolio brief
+# Dealer Flow portfolio brief
 
 ## One-sentence summary
 
-RTA is a role-aware dealership operations platform that combines CRM workflows,
+Dealer Flow is a role-aware dealership operations platform that combines CRM workflows,
 vehicle intelligence, grounded AI assistance, and controlled on-demand source
 acquisition.
 
@@ -15,7 +15,7 @@ acquisition.
 - Upstash Redis for distributed limits, AI quotas, and short-lived caches.
 - Apify Actor runs for Romans International, Tom Hartley, and Redline
   Specialist Cars, with persisted run status and source-health telemetry.
-- Read-only RTA AI tools for authorized analytics, leads, inventory, sales, and
+- Read-only Dealer Flow AI tools for authorized analytics, leads, inventory, sales, and
   scrape diagnostics.
 
 The customer-operations workflow gives the `virtual_assistant` role a focused
@@ -48,7 +48,7 @@ dependencies.
    role-aware navigation.
 3. Open Scraping workspace to see approved sources, system dependencies, source
    health, parser versions, and recent run activity.
-4. Ask RTA AI a read-only question such as “Which leads need attention?” or
+4. Ask Dealer Flow AI a read-only question such as “Which leads need attention?” or
    “Explain the latest scrape failure.”
 5. Review the architecture and legacy-reference documents for the boundary
    between the active path and retained engineering history.

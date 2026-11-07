@@ -25,7 +25,7 @@ only for `DATABASE_MIGRATION_URL` and migrations.
 
 ## Required attributes
 
-### Primary RTA API (Render; Apify scraping path)
+### Primary Dealer Flow API (Render; Apify scraping path)
 
 | Variable | Production value |
 |---|---|
@@ -59,7 +59,7 @@ Do not add `AWS_PROFILE` to a deployed service. Remove `SEED_OPERATOR_PASSWORD` 
 |---|---|
 | `RESEND_API_KEY` | Server-only Resend API key with sending permission |
 | `EMAIL_FROM` | An email address on a domain verified in Resend |
-| `EMAIL_FROM_NAME` | Sender display name, default `RTA Automotive Group` |
+| `EMAIL_FROM_NAME` | Sender display name, default `Dealer Flow Automotive Group` |
 | `ADMIN_NOTIFICATION_EMAIL` | Optional inbox for access-request notifications |
 | `DEALERSHIP_WEB_URL` | Live frontend origin used in verification, reset, and setup links |
 

@@ -10,8 +10,8 @@ export const knowledgeEntries: readonly KnowledgeEntry[] = [
   {
     id: "platform",
     topic: "product",
-    title: "RTA Automotive Operations Platform",
-    content: "RTA is a dealership operations platform for lead pipelines, sales, commissions, targets, team visibility, audit history, employee documents, and vehicle intelligence. It separates authenticated dealership operations from the manual vehicle-scraping subsystem.",
+    title: "Dealer Flow Automotive Operations Platform",
+    content: "Dealer Flow is a dealership operations platform for lead pipelines, sales, commissions, targets, team visibility, audit history, employee documents, and vehicle intelligence. It separates authenticated dealership operations from the manual vehicle-scraping subsystem.",
     keywords: ["rta", "platform", "product", "dealership", "crm", "what", "do"],
   },
   {

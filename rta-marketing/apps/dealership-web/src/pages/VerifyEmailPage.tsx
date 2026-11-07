@@ -53,7 +53,7 @@ export function VerifyEmailPage() {
         : <AlertCircle className="auth-state-icon auth-state-icon--error" size={40} aria-hidden="true" />}
     <span className="eyebrow">{state === "verifying" ? "VERIFYING" : success ? "EMAIL READY" : state === "unavailable" ? "PLEASE TRY AGAIN" : "LINK UNAVAILABLE"}</span>
     <h1 ref={heading} tabIndex={-1}>{title}</h1>
-    <p role={state === "verifying" ? "status" : undefined}>{state === "verifying" ? "One moment while we confirm your RTA account."
+    <p role={state === "verifying" ? "status" : undefined}>{state === "verifying" ? "One moment while we confirm your Dealer Flow account."
       : success ? "Your email is verified. Continue to sign in."
         : state === "unavailable" ? "Check your connection and try again. Your verification link may still be valid."
           : state === "expired" ? "Request a new verification email to continue."

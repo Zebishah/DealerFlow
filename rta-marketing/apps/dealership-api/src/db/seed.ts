@@ -194,10 +194,10 @@ async function seedDemoWorkspace(): Promise<void> {
 
   await db
     .insert(workspaces)
-    .values({ id: ids.workspace, slug: "rta-demo", name: "RTA Automotive Group", mode: "demo" })
+    .values({ id: ids.workspace, slug: "rta-demo", name: "Dealer Flow Automotive Group", mode: "demo" })
     .onConflictDoUpdate({
       target: workspaces.slug,
-      set: { name: "RTA Automotive Group", mode: "demo", updatedAt: new Date() },
+      set: { name: "Dealer Flow Automotive Group", mode: "demo", updatedAt: new Date() },
     });
 
   await Promise.all([

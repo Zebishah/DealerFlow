@@ -1,7 +1,7 @@
 {
   "actorSpecification": 1,
   "name": "rta-luxury-vehicle-scraper",
-  "title": "RTA Luxury Vehicle Scraper",
+  "title": "Dealer Flow Luxury Vehicle Scraper",
   "description": "Private Apify runtime for approved public collector-vehicle sources.",
   "version": "0.1",
   "buildTag": "latest",

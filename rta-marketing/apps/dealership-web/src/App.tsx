@@ -41,7 +41,7 @@ export function App() {
   if (loading) {
     return (
       <div className="boot-screen" role="status" aria-live="polite">
-        <span className="boot-logo">RTA</span>
+        <span className="boot-logo">Dealer Flow</span>
         <i />
         <p>Preparing your workspace…</p>
       </div>
@@ -65,7 +65,7 @@ export function App() {
       <Suspense
         fallback={
           <div className="boot-screen route-loading">
-            <span className="boot-logo">RTA</span>
+            <span className="boot-logo">Dealer Flow</span>
             <i />
             <p>Loading workspace view…</p>
           </div>

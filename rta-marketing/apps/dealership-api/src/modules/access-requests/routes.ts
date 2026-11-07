@@ -107,7 +107,7 @@ publicAccessRequestRouter.post(
         reason: input.reason,
         duration: durationLabel(input.requestedDuration),
         url: platformUrl("/app/access-requests"),
-      }), { email: env.ADMIN_NOTIFICATION_EMAIL, name: "RTA access review" }), "access_request_admin")
+      }), { email: env.ADMIN_NOTIFICATION_EMAIL, name: "Dealer Flow access review" }), "access_request_admin")
       : false;
     response.status(201).json({ data: { id: created.id, createdAt: created.createdAt, status: "pending", notifications: { applicant: applicantNotified, admin: adminNotified } } });
   }),

@@ -67,7 +67,7 @@ export function AuthEmailConfirmation({ email, purpose, delivery = "requested", 
           : emailDelivery === "pending"
             ? "Your account is created, but we couldn’t send the verification email yet. Your email address is:"
             : isReset
-              ? "If this email belongs to a verified RTA account, you’ll receive a password reset link:"
+              ? "If this email belongs to a verified Dealer Flow account, you’ll receive a password reset link:"
               : "If this account still needs verification, you’ll receive a verification link:"}
       </p>
       <strong className="auth-email-address">{email}</strong>

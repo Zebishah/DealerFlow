@@ -1,4 +1,4 @@
-# RTA authentication and recruiter access
+# Dealer Flow authentication and recruiter access
 
 The dealership API owns the primary account boundary. It uses database-backed, HttpOnly sessions, CSRF tokens, workspace roles and server-side permissions. The scraping API remains a separate access-code/Redis-session service; it does not receive dealership cookies or pretend to be SSO.
 
@@ -15,7 +15,7 @@ Set these on the Render dealership API only:
 ```ini
 RESEND_API_KEY=your_resend_api_key
 EMAIL_FROM=verified-sender@your-domain.example
-EMAIL_FROM_NAME=RTA Automotive Group
+EMAIL_FROM_NAME=Dealer Flow Automotive Group
 DEALERSHIP_WEB_URL=https://rta-dealership-web.vercel.app
 SCRAPING_WEB_URL=https://rta-scraping-web.vercel.app
 ADMIN_NOTIFICATION_EMAIL=admin@your-domain.example

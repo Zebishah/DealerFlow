@@ -79,7 +79,7 @@ export function AccessRequestPage() {
             </div>
             <button type="submit" className="submit-button" disabled={busy || !form.platformScope.length || !form.requestedPermissions.length}>{busy ? "Submitting request…" : <>Submit access request <ArrowRight size={17} /></>}</button>
           </form>
-          <p className="access-request-note"><ShieldCheck size={14} /> Access is reviewed by an RTA administrator and expires automatically.</p>
+          <p className="access-request-note"><ShieldCheck size={14} /> Access is reviewed by an Dealer Flow administrator and expires automatically.</p>
         </>}
       </div>
     </section>

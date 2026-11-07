@@ -26,7 +26,7 @@ const scrapeRunId = process.env.AI_BENCHMARK_RUN_ID;
 const outputPath = process.env.AI_BENCHMARK_OUTPUT ?? `/tmp/rta-ai-benchmark-${Date.now()}.json`;
 
 const cases = [
-  { id: "public-landing", question: "What does RTA do and how is it secured?", role: "public", page: "/", expectedTool: "getPlatformHelp", context: { route: "/", entityType: "none" }, authenticated: false },
+  { id: "public-landing", question: "What does Dealer Flow do and how is it secured?", role: "public", page: "/", expectedTool: "getPlatformHelp", context: { route: "/", entityType: "none" }, authenticated: false },
   { id: "dashboard", question: "Summarize this month's authorized dashboard metrics.", page: "/app/overview", expectedTool: "getDashboardSummary", context: { route: "/app/overview", entityType: "none" }, authenticated: true },
   { id: "lead-detail", question: "What is the next best action for this lead?", page: "/app/leads", expectedTool: "getLeadNextAction", context: { route: "/app/leads", entityType: "lead", entityId: leadId }, authenticated: true, requires: leadId },
   { id: "inventory", question: "Recommend active vehicles for a practical budget-conscious buyer.", page: "/app/inventory", expectedTool: "recommendVehicles", context: { route: "/app/inventory", entityType: "vehicle" }, authenticated: true },

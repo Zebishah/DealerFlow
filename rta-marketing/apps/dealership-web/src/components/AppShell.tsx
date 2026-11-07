@@ -235,7 +235,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <button type="button" aria-expanded={mobileOpen} aria-controls="workspace-navigation" className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu /></button>
     {mobileOpen && <button type="button" data-dialog-backdrop tabIndex={-1} className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
     <aside ref={sideNav} id="workspace-navigation" className={`side-nav ${mobileOpen ? "open" : ""}`} role={isMobile ? "dialog" : undefined} aria-modal={isMobile && mobileOpen ? true : undefined} aria-label="Workspace navigation" aria-hidden={isMobile && !mobileOpen ? true : undefined} tabIndex={-1}>
-      <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>RTA</strong><span>DEALERSHIP INTELLIGENCE</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
+      <div className="brand-row"><div className="brand-symbol"><Car size={22} /></div><div><strong>Dealer Flow</strong><span>DEALERSHIP INTELLIGENCE</span></div><button onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X /></button></div>
       <div className="workspace-card"><span>WORKSPACE</span><strong>{workspace?.name ?? (user.workspaceId ? "Loading workspace…" : "Platform operations")}</strong><small><i />{user.workspaceId ? "Workspace operations" : "Acquisition control plane"}</small></div>
       <nav aria-label="Primary navigation">
         {renderNavGroup("WORKSPACE", workspacePaths)}
@@ -245,13 +245,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         {renderNavGroup("INTELLIGENCE", intelligencePaths)}
         {renderNavGroup("ADMINISTRATION", administrationPaths)}
       </nav>
-      <button className="side-intelligence" type="button" onClick={() => openRtaAssistant(askPrompt)}><span><Zap size={16} /></span><div><strong>A clearer next move.</strong><small>Ask your RTA assistant</small></div><ArrowUpRight size={14} /></button><div className="side-status"><span><ShieldCheck size={11} /> Role-aware workspace</span><small>People. Vehicles. Possibilities.</small></div>
+      <button className="side-intelligence" type="button" onClick={() => openRtaAssistant(askPrompt)}><span><Zap size={16} /></span><div><strong>A clearer next move.</strong><small>Ask your Dealer Flow assistant</small></div><ArrowUpRight size={14} /></button><div className="side-status"><span><ShieldCheck size={11} /> Role-aware workspace</span><small>People. Vehicles. Possibilities.</small></div>
     </aside>
     <main className="workspace-main">
       <header className="top-nav">
-        <div><span>RTA / YOUR CONNECTED WORKSPACE</span><h1 ref={pageHeading} tabIndex={-1}>{title}</h1><p>{subtitle}</p></div>
+        <div><span>Dealer Flow / YOUR CONNECTED WORKSPACE</span><h1 ref={pageHeading} tabIndex={-1}>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
-          <button className="ai-header-control" type="button" aria-label="Ask RTA AI" onClick={() => openRtaAssistant(askPrompt)}><MessageSquare size={15} /><span>Ask RTA AI</span></button>
+          <button className="ai-header-control" type="button" aria-label="Ask Dealer Flow AI" onClick={() => openRtaAssistant(askPrompt)}><MessageSquare size={15} /><span>Ask Dealer Flow AI</span></button>
           <div ref={notificationWrap} className="notification-wrap">
             <button ref={notificationTrigger} className="notification-control" type="button" onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); }} aria-label={`${notificationItems.length} customer operations notifications`} aria-expanded={notificationsOpen} aria-controls="workspace-notifications"><Inbox size={16} />{notificationItems.length > 0 && <b>{notificationItems.length}</b>}</button>
             {notificationsOpen && <section id="workspace-notifications" className="notification-menu" aria-label="Notifications">

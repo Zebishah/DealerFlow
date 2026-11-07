@@ -85,7 +85,7 @@ export function LoginPage() {
         <div className="login-form-wrap">
           <span className="mobile-brand">
             <CarFront />
-            RTA Operations
+            Dealer Flow Operations
           </span>
           <div>
             <span className="eyebrow">WELCOME BACK</span>
@@ -153,7 +153,7 @@ export function LoginPage() {
           )}
           <div className="auth-form-links">
             <span>
-              New to RTA? <Link to="/signup">Create account</Link>
+              New to Dealer Flow? <Link to="/signup">Create account</Link>
             </span>
             <Link to="/forgot-password">Forgot password?</Link>
           </div>
@@ -161,7 +161,7 @@ export function LoginPage() {
             <div>
               <ShieldCheck size={18} />
               <span>
-                <strong>Take RTA for a test drive</strong>
+                <strong>Take Dealer Flow for a test drive</strong>
                 <small>
                   Recruiters and evaluators: explore the product with safe, seeded demo data.
                 </small>

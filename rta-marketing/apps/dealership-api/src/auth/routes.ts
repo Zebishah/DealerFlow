@@ -149,7 +149,7 @@ authRouter.post(
     const rawToken = createOpaqueToken();
     const verificationExpiresAt = tokenExpiry(VERIFICATION_TOKEN_TTL_MINUTES);
     const created = await db.transaction(async (tx) => {
-      const [workspace] = await tx.insert(workspaces).values({ slug: `rta-${randomUUID()}`, name: `${firstName}'s RTA workspace`, mode: "demo" }).returning({ id: workspaces.id });
+      const [workspace] = await tx.insert(workspaces).values({ slug: `rta-${randomUUID()}`, name: `${firstName}'s Dealer Flow workspace`, mode: "demo" }).returning({ id: workspaces.id });
       if (!workspace) throw new Error("Failed to create workspace");
       const [user] = await tx.insert(users).values({
         workspaceId: workspace.id,

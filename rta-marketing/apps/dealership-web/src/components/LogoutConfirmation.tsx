@@ -31,7 +31,7 @@ export function LogoutConfirmation({ onClose, returnFocusRef }: { onClose(): voi
     }
   }
 
-  return <WorkflowModal open role="alertdialog" className="confirmation-modal" eyebrow="ACCOUNT" title="Sign out of RTA?" description="You’ll return to the sign-in page. Any unsaved changes on this page will be lost." busy={busy} onClose={onClose} initialFocusRef={cancel} returnFocusRef={returnFocusRef}>
+  return <WorkflowModal open role="alertdialog" className="confirmation-modal" eyebrow="ACCOUNT" title="Sign out of Dealer Flow?" description="You’ll return to the sign-in page. Any unsaved changes on this page will be lost." busy={busy} onClose={onClose} initialFocusRef={cancel} returnFocusRef={returnFocusRef}>
     <div className="confirmation-content">
       {error && <p className="form-error" role="alert">{error} Please try again to finish signing out.</p>}
       <footer className="modal-actions">

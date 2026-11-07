@@ -26,7 +26,7 @@ export class AppErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <main className="error-boundary" role="alert">
-          <span className="boot-logo">RTA</span>
+          <span className="boot-logo">Dealer Flow</span>
           <h1>Something went wrong</h1>
           <p>This workspace view could not be rendered safely.</p>
           <button type="button" onClick={() => window.location.reload()}>

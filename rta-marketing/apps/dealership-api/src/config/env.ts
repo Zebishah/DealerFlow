@@ -111,7 +111,7 @@ const envSchema = z
     DEMO_RECRUITER_PASSWORD: z.string().min(14).optional(),
     RESEND_API_KEY: optionalSecret,
     EMAIL_FROM: z.string().email().optional(),
-    EMAIL_FROM_NAME: z.string().trim().min(1).max(120).default("RTA Automotive Group"),
+    EMAIL_FROM_NAME: z.string().trim().min(1).max(120).default("Dealer Flow Automotive Group"),
     DEALERSHIP_WEB_URL: z.string().url().optional(),
     SCRAPING_WEB_URL: z.string().url().optional(),
     ADMIN_NOTIFICATION_EMAIL: z.string().trim().email().optional(),

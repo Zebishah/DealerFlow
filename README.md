@@ -1,6 +1,8 @@
-# RTA Automotive Operations & Vehicle Intelligence
+# Dealer Flow
 
-RTA is a role-aware dealership operations platform with leads, sales, targets,
+**AI-powered dealership operations and vehicle intelligence.**
+
+Dealer Flow is a role-aware dealership operations platform with leads, sales, targets,
 commissions, documents, audit history, analytics, grounded AI assistance, and
 approved vehicle intelligence.
 
@@ -20,15 +22,13 @@ Start with the [project guide](rta-marketing/README.md), then see the
 
 ## Live demo
 
-- Public landing page: `LIVE_DEMO_URL_TODO` (set the confirmed deployed URL
-  before sharing externally)
 - Recruiter access: use the seeded demo flow described in
   [`docs/PORTFOLIO.md`](rta-marketing/docs/PORTFOLIO.md); it uses sanitized data
   and role-limited access.
 
 ## Why this project matters
 
-RTA brings together dealership operations, vehicle intelligence, asynchronous
+Dealer Flow brings together dealership operations, vehicle intelligence, asynchronous
 source acquisition, grounded AI assistance, reliability/resilience,
 observability, and secure recruiter/demo access in one inspectable product.
 
@@ -57,3 +57,60 @@ The repository includes TypeScript checks, Vitest unit/integration coverage,
 Playwright business smoke flows, axe accessibility checks, linting, builds,
 database migrations, Docker definitions, and GitHub Actions CI. See the
 [portfolio brief](rta-marketing/docs/PORTFOLIO.md) for the quality boundary.
+
+## Repository layout
+
+| Path | Purpose |
+|---|---|
+| `rta-marketing/apps/dealership-web/` | React dealership workspace and public inventory |
+| `rta-marketing/apps/dealership-api/` | Express API, authentication, domain data, and Apify acquisition |
+| `rta-marketing/apps/scraping-actor/` | On-demand vehicle acquisition Actor |
+| `rta-marketing/apps/scraping-*` | Retained scraping applications and worker alternatives |
+| `rta-marketing/packages/` | Shared database, source adapters, contracts, and assistant UI |
+| `rta-marketing/docs/` | Architecture, operations, deployment, and portfolio evidence |
+
+## Local setup
+
+Use Node.js 22+, npm, and PostgreSQL. Start from the repository root:
+
+```bash
+git clone https://github.com/Zebishah/DealerFlow.git
+cd DealerFlow/rta-marketing
+npm ci
+cp apps/dealership-api/.env.example apps/dealership-api/.env
+cp apps/dealership-web/.env.example apps/dealership-web/.env
+docker compose up -d
+```
+
+Configure the API's database connection, independent session/CSRF secrets, allowed browser origin, and frontend URL. The Compose database uses the local credentials in `docker-compose.yml`; hosted Neon uses separate pooled and migration URLs. Follow the [environment guide](rta-marketing/docs/deployment/environment.md). Apify credentials are required for on-demand acquisition; Redis, document storage, email, and AI need their own configuration when enabled.
+
+```bash
+# From DealerFlow/rta-marketing/
+npm run db:migrate --workspace=@rta/dealership-api
+npm run dev:dealership-api
+```
+
+In another terminal:
+
+```bash
+# From DealerFlow/rta-marketing/
+npm run dev:dealership-web
+```
+
+The API example uses port 5000 and the web application uses port 5173. Seed only a disposable demonstration database using the documented seed configuration. See [Docker deployment](rta-marketing/docs/deployment/docker.md) for the full optional stack.
+
+## Development checks
+
+```bash
+# From DealerFlow/rta-marketing/
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Tests that require PostgreSQL, external providers, or browser execution need their corresponding test configuration. Provider and live-scraping validation are distinct from local unit checks.
+
+## Branding compatibility
+
+The product name is **Dealer Flow** across the interface, email, assistant, and documentation. Existing `rta-marketing/` paths, `@rta/*` workspace packages, database identifiers, and deployment addresses remain compatible with the existing infrastructure. Set `EMAIL_FROM_NAME=Dealer Flow` in deployments that already override the email sender name.

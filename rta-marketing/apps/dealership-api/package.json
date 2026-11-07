@@ -27,7 +27,7 @@
     "scraping"
   ],
   "license": "UNLICENSED",
-  "description": "RTA vehicle intelligence API and SQS ingestion worker",
+  "description": "Dealer Flow vehicle intelligence API and SQS ingestion worker",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",
     "@aws-sdk/client-sqs": "^3.1125.0",

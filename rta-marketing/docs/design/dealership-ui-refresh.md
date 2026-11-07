@@ -1,8 +1,8 @@
-# RTA dealership UI refresh
+# Dealer Flow dealership UI refresh
 
 The visual system retains the existing deep teal (`#091719`), coral (`#f16445`), and warm paper palette. The landing hero uses a centered editorial composition over a wide dealership photograph, with functional assistant and vehicle-discovery cards. Visitor paths distinguish dealership teams, vehicle buyers, and recruiters. Authentication and role-based workspaces share the same palette and showroom imagery.
 
-The page retains its existing live inventory integration, demo access, role restrictions, and assistant request flow. Decorative artwork does not represent a specific physical RTA dealership or a live inventory record.
+The page retains its existing live inventory integration, demo access, role restrictions, and assistant request flow. Decorative artwork does not represent a specific physical Dealer Flow dealership or a live inventory record.
 
 ## Generated asset
 

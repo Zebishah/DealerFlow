@@ -13,7 +13,7 @@ const stopOutboxDispatcher = env.SQS_INTEGRATION_ENABLED
   : () => undefined;
 
 server.listen(env.PORT, env.HOST, () => {
-  logger.info({ host: env.HOST, port: env.PORT }, "RTA API listening");
+  logger.info({ host: env.HOST, port: env.PORT }, "Dealer Flow API listening");
 });
 
 let stopping = false;

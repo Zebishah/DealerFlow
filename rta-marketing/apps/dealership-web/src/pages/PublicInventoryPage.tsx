@@ -49,7 +49,7 @@ export function PublicInventoryPage() {
       <div className="landing-section-frame">
         <p className="landing-eyebrow">REAL VEHICLES · LIVE SOURCE LISTINGS</p>
         <h1>Find your next<br /><span>vehicle signal.</span></h1>
-        <p>Browse current vehicles collected from Romans International, Tom Hartley and Redline Specialist Cars. Open original listings freely; sign in to compare vehicles in RTA.</p>
+        <p>Browse current vehicles collected from Romans International, Tom Hartley and Redline Specialist Cars. Open original listings freely; sign in to compare vehicles in Dealer Flow.</p>
         <div className="public-inventory-hero-meta"><span aria-live="polite">{inventory.isLoading ? <><Loader2 size={15} className="spin" /> Loading matching listings</> : <><Car size={15} /> {total.toLocaleString()} matching listings</>}</span><Link to="/login?next=%2Finventory">Sign in <ArrowRight size={14} /></Link></div>
       </div>
     </section>
@@ -78,7 +78,7 @@ export function PublicInventoryPage() {
         {!inventory.isLoading && !inventory.isError && items.length === 0 && <div className="public-inventory-state"><Car size={25} /><strong>No vehicles match those filters.</strong><span>Try a broader search or clear your filters.</span><button type="button" onClick={clearFilters}>Clear filters</button></div>}
 
         {result && total > 0 && <div className="public-inventory-pagination"><span>Showing {offset + 1}–{Math.min(offset + items.length, total)} of {total.toLocaleString()}</span><div><button type="button" disabled={offset === 0 || inventory.isFetching} onClick={() => setOffset((current) => Math.max(0, current - pageSize))}><ChevronLeft size={16} /> Previous</button><button type="button" disabled={!result.page.hasMore || inventory.isFetching} onClick={() => setOffset((current) => current + pageSize)}>More vehicles <ChevronRight size={16} /></button></div></div>}
-        <div className="public-inventory-login-cta"><div><span className="landing-eyebrow">READY TO COMPARE?</span><strong>Save vehicles and compare them side by side in RTA.</strong></div><Link className="landing-button landing-button--primary" to="/login?next=%2Finventory">Sign in to compare <ArrowRight size={15} /></Link></div>
+        <div className="public-inventory-login-cta"><div><span className="landing-eyebrow">READY TO COMPARE?</span><strong>Save vehicles and compare them side by side in Dealer Flow.</strong></div><Link className="landing-button landing-button--primary" to="/login?next=%2Finventory">Sign in to compare <ArrowRight size={15} /></Link></div>
       </div>
     </section>
     <LandingFooter browsePage />

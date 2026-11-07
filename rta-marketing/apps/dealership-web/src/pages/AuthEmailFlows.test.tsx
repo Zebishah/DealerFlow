@@ -28,7 +28,7 @@ it("shows the requested reset email and next steps, then lets the user correct t
   const heading = await screen.findByRole("heading", { name: "Check your inbox." });
   expect(heading).toHaveFocus();
   expect(screen.getByText("driver@example.com")).toBeVisible();
-  expect(screen.getByText(/If this email belongs to a verified RTA account/)).toBeVisible();
+  expect(screen.getByText(/If this email belongs to a verified Dealer Flow account/)).toBeVisible();
   expect(screen.getByText(/spam or junk/)).toBeVisible();
   expect(screen.getByRole("link", { name: "Back to sign in" })).toHaveAttribute("href", "/login");
   expect(screen.getByRole("button", { name: "Resend email in 60s" })).toBeDisabled();

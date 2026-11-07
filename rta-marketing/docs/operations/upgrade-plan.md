@@ -1,4 +1,4 @@
-# RTA Portfolio Upgrade Plan
+# Dealer Flow Portfolio Upgrade Plan
 
 > Historical baseline and upgrade record. Some findings describe the pre-hardening implementation and are intentionally retained as audit evidence; verify current behavior against the source, current API reference, and CI workflow before treating a finding as open.
 
@@ -232,7 +232,7 @@ Correctness rules:
 - One ingestion transaction upserts a validated listing and its observation atomically.
 - Run finalization marks listings not seen according to a measured grace policy; a single missing run must not immediately delete a listing.
 
-An outbox is not recommended initially because the HR Intelligence project already demonstrates it and RTA can reliably demonstrate queue idempotency plus reconciliation. Add an outbox only if a committed database state must atomically guarantee publication of another event and simpler reconciliation is insufficient.
+An outbox is not recommended initially because the HR Intelligence project already demonstrates it and Dealer Flow can reliably demonstrate queue idempotency plus reconciliation. Add an outbox only if a committed database state must atomically guarantee publication of another event and simpler reconciliation is insufficient.
 
 ## 11. Background jobs and recovery
 

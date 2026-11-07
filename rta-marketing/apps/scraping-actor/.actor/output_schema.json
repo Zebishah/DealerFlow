@@ -1,6 +1,6 @@
 {
   "actorOutputSchemaVersion": 1,
-  "title": "RTA Luxury Vehicle Scraper output",
+  "title": "Dealer Flow Luxury Vehicle Scraper output",
   "description": "Links to the scrape summary and the structured vehicle rows produced by this run.",
   "properties": {
     "result": {

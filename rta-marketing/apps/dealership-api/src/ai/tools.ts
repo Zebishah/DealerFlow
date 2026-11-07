@@ -116,12 +116,12 @@ function tool(
 export const assistantTools: readonly AssistantTool[] = [
   tool(
     "getPlatformHelp",
-    "Search verified RTA product, architecture, security, deployment, and workflow guidance. Public-safe.",
+    "Search verified Dealer Flow product, architecture, security, deployment, and workflow guidance. Public-safe.",
     helpArgs,
     { type: "object", properties: { topic: { type: "string", maxLength: 100 } } },
     async (rawArgs) => {
       const args = helpArgs.parse(rawArgs);
-      return { entries: searchKnowledge(args.topic || "RTA platform", 3).map(({ title, topic, content }) => ({ title, topic, content })) };
+      return { entries: searchKnowledge(args.topic || "Dealer Flow platform", 3).map(({ title, topic, content }) => ({ title, topic, content })) };
     },
     true,
   ),

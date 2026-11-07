@@ -1,6 +1,6 @@
 # Deployment overview
 
-RTA has a live dealership path and a preserved reference path. The dealership
+Dealer Flow has a live dealership path and a preserved reference path. The dealership
 dashboard uses Apify for approved international scraping; the AWS SQS/Lambda
 and BullMQ/Redis/Azure implementations remain available for portfolio
 inspection and legacy operation.

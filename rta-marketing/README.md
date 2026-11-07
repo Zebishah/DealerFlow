@@ -1,13 +1,13 @@
-# RTA — AI-Powered Automotive Dealership Operations & Vehicle Intelligence
+# Dealer Flow — AI-Powered Automotive Dealership Operations & Vehicle Intelligence
 
-RTA is a dealership operations platform with on-demand vehicle intelligence.
+Dealer Flow is a dealership operations platform with on-demand vehicle intelligence.
 The live dashboard runs approved vehicle scrapes through ephemeral Apify Actor
 runs and persists results into Neon. Upstash Redis is an ephemeral API layer for
 distributed request limits, AI quotas, and short-lived read caches; it is not a
 job queue or worker backend. The previous BullMQ/Redis/Azure implementation
 remains as a separate legacy reference architecture.
 
-The product includes a site-wide, read-only RTA Assistant. It combines curated
+The product includes a site-wide, read-only Dealer Flow Assistant. It combines curated
 product knowledge with role- and workspace-authorized tools for natural-language
 analytics, lead next actions, vehicle recommendations, listing comparisons,
 market-price explanations, sales-performance insights, and scraping
@@ -20,7 +20,7 @@ or start scraping jobs. Public/demo conversations use sanitized context.
 | Application | Responsibility | Production hosting |
 |---|---|---|
 | `apps/dealership-web` | Main dealership dashboard for leads, sales, documents, targets, commissions, team, audit, and vehicle intelligence | Vercel or static hosting |
-| `apps/dealership-api` | Main authenticated RTA API, PostgreSQL domain, S3 documents, and Apify dashboard integration | Render |
+| `apps/dealership-api` | Main authenticated Dealer Flow API, PostgreSQL domain, S3 documents, and Apify dashboard integration | Render |
 | `apps/scraping-web` | Legacy/reference scraping dashboard and persisted vehicle search | Vercel (legacy) |
 | `apps/scraping-api` | Legacy BullMQ job producer and scraping API | Render (legacy) |
 | `apps/scraping-worker` | Legacy Cheerio/Playwright queue consumer | Azure VM (not part of current Apify flow) |
@@ -111,7 +111,7 @@ scraper artifacts.
 
 ## Product presentation
 
-The landing page presents RTA as an AI-powered operating system for dealership
+The landing page presents Dealer Flow as an AI-powered operating system for dealership
 teams rather than as a generic chatbot. The public assistant is intentionally
 product-focused; authenticated users receive only the read-only tools permitted
 by their role and workspace. Provider configuration, free-tier setup, and

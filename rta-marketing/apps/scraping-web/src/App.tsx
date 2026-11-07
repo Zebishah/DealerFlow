@@ -209,9 +209,9 @@ export function App() {
 
   return (
     <main className="scraping-monitor">
-      <RtaAssistant authenticated={false} path="/scraping-monitor" request={askAssistant} productLabel="RTA Scraping Assistant" />
+      <RtaAssistant authenticated={false} path="/scraping-monitor" request={askAssistant} productLabel="Dealer Flow Scraping Assistant" />
       <header>
-        <div className="monitor-brand-row"><a className="monitor-brand" href={dealershipWebUrl}><span>R</span>RTA<span className="monitor-brand-label">VEHICLE INTELLIGENCE</span></a><a className="monitor-workspace-link" href={`${dealershipWebUrl}/login`}>Open dealership workspace ↗</a></div><p className="eyebrow">YOUR CONNECTED VEHICLE DATA WORKSPACE</p>
+        <div className="monitor-brand-row"><a className="monitor-brand" href={dealershipWebUrl}><span>R</span>Dealer Flow<span className="monitor-brand-label">VEHICLE INTELLIGENCE</span></a><a className="monitor-workspace-link" href={`${dealershipWebUrl}/login`}>Open dealership workspace ↗</a></div><p className="eyebrow">YOUR CONNECTED VEHICLE DATA WORKSPACE</p>
         <h1>Better data.<br /><span>A clearer next move.</span></h1>
         <p className="monitor-lede">Monitor approved vehicle sources, collect current listings, and keep every acquisition run in view.</p>
         <label className="limit-control">Vehicles per run

@@ -89,7 +89,7 @@ minimum, average, p50, p95, and maximum latency from executed requests.
 
 | Case | Question | Role | Page | Expected tool | Pass condition |
 |---|---|---|---|---|---|
-| Public landing | What does RTA do and how is it secured? | public | `/` | `getPlatformHelp` | Product answer; no operational records |
+| Public landing | What does Dealer Flow do and how is it secured? | public | `/` | `getPlatformHelp` | Product answer; no operational records |
 | Dashboard | Summarize this month's authorized dashboard metrics. | admin/recruiter | `/app/overview` | `getDashboardSummary` | Metrics are workspace-scoped and match dashboard totals |
 | Lead detail | What is the next best action for this lead? | recruiter/employee | `/app/leads` | `getLeadNextAction` | Status/timestamps match the selected authorized lead |
 | Inventory | Recommend active vehicles for a practical budget-conscious buyer. | recruiter/employee | `/app/inventory` | `recommendVehicles` | Every vehicle is an active persisted listing |

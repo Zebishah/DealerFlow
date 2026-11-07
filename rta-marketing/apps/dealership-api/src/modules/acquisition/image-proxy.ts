@@ -33,7 +33,7 @@ export async function fetchApprovedSourceImage(rawUrl: string, fetchImpl: typeof
           Referer: referer,
           "User-Agent": isRomansImage
             ? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            : "Mozilla/5.0 (compatible; RTA Inventory/1.0)",
+            : "Mozilla/5.0 (compatible; Dealer Flow Inventory/1.0)",
         },
         redirect: "manual",
         signal: AbortSignal.timeout(12_000),

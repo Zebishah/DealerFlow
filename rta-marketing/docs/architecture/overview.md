@@ -31,7 +31,7 @@ This document records design choices implemented in the portfolio branch. It avo
 
 ## System boundary
 
-RTA's current production application is a modular API and web frontend. Neon
+Dealer Flow's current production application is a modular API and web frontend. Neon
 PostgreSQL is the durable source of truth. Approved vehicle scraping is
 executed by short-lived Apify Actor runs started on demand; no permanent scraper
 worker is required. Upstash Redis is an ephemeral API-side layer for

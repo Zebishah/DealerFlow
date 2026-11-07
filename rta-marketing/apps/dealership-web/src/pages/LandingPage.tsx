@@ -16,7 +16,7 @@ import "../landing-experience.css";
 import "../landing-next.css";
 
 const githubUrl =
-  import.meta.env.VITE_GITHUB_URL ?? "https://github.com/Zebishah/Rta-mark";
+  import.meta.env.VITE_GITHUB_URL ?? "https://github.com/Zebishah/DealerFlow";
 
 // The public inventory route shares these pieces. Keep its compact catalog navigation intact.
 export function LandingNav({ browsePage = false }: { browsePage?: boolean }) {
@@ -51,13 +51,13 @@ export function LandingNav({ browsePage = false }: { browsePage?: boolean }) {
       <a
         className="landing-brand"
         href={browsePage ? "/" : "#top"}
-        aria-label="RTA home"
+        aria-label="Dealer Flow home"
       >
         <span className="landing-brand-mark">
           <Car size={19} strokeWidth={2} />
         </span>
         <span>
-          RTA<span className="landing-brand-dot">.</span>
+          Dealer Flow<span className="landing-brand-dot">.</span>
         </span>
       </a>
       <nav
@@ -69,7 +69,7 @@ export function LandingNav({ browsePage = false }: { browsePage?: boolean }) {
           The platform
         </a>
         <a href={section("ai-intelligence")} onClick={() => setOpen(false)}>
-          RTA intelligence
+          Dealer Flow intelligence
         </a>
         <Link to="/inventory" onClick={() => setOpen(false)}>
           Find a vehicle
@@ -121,7 +121,7 @@ function StudioHeader() {
   }, [open]);
   return (
     <header className="studio-header" ref={header}>
-      <a className="studio-brand" href="#top" aria-label="RTA home"><span><Car size={23} /></span>RTA<span className="studio-brand-dot">.</span></a>
+      <a className="studio-brand" href="#top" aria-label="Dealer Flow home"><span><Car size={23} /></span>Dealer Flow<span className="studio-brand-dot">.</span></a>
       <button ref={trigger} className="studio-menu" type="button" aria-label={open ? "Close menu" : "Open menu"} aria-controls="studio-navigation" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X /> : <Menu />}</button>
       <nav id="studio-navigation" className={open ? "is-open" : ""} aria-label="Primary navigation">
         <a href="#solutions" onClick={() => setOpen(false)}>The platform</a>
@@ -140,8 +140,8 @@ function StudioHero() {
       <div className="studio-hero-copy">
         <span className="studio-eyebrow"><i /> THE DEALERSHIP. CONNECTED.</span>
         <h1 id="studio-title">Great deals<br />start with<br /><span>real connections.</span></h1>
-        <p>From the first enquiry to handing over the keys. RTA connects your leads, sales, people, and vehicles in one clear workspace.</p>
-        <div className="studio-actions"><Link className="studio-button studio-button--dark" to="/login">Step inside RTA <ArrowUpRight size={19} /></Link><a className="studio-text-link" href="#solutions">See how it works <ArrowDown size={17} /></a></div>
+        <p>From the first enquiry to handing over the keys. Dealer Flow connects your leads, sales, people, and vehicles in one clear workspace.</p>
+        <div className="studio-actions"><Link className="studio-button studio-button--dark" to="/login">Step inside Dealer Flow <ArrowUpRight size={19} /></Link><a className="studio-text-link" href="#solutions">See how it works <ArrowDown size={17} /></a></div>
         <span className="studio-hero-note">Built for dealership teams. Open for you to explore.</span>
       </div>
       <div className="studio-hero-visual">
@@ -165,7 +165,7 @@ function WorkspacePreview({ mode }: { mode: typeof tourPanels[number]["id"] }) {
   const title = tourPanels.find((panel) => panel.id === mode)!.name;
   return (
     <div className="studio-app-preview">
-      <div className="studio-preview-top"><span className="studio-preview-brand">RTA<span>.</span></span><span>Dealership workspace</span><span className="studio-demo-tag">Example view</span></div>
+      <div className="studio-preview-top"><span className="studio-preview-brand">Dealer Flow<span>.</span></span><span>Dealership workspace</span><span className="studio-demo-tag">Example view</span></div>
       <div className="studio-preview-body">
         <aside aria-hidden="true"><span className="is-selected"><LayoutDashboard size={18} /></span><Users size={18} /><CalendarDays size={18} /><Car size={18} /><BarChart3 size={18} /></aside>
         <div className="studio-preview-main">
@@ -196,7 +196,7 @@ function ProductTour() {
         <div className="studio-section-heading"><div><span className="studio-eyebrow">A CLOSER LOOK AT THE PRODUCT</span><h2 id="tour-title">One workspace.<br />A better working day.</h2></div><p>Sales teams, managers, and virtual assistants get a connected view of the work—with the right access for their role.</p></div>
         <div className="studio-tour-layout">
           <div className="studio-tour-controls">
-            <div className="studio-tour-tabs" role="tablist" aria-label="Explore the RTA workspace" aria-orientation="vertical">{tourPanels.map(({ id, name, Icon }, index) => <button key={id} id={`workspace-tab-${id}`} type="button" role="tab" aria-selected={active === index} aria-controls="workspace-tour-panel" tabIndex={active === index ? 0 : -1} className={active === index ? "is-active" : ""} onClick={() => setActive(index)} onKeyDown={(event) => {
+            <div className="studio-tour-tabs" role="tablist" aria-label="Explore the Dealer Flow workspace" aria-orientation="vertical">{tourPanels.map(({ id, name, Icon }, index) => <button key={id} id={`workspace-tab-${id}`} type="button" role="tab" aria-selected={active === index} aria-controls="workspace-tour-panel" tabIndex={active === index ? 0 : -1} className={active === index ? "is-active" : ""} onClick={() => setActive(index)} onKeyDown={(event) => {
               let next = index;
               if (["ArrowDown", "ArrowRight"].includes(event.key)) next = (index + 1) % tourPanels.length;
               else if (["ArrowUp", "ArrowLeft"].includes(event.key)) next = (index - 1 + tourPanels.length) % tourPanels.length;
@@ -226,7 +226,7 @@ function OperationsStory() {
 function PerformanceStory() {
   return (
     <section className="studio-performance" aria-labelledby="performance-title"><div className="studio-frame studio-performance-layout">
-      <div className="studio-story-copy"><span className="studio-eyebrow">SALES, PEOPLE & PERFORMANCE</span><h2 id="performance-title">From a good<br />conversation<br /><em>to a clear result.</em></h2><p>See how the work is progressing, where the team stands, and what needs attention. RTA connects the sales ledger with the people behind each deal.</p><ul className="studio-check-list"><li><Check size={18} /> Sales records and funded deal tracking</li><li><Check size={18} /> Targets, pacing, and commissions</li><li><Check size={18} /> Analytics and personal performance</li><li><Check size={18} /> A shared team performance board</li></ul><Link className="studio-text-link" to="/login">Explore sales & performance <ArrowUpRight size={18} /></Link></div>
+      <div className="studio-story-copy"><span className="studio-eyebrow">SALES, PEOPLE & PERFORMANCE</span><h2 id="performance-title">From a good<br />conversation<br /><em>to a clear result.</em></h2><p>See how the work is progressing, where the team stands, and what needs attention. Dealer Flow connects the sales ledger with the people behind each deal.</p><ul className="studio-check-list"><li><Check size={18} /> Sales records and funded deal tracking</li><li><Check size={18} /> Targets, pacing, and commissions</li><li><Check size={18} /> Analytics and personal performance</li><li><Check size={18} /> A shared team performance board</li></ul><Link className="studio-text-link" to="/login">Explore sales & performance <ArrowUpRight size={18} /></Link></div>
       <div className="studio-performance-photo"><img src="/images/dealership-consultation.jpg" alt="A sales adviser and customer discussing a vehicle together inside a dealership" width={1400} height={933} loading="lazy" /><div><span><Users size={22} /></span><p><strong>A shared view of progress.</strong>From the showroom floor to the manager’s desk.</p></div></div>
     </div></section>
   );
@@ -240,14 +240,14 @@ const workspaceAreas = [
 ];
 function WorkspaceMap() {
   return (
-    <section className="studio-map studio-frame" id="workspace" aria-labelledby="map-title"><div className="studio-section-heading"><div><span className="studio-eyebrow">THE FULL PICTURE</span><h2 id="map-title">A place for every part<br />of your dealership.</h2></div><p>Explore what’s already inside RTA. Each workspace view is available according to role and permissions.</p></div><div className="studio-map-list">{workspaceAreas.map((area, index) => <details key={area.title} open={index === 0}><summary><span className="studio-map-number">0{index + 1}</span><span><strong>{area.title}</strong><small>{area.description}</small></span><Plus size={24} /></summary><div className="studio-map-detail"><ul>{area.items.map((item) => <li key={item}><Check size={17} />{item}</li>)}</ul></div></details>)}</div></section>
+    <section className="studio-map studio-frame" id="workspace" aria-labelledby="map-title"><div className="studio-section-heading"><div><span className="studio-eyebrow">THE FULL PICTURE</span><h2 id="map-title">A place for every part<br />of your dealership.</h2></div><p>Explore what’s already inside Dealer Flow. Each workspace view is available according to role and permissions.</p></div><div className="studio-map-list">{workspaceAreas.map((area, index) => <details key={area.title} open={index === 0}><summary><span className="studio-map-number">0{index + 1}</span><span><strong>{area.title}</strong><small>{area.description}</small></span><Plus size={24} /></summary><div className="studio-map-detail"><ul>{area.items.map((item) => <li key={item}><Check size={17} />{item}</li>)}</ul></div></details>)}</div></section>
   );
 }
 
 function IntelligenceSection() {
   const prompts = ["Which leads need attention?", "What should the team focus on today?", "Help me understand our sales performance."];
   return (
-    <section className="studio-intelligence" id="ai-intelligence" aria-labelledby="intelligence-title"><div className="studio-frame studio-intelligence-layout"><div><span className="studio-eyebrow"><Sparkles size={17} /> RTA INTELLIGENCE</span><h2 id="intelligence-title">Your workspace.<br /><em>In conversation.</em></h2><p>Ask about leads, inventory, sales, and performance in everyday language. RTA’s built-in assistant uses authorized workspace data to help you understand what’s happening.</p><span className="studio-ai-note"><ShieldCheck size={18} /> Read-only assistance. Access follows your permissions.</span></div><div className="studio-questions"><span>START WITH A QUESTION</span>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => openRtaAssistant(prompt)}>{prompt}<ArrowUpRight size={21} /></button>)}<p>Try the assistant here. Sign in for workspace-specific answers.</p></div></div></section>
+    <section className="studio-intelligence" id="ai-intelligence" aria-labelledby="intelligence-title"><div className="studio-frame studio-intelligence-layout"><div><span className="studio-eyebrow"><Sparkles size={17} /> Dealer Flow INTELLIGENCE</span><h2 id="intelligence-title">Your workspace.<br /><em>In conversation.</em></h2><p>Ask about leads, inventory, sales, and performance in everyday language. Dealer Flow’s built-in assistant uses authorized workspace data to help you understand what’s happening.</p><span className="studio-ai-note"><ShieldCheck size={18} /> Read-only assistance. Access follows your permissions.</span></div><div className="studio-questions"><span>START WITH A QUESTION</span>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => openRtaAssistant(prompt)}>{prompt}<ArrowUpRight size={21} /></button>)}<p>Try the assistant here. Sign in for workspace-specific answers.</p></div></div></section>
   );
 }
 
@@ -267,7 +267,7 @@ function LiveInventory() {
 
 function EngineeringSection() {
   return (
-    <section className="studio-engineering studio-frame" id="architecture" aria-labelledby="engineering-title"><div><span className="studio-eyebrow">FOR THE CURIOUS. AND THE TECHNICALLY CURIOUS.</span><h2 id="engineering-title">Thought through.<br />From interface to infrastructure.</h2><p>RTA is a working full-stack product: dealership operations, vehicle acquisition, and a grounded assistant connected through a shared platform.</p><a className="studio-text-link" href={githubUrl} target="_blank" rel="noreferrer">Explore the code <ExternalLink size={17} /></a></div><div className="studio-engineering-details"><details><summary>The application <Plus size={20} /></summary><p>React and TypeScript interfaces backed by Node.js, Express, and PostgreSQL. Separate workflows support dealership teams, public vehicle discovery, and acquisition operations.</p></details><details><summary>Data & vehicle sourcing <Plus size={20} /></summary><p>Explicit, on-demand Apify collection from approved vehicle sources. Stored listings preserve their original source details, and acquisition views expose run status and diagnostics.</p></details><details><summary>Workspace boundaries <Plus size={20} /></summary><p>Role checks and workspace isolation control access. Private documents, access request review, and an audit history support accountable operations.</p></details><details><summary>The recruiter walkthrough <Plus size={20} /></summary><p>Use the recruiter demo on the sign-in screen to explore the implemented workflows. Source controls and administrator actions retain their role restrictions.</p><Link to="/login">Open the demo <ArrowUpRight size={16} /></Link></details></div></section>
+    <section className="studio-engineering studio-frame" id="architecture" aria-labelledby="engineering-title"><div><span className="studio-eyebrow">FOR THE CURIOUS. AND THE TECHNICALLY CURIOUS.</span><h2 id="engineering-title">Thought through.<br />From interface to infrastructure.</h2><p>Dealer Flow is a working full-stack product: dealership operations, vehicle acquisition, and a grounded assistant connected through a shared platform.</p><a className="studio-text-link" href={githubUrl} target="_blank" rel="noreferrer">Explore the code <ExternalLink size={17} /></a></div><div className="studio-engineering-details"><details><summary>The application <Plus size={20} /></summary><p>React and TypeScript interfaces backed by Node.js, Express, and PostgreSQL. Separate workflows support dealership teams, public vehicle discovery, and acquisition operations.</p></details><details><summary>Data & vehicle sourcing <Plus size={20} /></summary><p>Explicit, on-demand Apify collection from approved vehicle sources. Stored listings preserve their original source details, and acquisition views expose run status and diagnostics.</p></details><details><summary>Workspace boundaries <Plus size={20} /></summary><p>Role checks and workspace isolation control access. Private documents, access request review, and an audit history support accountable operations.</p></details><details><summary>The recruiter walkthrough <Plus size={20} /></summary><p>Use the recruiter demo on the sign-in screen to explore the implemented workflows. Source controls and administrator actions retain their role restrictions.</p><Link to="/login">Open the demo <ArrowUpRight size={16} /></Link></details></div></section>
   );
 }
 
@@ -285,13 +285,13 @@ export function LandingFooter({
             <a
               className="landing-brand"
               href={browsePage ? "/" : "#top"}
-              aria-label="RTA home"
+              aria-label="Dealer Flow home"
             >
               <span className="landing-brand-mark">
                 <Car size={17} />
               </span>
               <span>
-                RTA<span className="landing-brand-dot">.</span>
+                Dealer Flow<span className="landing-brand-dot">.</span>
               </span>
             </a>
             <p>
@@ -313,7 +313,7 @@ export function LandingFooter({
           </div>
         </div>
         <div className="landing-footer-bottom">
-          <span>© 2026 RTA platform</span>
+          <span>© 2026 Dealer Flow platform</span>
           <span>
             Dealership operations. Vehicle discovery. Connected intelligence.
           </span>
@@ -335,7 +335,7 @@ export function LandingPage() {
       <IntelligenceSection />
       <LiveInventory />
       <EngineeringSection />
-      <section className="studio-final"><div className="studio-frame"><span className="studio-eyebrow">THE NEXT CONVERSATION STARTS HERE.</span><h2>Meet your dealership’s<br /><em>next working day.</em></h2><div className="studio-actions"><Link className="studio-button studio-button--orange" to="/login">Explore the live demo <ArrowUpRight size={20} /></Link><Link className="studio-button studio-button--outline" to="/signup">Get started with RTA <ArrowUpRight size={20} /></Link></div><p>Exploring for your dealership? Start with the demo.<br />Reviewing the project? Use recruiter access on the sign-in screen.</p></div></section>
+      <section className="studio-final"><div className="studio-frame"><span className="studio-eyebrow">THE NEXT CONVERSATION STARTS HERE.</span><h2>Meet your dealership’s<br /><em>next working day.</em></h2><div className="studio-actions"><Link className="studio-button studio-button--orange" to="/login">Explore the live demo <ArrowUpRight size={20} /></Link><Link className="studio-button studio-button--outline" to="/signup">Get started with Dealer Flow <ArrowUpRight size={20} /></Link></div><p>Exploring for your dealership? Start with the demo.<br />Reviewing the project? Use recruiter access on the sign-in screen.</p></div></section>
       <LandingFooter />
     </main>
   );
