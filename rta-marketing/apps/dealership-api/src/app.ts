@@ -77,6 +77,16 @@ export function createApp() {
   app.use(optionalSession);
   app.use("/api/v1", requirePasswordChange);
 
+  app.get("/", (_request, response) => {
+    response.json({
+      service: "Dealer Flow API",
+      message: "Dealer Flow backend is running.",
+      apiBase: "/api/v1",
+      health: "/health/live",
+      readiness: "/health/ready",
+    });
+  });
+
   app.get("/health/live", (_request, response) => response.json({ status: "ok" }));
   app.get("/health/ready", async (_request, response, next) => {
     try {

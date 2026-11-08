@@ -42,6 +42,16 @@ async function withServer(
 
 void test("liveness and public capabilities expose stable API contracts", async () => {
   await withServer(async ({ baseUrl }) => {
+    const rootResponse = await fetch(baseUrl);
+    assert.equal(rootResponse.status, 200);
+    assert.deepEqual(await rootResponse.json(), {
+      service: "Dealer Flow API",
+      message: "Dealer Flow backend is running.",
+      apiBase: "/api/v1",
+      health: "/health/live",
+      readiness: "/health/ready",
+    });
+
     const liveResponse = await fetch(`${baseUrl}/health/live`);
     assert.equal(liveResponse.status, 200);
     assert.deepEqual(await liveResponse.json(), { status: "ok" });
