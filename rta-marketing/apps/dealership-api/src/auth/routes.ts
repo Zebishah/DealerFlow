@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Response } from "express";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createOpaqueToken, hashOpaqueToken, RESET_TOKEN_TTL_MINUTES, splitFullName, tokenExpiry, VERIFICATION_TOKEN_TTL_MINUTES } from "./tokens.js";
 import { env } from "../config/env.js";
@@ -198,7 +198,12 @@ const verifyEmailHandler = asyncHandler(async (request, response) => {
     }
     if (user.emailVerifiedAt) return response.json({ data: { status: "already_verified" } });
     await db.transaction(async (tx) => {
-      await tx.update(users).set({ emailVerifiedAt: new Date(), emailVerificationTokenHash: null, emailVerificationExpiresAt: null, emailVerificationSentAt: null, updatedAt: new Date() }).where(and(eq(users.id, user.id), eq(users.emailVerificationTokenHash, tokenHash)));
+      const [updated] = await tx.update(users)
+        .set({ emailVerifiedAt: new Date(), emailVerificationTokenHash: null, emailVerificationExpiresAt: null, emailVerificationSentAt: null, updatedAt: new Date() })
+        .where(and(eq(users.id, user.id), eq(users.emailVerificationTokenHash, tokenHash),
+          isNull(users.emailVerifiedAt), sql`${users.emailVerificationExpiresAt} > NOW()`))
+        .returning({ id: users.id });
+      if (!updated) throw new AppError(400, "INVALID_VERIFICATION_TOKEN", "This verification link is invalid or has already been used.");
       if (user.workspaceId) await tx.insert(auditEvents).values({ workspaceId: user.workspaceId, actorUserId: user.id, action: "user.email_verified", entityType: "user", entityId: user.id });
     });
     response.json({ data: { status: "verified" } });
