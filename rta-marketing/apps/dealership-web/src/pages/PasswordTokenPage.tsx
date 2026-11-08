@@ -1,5 +1,5 @@
 import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { api, ApiError } from "../lib/api";
 import { Link } from "../router/Navigation";
@@ -7,7 +7,16 @@ import { AuthBrand } from "../components/AuthBrand";
 import { AuthPageLayout } from "../components/AuthPageLayout";
 
 export function PasswordTokenPage({ mode }: { mode: "reset" | "setup" }) {
-  const token = new URLSearchParams(window.location.search).get("token") ?? "";
+  const [token] = useState(() => {
+    const fragment = new URLSearchParams(window.location.hash.slice(1)).get("token");
+    const legacyQuery = new URLSearchParams(window.location.search).get("token");
+    return fragment ?? legacyQuery ?? "";
+  });
+  // Scrub sensitive reset or invitation tokens from the address bar before submission.
+  // This also supports older email links which placed the token in a query parameter.
+  useEffect(() => {
+    if (token) window.history.replaceState(window.history.state, "", window.location.pathname);
+  }, [token]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [done, setDone] = useState(false);

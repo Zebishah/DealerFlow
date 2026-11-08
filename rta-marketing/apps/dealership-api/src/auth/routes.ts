@@ -132,7 +132,7 @@ async function sendVerification(user: NonNullable<Awaited<ReturnType<typeof find
   const rawToken = createOpaqueToken();
   const expiresAt = tokenExpiry(VERIFICATION_TOKEN_TTL_MINUTES);
   await db.update(users).set({ emailVerificationTokenHash: hashOpaqueToken(rawToken), emailVerificationExpiresAt: expiresAt, emailVerificationSentAt: new Date(), updatedAt: new Date() }).where(eq(users.id, user.id));
-  return sendEmailSafely(addressEmail(verificationEmail(displayName(user), publicUrl(`/verify-email?token=${encodeURIComponent(rawToken)}`), VERIFICATION_TOKEN_TTL_MINUTES, useCase), { email: user.email, name: displayName(user) }), useCase);
+  return sendEmailSafely(addressEmail(verificationEmail(displayName(user), publicUrl(`/verify-email#token=${encodeURIComponent(rawToken)}`), VERIFICATION_TOKEN_TTL_MINUTES, useCase), { email: user.email, name: displayName(user) }), useCase);
 }
 
 export const authRouter = Router();
@@ -166,7 +166,7 @@ authRouter.post(
       await tx.insert(auditEvents).values({ workspaceId: workspace.id, actorUserId: user.id, action: "user.signup", entityType: "user", entityId: user.id });
       return { ...user, firstName, lastName };
     });
-    const delivered = await sendEmailSafely(addressEmail(verificationEmail(input.fullName, publicUrl(`/verify-email?token=${encodeURIComponent(rawToken)}`), VERIFICATION_TOKEN_TTL_MINUTES), { email, name: input.fullName }), "verify_email");
+    const delivered = await sendEmailSafely(addressEmail(verificationEmail(input.fullName, publicUrl(`/verify-email#token=${encodeURIComponent(rawToken)}`), VERIFICATION_TOKEN_TTL_MINUTES), { email, name: input.fullName }), "verify_email");
     response.status(202).json({ data: { email: created.email, verificationRequired: true, emailDelivery: delivered ? "sent" : "pending" } });
   }),
 );
@@ -185,10 +185,10 @@ authRouter.post(
   }),
 );
 
-authRouter.get(
-  "/verify-email",
-  asyncHandler(async (request, response) => {
-    const { token } = tokenSchema.parse(request.query);
+const verifyEmailHandler = asyncHandler(async (request, response) => {
+    // New clients send the token in the POST body to avoid logging it in URL query strings.
+    // GET remains temporarily supported for previously issued verification emails.
+    const { token } = tokenSchema.parse(request.method === "POST" ? request.body : request.query);
     const tokenHash = hashOpaqueToken(token);
     const [user] = await db.select({ id: users.id, workspaceId: users.workspaceId, emailVerifiedAt: users.emailVerifiedAt, expiresAt: users.emailVerificationExpiresAt }).from(users).where(eq(users.emailVerificationTokenHash, tokenHash)).limit(1);
     if (!user) throw new AppError(400, "INVALID_VERIFICATION_TOKEN", "This verification link is invalid or has already been used.");
@@ -202,8 +202,10 @@ authRouter.get(
       if (user.workspaceId) await tx.insert(auditEvents).values({ workspaceId: user.workspaceId, actorUserId: user.id, action: "user.email_verified", entityType: "user", entityId: user.id });
     });
     response.json({ data: { status: "verified" } });
-  }),
-);
+});
+
+authRouter.get("/verify-email", verifyEmailHandler);
+authRouter.post("/verify-email", verificationLimiter, verifyEmailHandler);
 
 authRouter.post(
   "/forgot-password",
@@ -215,7 +217,7 @@ authRouter.post(
       const rawToken = createOpaqueToken();
       const expiresAt = tokenExpiry(RESET_TOKEN_TTL_MINUTES);
       await db.update(users).set({ passwordResetTokenHash: hashOpaqueToken(rawToken), passwordResetExpiresAt: expiresAt, updatedAt: new Date() }).where(eq(users.id, user.id));
-      await sendEmailSafely(addressEmail(passwordResetEmail(displayName(user), publicUrl(`/reset-password?token=${encodeURIComponent(rawToken)}`), RESET_TOKEN_TTL_MINUTES), { email: user.email, name: displayName(user) }), "password_reset");
+      await sendEmailSafely(addressEmail(passwordResetEmail(displayName(user), publicUrl(`/reset-password#token=${encodeURIComponent(rawToken)}`), RESET_TOKEN_TTL_MINUTES), { email: user.email, name: displayName(user) }), "password_reset");
     }
     response.status(202).json({ data: { message: "If an account exists for that email address, we've sent password reset instructions." } });
   }),
@@ -232,7 +234,7 @@ authRouter.post(
       throw new AppError(400, "INVALID_RESET_TOKEN", "This password reset link is invalid or has expired.");
     }
     await db.transaction(async (tx) => {
-      const [updated] = await tx.update(users).set({ passwordHash: hashPassword(input.password), passwordResetTokenHash: null, passwordResetExpiresAt: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() }).where(and(eq(users.id, user.id), eq(users.passwordResetTokenHash, tokenHash))).returning({ id: users.id });
+      const [updated] = await tx.update(users).set({ passwordHash: hashPassword(input.password), passwordResetTokenHash: null, passwordResetExpiresAt: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() }).where(and(eq(users.id, user.id), eq(users.passwordResetTokenHash, tokenHash), sql`${users.passwordResetExpiresAt} > NOW()`)).returning({ id: users.id });
       if (!updated) throw new AppError(400, "INVALID_RESET_TOKEN", "This password reset link is invalid or has expired.");
       await tx.delete(sessions).where(eq(sessions.userId, user.id));
       if (user.workspaceId) await tx.insert(auditEvents).values({ workspaceId: user.workspaceId, actorUserId: user.id, action: "user.password_reset_completed", entityType: "user", entityId: user.id });

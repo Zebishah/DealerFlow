@@ -8,7 +8,7 @@ import { VerifyEmailPage } from "./VerifyEmailPage";
 vi.mock("../lib/api", async (importOriginal) => ({ ...await importOriginal<typeof import("../lib/api")>(), api: vi.fn() }));
 beforeEach(() => {
   vi.mocked(api).mockReset();
-  window.history.replaceState({}, "", "/verify-email?token=single-use-token");
+  window.history.replaceState({}, "", "/verify-email#token=single-use-token");
 });
 afterEach(cleanup);
 
@@ -16,7 +16,8 @@ it("submits a single-use verification token once when Strict Mode restarts the e
   vi.mocked(api).mockResolvedValue({ data: { status: "verified" } });
   render(<StrictMode><NavigationProvider><VerifyEmailPage /></NavigationProvider></StrictMode>);
   expect(await screen.findByRole("heading", { name: "Email verified." })).toBeVisible();
-  expect(api).toHaveBeenCalledExactlyOnceWith("/auth/verify-email?token=single-use-token");
+  expect(api).toHaveBeenCalledExactlyOnceWith("/auth/verify-email", { method: "POST", body: JSON.stringify({ token: "single-use-token" }) });
+  expect(window.location.href).not.toContain("single-use-token");
 });
 
 it("offers a retry for connection failures and preserves the verification token", async () => {

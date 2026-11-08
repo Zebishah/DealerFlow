@@ -9,18 +9,27 @@ type VerificationState = "verifying" | "verified" | "already_verified" | "expire
 type VerificationResult = { data: { status: "verified" | "already_verified" } };
 
 export function VerifyEmailPage() {
-  const token = new URLSearchParams(window.location.search).get("token");
+  const [token] = useState(() => {
+    const fragment = new URLSearchParams(window.location.hash.slice(1)).get("token");
+    const legacyQuery = new URLSearchParams(window.location.search).get("token");
+    return fragment ?? legacyQuery;
+  });
   const [state, setState] = useState<VerificationState>(token ? "verifying" : "invalid");
   const [attempt, setAttempt] = useState(0);
   const request = useRef<{ token: string; promise: Promise<VerificationResult> } | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
+    // Remove one-time credentials from browser history before any verification request.
+    if (token) window.history.replaceState(window.history.state, "", window.location.pathname);
+  }, [token]);
+
+  useEffect(() => {
     if (!token) return;
     let active = true;
     // Strict Mode can restart the effect; a single-use link must only be submitted once.
     if (request.current?.token !== token) {
-      request.current = { token, promise: api<VerificationResult>(`/auth/verify-email?token=${encodeURIComponent(token)}`) };
+      request.current = { token, promise: api<VerificationResult>("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }) };
     }
     request.current.promise
       .then((result) => { if (active) setState(result.data.status); })
