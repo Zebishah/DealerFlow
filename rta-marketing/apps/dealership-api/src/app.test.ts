@@ -239,8 +239,8 @@ void test(
     );
     await pool.query(
       `insert into users
-         (id, workspace_id, email, password_hash, first_name, last_name, role)
-       values ($1, $2, $3, $4, 'API', 'Tester', 'admin')`,
+         (id, workspace_id, email, password_hash, first_name, last_name, role, email_verified_at)
+       values ($1, $2, $3, $4, 'API', 'Tester', 'admin', now())`,
       [userId, workspaceId, email, hashPassword(password)],
     );
 
@@ -333,8 +333,8 @@ void test(
       [workspaceId, `documents-${workspaceId}`],
     );
     await pool.query(
-      `insert into users (id, workspace_id, email, password_hash, role)
-       values ($1, $2, $3, $4, 'admin')`,
+      `insert into users (id, workspace_id, email, password_hash, role, email_verified_at)
+       values ($1, $2, $3, $4, 'admin', now())`,
       [userId, workspaceId, email, hashPassword(password)],
     );
     await pool.query(
@@ -385,8 +385,8 @@ void test(
       [workspaceId, `viewer-boundary-${workspaceId}`],
     );
     await pool.query(
-      `insert into users (id, workspace_id, email, password_hash, role)
-       values ($1, $2, $3, $4, 'viewer'), ($5, $2, $6, $4, 'employee')`,
+      `insert into users (id, workspace_id, email, password_hash, role, email_verified_at)
+       values ($1, $2, $3, $4, 'viewer', now()), ($5, $2, $6, $4, 'employee', now())`,
       [viewerId, workspaceId, viewerEmail, hashPassword(password), salespersonId, `seller-${crypto.randomUUID()}@rta.test`],
     );
     await pool.query(
@@ -448,8 +448,8 @@ void test(
       [workspaceId, otherWorkspaceId, `assignment-${workspaceId}`, `other-${otherWorkspaceId}`],
     );
     await pool.query(
-      `insert into users (id, workspace_id, email, password_hash, role)
-       values ($1, $2, $3, $4, 'employee'), ($5, $6, $7, $4, 'employee')`,
+      `insert into users (id, workspace_id, email, password_hash, role, email_verified_at)
+       values ($1, $2, $3, $4, 'employee', now()), ($5, $6, $7, $4, 'employee', now())`,
       [employeeId, workspaceId, email, hashPassword(password), otherEmployeeId, otherWorkspaceId, `other-${crypto.randomUUID()}@rta.test`],
     );
     await pool.query(
