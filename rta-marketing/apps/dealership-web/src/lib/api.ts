@@ -54,11 +54,20 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (csrfToken && init.method && init.method !== "GET") headers.set("x-csrf-token", csrfToken);
 
-  let response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: "include",
-  });
+  const send = async (requestHeaders: Headers): Promise<Response> => {
+    try {
+      return await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: requestHeaders,
+        credentials: "include",
+      });
+    } catch (error) {
+      if (init.signal?.aborted) throw error;
+      throw new ApiError(0, "NETWORK_ERROR", "We couldn’t connect to Dealer Flow. Check your connection and try again.");
+    }
+  };
+
+  let response = await send(headers);
 
   // A CSRF token is session-bound and can be rotated by another tab or by
   // the session bootstrap request. Refresh it once, then retry the original
@@ -76,11 +85,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       if (init.body && !retryHeaders.has("content-type")) retryHeaders.set("content-type", "application/json");
       const refreshedToken = sessionStorage.getItem("rta-csrf-token");
       if (refreshedToken) retryHeaders.set("x-csrf-token", refreshedToken);
-      response = await fetch(`${API_URL}${path}`, {
-        ...init,
-        headers: retryHeaders,
-        credentials: "include",
-      });
+      response = await send(retryHeaders);
     }
   }
 
@@ -88,15 +93,25 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const payload = await response.json().catch(() => null) as {
       error?: { code?: string; message?: string; requestId?: string };
     } | null;
+    const detail = payload?.error?.message;
     throw new ApiError(
       response.status,
       payload?.error?.code ?? "REQUEST_FAILED",
-      payload?.error?.message ?? "The request could not be completed",
-      payload?.error?.requestId,
+      response.status >= 500
+        ? "Dealer Flow couldn’t complete the request. Please try again shortly."
+        : (typeof detail === "string" && detail.trim()) || (response.status === 429
+          ? "Too many requests. Wait a moment and try again."
+          : "The request could not be completed. Please try again."),
+      payload?.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
     );
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  try {
+    return await response.json() as T;
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    throw new ApiError(502, "INVALID_RESPONSE", "Dealer Flow returned an unexpected response. Please try again.", response.headers.get("x-request-id") ?? undefined);
+  }
 }
 
 export function idempotentJson(
