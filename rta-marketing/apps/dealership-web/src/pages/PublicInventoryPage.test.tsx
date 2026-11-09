@@ -99,7 +99,7 @@ describe("public live inventory", () => {
 
     expect(await screen.findByText("2024 Ferrari Roma 1")).toBeInTheDocument();
     expect(container.querySelectorAll(".landing-vehicle-cards .public-vehicle-card")).toHaveLength(4);
-    expect(screen.getByRole("link", { name: "View more vehicles" })).toHaveAttribute("href", "/inventory");
+    expect(screen.getByRole("link", { name: "Browse all vehicles" })).toHaveAttribute("href", "/inventory");
     expect(screen.queryByText(/AutoTrader Canada|demo only|Sanitized preview data/i)).not.toBeInTheDocument();
     queryClient.clear();
   });
