@@ -1,4 +1,5 @@
 import dns from "node:dns";
+import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
@@ -20,7 +21,7 @@ const migrationDb = drizzle(migrationPool);
 async function main(): Promise<void> {
   try {
     await migrate(migrationDb, {
-      migrationsFolder: "drizzle",
+      migrationsFolder: resolve(__dirname, "../../drizzle"),
     });
 
     console.log("Database migrations completed");
