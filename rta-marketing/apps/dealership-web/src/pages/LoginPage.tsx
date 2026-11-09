@@ -28,9 +28,6 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [verificationEmail, setVerificationEmail] = useState<string | null>(
-    null,
-  );
   if (user) return <Redirect to={loginReturnPath()} />;
 
   async function submit(event: FormEvent) {
@@ -38,17 +35,16 @@ export function LoginPage() {
     if (submitting) return;
     setSubmitting(true);
     setErrorMessage("");
-    setVerificationEmail(null);
     try {
       await login(email, password);
       navigate(loginReturnPath(), { replace: true });
       toast.success("Welcome back");
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.code === "EMAIL_VERIFICATION_REQUIRED"
-      )
-        setVerificationEmail(email.trim());
+      if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
+        // Email-link verification has a dedicated page; keep the sign-in view uncluttered.
+        navigate(`/resend-verification?email=${encodeURIComponent(email.trim())}`, { replace: true });
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : "Sign in failed");
     } finally {
       setSubmitting(false);
@@ -138,19 +134,6 @@ export function LoginPage() {
               )}
             </button>
           </form>
-          {verificationEmail && (
-            <div className="verification-required">
-              <strong>Email verification required</strong>
-              <span>
-                Verify your email address before opening the workspace.
-              </span>
-              <Link
-                to={`/resend-verification?email=${encodeURIComponent(verificationEmail)}`}
-              >
-                Resend verification email
-              </Link>
-            </div>
-          )}
           <div className="auth-form-links">
             <span>
               New to Dealer Flow? <Link to="/signup">Create account</Link>
