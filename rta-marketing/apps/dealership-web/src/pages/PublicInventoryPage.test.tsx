@@ -57,7 +57,7 @@ describe("public live inventory", () => {
     const { container, queryClient } = renderPage(<LandingPage />);
 
     expect(screen.getByRole("status", { name: "Loading vehicle listings" })).toBeInTheDocument();
-    expect(container.querySelectorAll(".public-vehicle-skeleton")).toHaveLength(8);
+    expect(container.querySelectorAll(".public-vehicle-skeleton")).toHaveLength(4);
     queryClient.clear();
   });
 
@@ -93,12 +93,12 @@ describe("public live inventory", () => {
     queryClient.clear();
   });
 
-  it("shows eight current API records in the landing-page featured section", async () => {
+  it("shows four featured records while keeping the full inventory browseable", async () => {
     mocks.api.mockResolvedValue(response);
     const { container, queryClient } = renderPage(<LandingPage />);
 
     expect(await screen.findByText("2024 Ferrari Roma 1")).toBeInTheDocument();
-    expect(container.querySelectorAll(".landing-vehicle-cards .public-vehicle-card")).toHaveLength(8);
+    expect(container.querySelectorAll(".landing-vehicle-cards .public-vehicle-card")).toHaveLength(4);
     expect(screen.getByRole("link", { name: "View more vehicles" })).toHaveAttribute("href", "/inventory");
     expect(screen.queryByText(/AutoTrader Canada|demo only|Sanitized preview data/i)).not.toBeInTheDocument();
     queryClient.clear();
