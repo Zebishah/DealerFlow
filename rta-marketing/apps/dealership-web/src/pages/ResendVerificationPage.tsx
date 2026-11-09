@@ -1,3 +1,4 @@
+import { LoadingButton } from "../components/LoadingButton";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "../lib/api";
@@ -50,9 +51,7 @@ export function ResendVerificationPage() {
           <form className="auth-form" onSubmit={submit} aria-busy={submitting}>
             <label>Email address<input ref={emailInput} type="email" autoComplete="email" required value={email} disabled={submitting} onChange={(event) => setEmail(event.target.value)} /></label>
             {error && <p className="auth-email-error" role="alert">{error}</p>}
-            <button className="submit-button" disabled={submitting}>
-              {submitting ? "Sending…" : <>Resend verification email <ArrowRight size={17} /></>}
-            </button>
+            <LoadingButton className="submit-button" type="submit" loading={submitting} loadingLabel="Sending verification…">Resend verification email <ArrowRight size={17} /></LoadingButton>
           </form>
           <Link className="auth-back-link" to="/login"><ArrowLeft size={15} /> Back to sign in</Link>
         </>

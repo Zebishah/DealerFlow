@@ -1,3 +1,4 @@
+import { LoadingButton } from "../components/LoadingButton";
 import {
   ArrowRight,
   Car as CarFront,
@@ -124,15 +125,9 @@ export function LoginPage() {
               </div>
             </label>
             {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
-            <button className="submit-button" disabled={submitting}>
-              {submitting ? (
-                "Signing in…"
-              ) : (
-                <>
-                  Sign in securely <ArrowRight size={18} />
-                </>
-              )}
-            </button>
+            <LoadingButton className="submit-button" loading={submitting} loadingLabel="Signing in…" type="submit">
+              Sign in securely <ArrowRight size={18} />
+            </LoadingButton>
           </form>
           <div className="auth-form-links">
             <span>

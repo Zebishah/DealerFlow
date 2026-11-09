@@ -1,0 +1,7 @@
+.df-action-spinner{display:inline-flex;position:relative;align-items:center;justify-content:center;width:20px;height:20px;flex:0 0 20px;margin-right:9px;vertical-align:middle}
+.df-action-spinner__ring{position:absolute;inset:0;border:2px solid currentColor;border-bottom-color:transparent;border-radius:50%;animation:df-spin .8s linear infinite}
+.df-page-loader{display:flex;min-height:100vh;flex-direction:column;justify-content:center;align-items:center;gap:12px;background:var(--background,#f6f9fb);color:var(--text-primary,#193a49)}
+.df-page-loader__logo{width:76px;height:76px;display:flex;align-items:center;justify-content:center;border:2px solid #80b6d0;border-radius:24px;position:relative;color:#24749e}
+.df-page-loader__logo:before{content:"";position:absolute;inset:-8px;border-radius:30px;border:3px solid transparent;border-top-color:#24749e;animation:df-spin 1s linear infinite}
+.df-page-loader strong{font-size:1.3rem}.df-page-loader span{opacity:.7}
+@keyframes df-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.df-action-spinner__ring,.df-page-loader__logo:before{animation-duration:2.5s}}
