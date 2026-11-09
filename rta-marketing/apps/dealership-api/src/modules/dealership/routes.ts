@@ -215,9 +215,9 @@ dealershipRouter.get(
       db.select({
         total: sql<number>`count(*)::int`,
         funded: sql<number>`count(*) filter (where ${sales.status} = 'funded')::int`,
-        revenueCents: sql<number>`coalesce(sum(${sales.salePriceCents}) filter (where ${sales.status} = 'funded'), 0)::bigint`,
-        grossProfitCents: sql<number>`coalesce(sum(${sales.grossProfitCents}) filter (where ${sales.status} = 'funded'), 0)::bigint`,
-        commissionCents: sql<number>`coalesce(sum(${sales.commissionAmountCents}) filter (where ${sales.status} = 'funded'), 0)::bigint`,
+        revenueCents: sql<number>`coalesce(sum(${sales.salePriceCents}) filter (where ${sales.status} = 'funded'), 0)::bigint`.mapWith(Number),
+        grossProfitCents: sql<number>`coalesce(sum(${sales.grossProfitCents}) filter (where ${sales.status} = 'funded'), 0)::bigint`.mapWith(Number),
+        commissionCents: sql<number>`coalesce(sum(${sales.commissionAmountCents}) filter (where ${sales.status} = 'funded'), 0)::bigint`.mapWith(Number),
       }).from(sales).where(and(saleScope, sql`${sales.soldAt} >= ${monthStart}`)),
       db.select().from(monthlyTargets).where(and(
         eq(monthlyTargets.workspaceId, workspaceId),
