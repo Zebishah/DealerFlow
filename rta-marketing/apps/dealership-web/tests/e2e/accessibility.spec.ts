@@ -126,7 +126,7 @@ test("the desktop landing page empty state stays readable and accessible", async
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/v1/**", route => route.fulfill({ json: { data: { items: [], sources: [] }, page: { limit: 24, offset: 0, total: 0, hasMore: false } } }));
   await page.goto("/");
-  await expect(page.getByText("No current listings", { exact: true })).toBeVisible();
+  await expect(page.getByText("The collection is waiting for its next arrivals.", { exact: true })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations.filter(item => item.impact === "serious" || item.impact === "critical")
     .map(item => ({ rule: item.id, elements: item.nodes.map(node => ({ target: node.target, issue: node.failureSummary })) }))).toEqual([]);

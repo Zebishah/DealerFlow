@@ -44,7 +44,7 @@ async function mockAccount(page: Page, options: { mustChangePassword?: boolean; 
 async function openLogout(page: Page) {
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  return page.getByRole("alertdialog", { name: "Sign out of RTA?" });
+  return page.getByRole("alertdialog", { name: "Sign out of Dealer Flow?" });
 }
 
 test("logout asks for confirmation, supports cancellation, and keeps keyboard focus in the dialog", async ({ page }) => {
@@ -69,8 +69,8 @@ test("logout asks for confirmation, supports cancellation, and keeps keyboard fo
 test("confirmed logout blocks duplicates, clears assistant state, and protects the workspace after reload", async ({ page }) => {
   const fixture = await mockAccount(page);
   await page.goto("/app/settings");
-  await page.getByRole("button", { name: "Open RTA Assistant" }).click();
-  await page.getByLabel("Ask the RTA assistant").fill("My private workspace question");
+  await page.getByRole("button", { name: "Open Dealer Flow Assistant" }).click();
+  await page.getByLabel("Ask the Dealer Flow assistant").fill("My private workspace question");
   await page.getByRole("button", { name: "Send question" }).click();
   await expect(page.getByText("Private workspace conversation")).toBeVisible();
   await page.getByRole("button", { name: "Close assistant", exact: true }).click();
@@ -86,7 +86,7 @@ test("confirmed logout blocks duplicates, clears assistant state, and protects t
   await expect(page).toHaveURL(/\/login$/);
   expect(fixture.logoutCalls).toBe(1);
   expect(await page.evaluate(() => sessionStorage.getItem("rta-csrf-token"))).toBeNull();
-  await page.getByRole("button", { name: "Open RTA Assistant" }).click();
+  await page.getByRole("button", { name: "Open Dealer Flow Assistant" }).click();
   await expect(page.getByText("Private workspace conversation")).toHaveCount(0);
   await expect(page.getByText("My private workspace question")).toHaveCount(0);
   await page.goto("/app/settings");
@@ -141,7 +141,7 @@ test("temporary-password users can safely sign out from the required password di
   await page.keyboard.press("Escape");
   await expect(password).toBeVisible();
   await password.getByRole("button", { name: "Sign out instead" }).click();
-  const logout = page.getByRole("alertdialog", { name: "Sign out of RTA?" });
+  const logout = page.getByRole("alertdialog", { name: "Sign out of Dealer Flow?" });
   await expect(logout).toBeVisible();
   await logout.getByRole("button", { name: "Stay signed in" }).click();
   await expect(password).toBeVisible();

@@ -51,9 +51,9 @@ test("phone visitors can navigate, read the page, and expand the complete featur
 test("intelligence questions open the existing assistant with the chosen question", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Which leads need attention?", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Ask the RTA assistant" })).toHaveValue("Which leads need attention?");
+  await expect(page.getByRole("textbox", { name: "Ask the Dealer Flow assistant" })).toHaveValue("Which leads need attention?");
   await page.getByRole("button", { name: "Close assistant", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Ask the RTA assistant" })).not.toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Ask the Dealer Flow assistant" })).not.toBeVisible();
 });
 
 test("inventory failure provides a working retry without blocking the product page", async ({ page }) => {
