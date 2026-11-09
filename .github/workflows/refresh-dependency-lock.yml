@@ -22,6 +22,7 @@ jobs:
         env:
           PUPPETEER_SKIP_DOWNLOAD: 'true'
         run: |
+          npm install --package-lock-only --ignore-scripts
           npm ci
           npm audit fix --omit=dev || echo "Some security advisories require separate review"
           npm audit --workspace=@rta/dealership-web --omit=dev --audit-level=high || true
