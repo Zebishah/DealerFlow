@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../auth/AuthContext";
 import { WorkflowModal } from "../components/WorkflowModal";
 import { LoadingButton } from "../components/LoadingButton";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { BootstrapData, EmployeeDocument } from "../types/domain";
 import { ErrorState, PageSkeleton } from "./OverviewPage";
 
@@ -203,7 +203,7 @@ export function DocumentsPage() {
     </WorkflowModal>
     <WorkflowModal open={Boolean(deletingDocument)} role="alertdialog" className="confirmation-modal" eyebrow="DELETE DOCUMENT" title="Delete this document?" description="This removes the document from the register. This action cannot be undone." busy={remove.isPending} initialFocusRef={deleteCancel} onClose={() => setDeletingDocument(null)}>
       <div className="confirmation-content"><p className="confirmation-file">{deletingDocument?.fileName}</p>
-        {remove.isError && <p className="form-error" role="alert">{remove.error.message}</p>}
+        {remove.isError && <p className="form-error" role="alert">{remove.error instanceof ApiError && remove.error.status >= 400 && remove.error.status < 500 ? remove.error.message : "We couldn’t delete this document. Please try again."}</p>}
         <footer className="modal-actions"><button ref={deleteCancel} type="button" className="filter-button" disabled={remove.isPending} onClick={() => setDeletingDocument(null)}>Keep document</button><LoadingButton type="button" className="primary-action danger-action" loading={remove.isPending} loadingLabel="Deleting…" onClick={() => { if (deletingDocument && !remove.isPending) remove.mutate(deletingDocument.id); }}><Trash2 size={16} aria-hidden="true" />Delete document</LoadingButton></footer>
       </div>
     </WorkflowModal>
