@@ -5,6 +5,7 @@ import {
   resolveLegacyPath,
 } from "./app/routes";
 import { Suspense } from "react";
+import { DealerFlowPageLoader } from "./components/LoadingButton";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LandingPage } from "./pages/LandingPage";
@@ -41,9 +42,7 @@ export function App() {
   if (loading) {
     return (
       <div className="boot-screen" role="status" aria-live="polite">
-        <span className="boot-logo">Dealer Flow</span>
-        <i />
-        <p>Preparing your workspace…</p>
+        <DealerFlowPageLoader message="Preparing your workspace…" />
       </div>
     );
   }
@@ -63,13 +62,7 @@ export function App() {
   return (
     <AppShell>
       <Suspense
-        fallback={
-          <div className="boot-screen route-loading">
-            <span className="boot-logo">Dealer Flow</span>
-            <i />
-            <p>Loading workspace view…</p>
-          </div>
-        }
+        fallback={<DealerFlowPageLoader message="Loading workspace view…" />}
       >
         <Page />
       </Suspense>
