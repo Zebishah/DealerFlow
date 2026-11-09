@@ -42,6 +42,15 @@ jobs:
       - run: npm run typecheck --workspace=@rta/dealership-api
       - run: npm run lint --workspace=@rta/dealership-api
       - run: cp apps/dealership-api/.env.test.example apps/dealership-api/.env.test
+      # The isolated CI database also needs the shared scraping tables referenced
+      # by dealership migrations. Keep the two migration histories independent.
+      - name: Prepare shared scraping tables for test database
+        env:
+          PGPASSWORD: rta_test
+        run: |
+          for migration in packages/db/migrations/*.sql; do
+            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U rta_test -d rta_test -f "$migration"
+          done
       - run: node --env-file=apps/dealership-api/.env.test --import tsx apps/dealership-api/src/db/migrate.ts
       - run: npm test --workspace=@rta/dealership-api
         env:
