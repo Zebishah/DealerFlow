@@ -138,9 +138,9 @@ function StudioHero() {
   return (
     <section className="studio-hero studio-frame" id="top" aria-labelledby="studio-title">
       <div className="studio-hero-copy">
-        <span className="studio-eyebrow"><i /> THE DEALERSHIP. CONNECTED.</span>
+        <span className="studio-eyebrow"><i /> AUTOMOTIVE CRM & VEHICLE INTELLIGENCE</span>
         <h1 id="studio-title">Great deals<br />start with<br /><span>real connections.</span></h1>
-        <p>From the first enquiry to handing over the keys. Dealer Flow connects your leads, sales, people, and vehicles in one clear workspace.</p>
+        <p>Dealer Flow is a CRM for automotive dealerships. Manage leads, follow-ups, sales, and team performance, and research vehicles from the same workspace.</p>
         <div className="studio-actions"><Link className="studio-button studio-button--dark" to="/login">Step inside Dealer Flow <ArrowUpRight size={19} /></Link><a className="studio-text-link" href="#solutions">See how it works <ArrowDown size={17} /></a></div>
         <span className="studio-hero-note">Built for dealership teams. Open for you to explore.</span>
       </div>

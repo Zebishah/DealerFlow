@@ -166,7 +166,7 @@ test("viewer is redirected away from the admin-only source controls", async ({ p
   await mockRecruiterApi(page, "viewer");
   await page.goto("/app/source-control");
   await expect(page).toHaveURL(/\/app\/overview$/);
-  await expect(page.getByRole("heading", { name: /Your dealership is moving with purpose|A clear view of team readiness/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your dealership pipeline at a glance|A clear view of team readiness/ })).toBeVisible();
 });
 
 test("employee sees today operations and can accept a VA handoff", async ({ page }) => {

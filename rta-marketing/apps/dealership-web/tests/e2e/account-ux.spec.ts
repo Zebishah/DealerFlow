@@ -99,7 +99,7 @@ test("logout failures stay actionable and an expired session can still be signed
   await page.goto("/app/settings");
   const dialog = await openLogout(page);
   await dialog.getByRole("button", { name: "Sign out", exact: true }).click();
-  await expect(dialog.getByRole("alert")).toContainText("Connection interrupted");
+  await expect(dialog.getByRole("alert")).toHaveText("We couldn’t finish signing you out. Please try again.");
   await expect(page).toHaveURL(/\/app\/settings$/);
   await expect(dialog.getByRole("button", { name: "Sign out", exact: true })).toBeEnabled();
   fixture.logoutStatus = 401;
@@ -161,7 +161,7 @@ test("deleting a document requires confirmation and keeps failed deletions retry
   expect(fixture.deleteCalls).toBe(0);
   await page.getByRole("button", { name: "Delete insurance-policy.pdf" }).click();
   await dialog.getByRole("button", { name: "Delete document" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("Could not delete");
+  await expect(dialog.getByRole("alert")).toHaveText("We couldn’t delete this document. Please try again.");
   await dialog.getByRole("button", { name: "Delete document" }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText("No compliance documents")).toBeVisible();

@@ -87,7 +87,7 @@ export function LoginPage() {
           <div>
             <span className="eyebrow">WELCOME BACK</span>
             <h2>Sign in to your workspace</h2>
-            <p>Sign in to your dealership workspace and vehicle intelligence.</p>
+            <p>Manage dealership leads, sales, and vehicle research in Dealer Flow.</p>
           </div>
           <form onSubmit={submit} aria-busy={submitting}>
             <label>

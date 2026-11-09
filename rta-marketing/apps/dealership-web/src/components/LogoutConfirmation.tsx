@@ -23,8 +23,8 @@ export function LogoutConfirmation({ onClose, returnFocusRef }: { onClose(): voi
       await logout();
       navigate("/login", { replace: true });
       toast.success("You’ve been signed out.");
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not sign out. Please try again.");
+    } catch {
+      setError("We couldn’t finish signing you out. Please try again.");
       setBusy(false);
     } finally {
       inFlight.current = false;
@@ -33,7 +33,7 @@ export function LogoutConfirmation({ onClose, returnFocusRef }: { onClose(): voi
 
   return <WorkflowModal open role="alertdialog" className="confirmation-modal" eyebrow="ACCOUNT" title="Sign out of Dealer Flow?" description="You’ll return to the sign-in page. Any unsaved changes on this page will be lost." busy={busy} onClose={onClose} initialFocusRef={cancel} returnFocusRef={returnFocusRef}>
     <div className="confirmation-content">
-      {error && <p className="form-error" role="alert">{error} Please try again to finish signing out.</p>}
+      {error && <p className="form-error" role="alert">{error}</p>}
       <footer className="modal-actions">
         <button ref={cancel} type="button" className="filter-button" disabled={busy} onClick={onClose}>Stay signed in</button>
         <LoadingButton type="button" loading={busy} loadingLabel="Signing out…" onClick={() => void signOut()}><LogOut size={16} aria-hidden="true" />Sign out</LoadingButton>
