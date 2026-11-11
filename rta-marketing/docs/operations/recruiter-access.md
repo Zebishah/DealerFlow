@@ -22,11 +22,11 @@ ADMIN_NOTIFICATION_EMAIL=admin@your-domain.example
 CORS_ORIGINS=https://rta-dealership-web.vercel.app,https://rta-scraping-web.vercel.app
 
 DEMO_MODE=true
-DEMO_RECRUITER_EMAIL=recruiter.demo@rta.local
-DEMO_RECRUITER_PASSWORD=the_same_password_as_the_seeded_recruiter
+DEMO_RECRUITER_EMAIL=<demo-account-email>
+DEMO_RECRUITER_PASSWORD=<supply-through-secure-environment>
 ```
 
-`RESEND_API_KEY` is server-only. The implementation calls Resend's HTTPS endpoint `https://api.resend.com/emails` with Bearer authentication; no SMTP credentials or browser-side email key are required.
+The demo account password is server-side configuration. If a password was previously committed, rotate it anywhere it may still be active; removing it from this document does not remove it from Git history.\n\n`RESEND_API_KEY` is server-only. The implementation calls Resend's HTTPS endpoint `https://api.resend.com/emails` with Bearer authentication; no SMTP credentials or browser-side email key are required.
 
 Use an `EMAIL_FROM` address on a domain verified in your Resend account.
 The `onboarding@resend.dev` sender is for testing and can only deliver to the
@@ -41,12 +41,12 @@ URLs keep their existing meanings. Vercel needs no Resend credentials.
 
 Provider reference: [Resend Send Email API](https://resend.com/docs/api-reference/emails/send-email).
 
-For a fresh demo database, provide the seed values while explicitly running the seed command. Render does not run `db:seed` automatically when these variables are saved:
+For a fresh demo database, provide the seed values securely at seed time. Never commit or publish actual demo account passwords in documentation or configuration examples. Render does not run `db:seed` automatically when these variables are saved:
 
 ```ini
 SEED_DEMO_DATA=true
-SEED_DEMO_PASSWORD=the_same_value_as_DEMO_RECRUITER_PASSWORD
-SEED_RECRUITER_EMAIL=recruiter.demo@rta.local
+SEED_DEMO_PASSWORD=<supply-through-secure-environment>
+SEED_RECRUITER_EMAIL=<demo-account-email>
 ```
 
 ## Vercel variables
