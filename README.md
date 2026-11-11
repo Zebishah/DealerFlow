@@ -22,9 +22,9 @@ Start with the [project guide](rta-marketing/README.md), then see the
 
 ## Live demo
 
-- Recruiter access: use the seeded demo flow described in
-  [`docs/PORTFOLIO.md`](rta-marketing/docs/PORTFOLIO.md); it uses sanitized data
-  and role-limited access.
+**[Open the DealerFlow live demo](https://dealer-flow-kappa.vercel.app/)** · [Architecture](rta-marketing/docs/architecture/current-production.md)
+
+The recruiter demo described in the [portfolio brief](rta-marketing/docs/PORTFOLIO.md) uses sanitized data and role-limited access.
 
 ## Why this project matters
 
@@ -45,11 +45,9 @@ inspect Analytics and Vehicle intelligence, then open Scraping workspace to see
 source health and safe System Health telemetry. The architecture docs explain
 which integrations are live and which remain reference-only.
 
-## Screenshots
+## Product walkthrough
 
-Capture these final deployed states manually: Overview dashboard, Vehicle
-intelligence, Analytics, and Operations/source health. The capture checklist is
-in [`docs/screenshots/README.md`](rta-marketing/docs/screenshots/README.md).
+Use the [live demo](https://dealer-flow-kappa.vercel.app/) to explore the overview dashboard, vehicle intelligence, analytics, and source-health workspace. Screenshots are not included until recruiter-safe captures have been verified; see the [capture guidelines](rta-marketing/docs/screenshots/README.md).
 
 ## Testing / quality
 
